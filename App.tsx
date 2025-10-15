@@ -170,8 +170,11 @@ export default function App() {
         <AIAssistant
           currentPage={currentPage}
           userContext={{
-            budget: recommendedBuild?.budget,
-            useCase: recommendedBuild?.primaryUse,
+            budget:
+              recommendedBuild?.budget !== undefined
+                ? Number(recommendedBuild.budget)
+                : undefined,
+            useCase: recommendedBuild?.useCase,
           }}
         />
       )}
