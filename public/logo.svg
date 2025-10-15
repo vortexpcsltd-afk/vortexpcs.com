@@ -1,0 +1,31 @@
+<svg width="180" height="60" viewBox="0 0 180 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background glow -->
+  <defs>
+    <linearGradient id="vortexGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0099ff;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- V icon with vortex effect -->
+  <g filter="url(#glow)">
+    <path d="M20 10 L30 35 L40 10" stroke="url(#vortexGradient)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="30" cy="25" r="12" stroke="url(#vortexGradient)" stroke-width="2" fill="none" opacity="0.3"/>
+    <circle cx="30" cy="25" r="8" stroke="url(#vortexGradient)" stroke-width="1.5" fill="none" opacity="0.2"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="50" y="30" font-family="'Arial', sans-serif" font-size="20" font-weight="bold" fill="#ffffff">
+    Vortex<tspan fill="url(#vortexGradient)">PCs</tspan>
+  </text>
+  <text x="50" y="42" font-family="'Arial', sans-serif" font-size="8" fill="#00d4ff" letter-spacing="2">
+    CUSTOM GAMING SYSTEMS
+  </text>
+</svg>
