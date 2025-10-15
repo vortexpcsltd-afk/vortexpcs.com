@@ -1,25 +1,30 @@
-import { useState } from 'react';
-import { Menu, X, User, ShieldCheck, ShoppingCart } from 'lucide-react';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-const logoImage = '/logo.svg';
+import { useState } from "react";
+import { Menu, X, User, ShieldCheck, ShoppingCart } from "lucide-react";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+const logoImage = "/vortexpcs-logo-light.png";
 
 interface NavigationProps {
   currentPage: string;
   onNavigate: (page: string) => void;
-  userRole?: 'customer' | 'admin' | null;
+  userRole?: "customer" | "admin" | null;
   cartItemCount?: number;
 }
 
-export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 0 }: NavigationProps) {
+export function Navigation({
+  currentPage,
+  onNavigate,
+  userRole,
+  cartItemCount = 0,
+}: NavigationProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { name: 'Home', path: 'home' },
-    { name: 'PC Finder', path: 'finder' },
-    { name: 'Build Your PC', path: 'configurator' },
-    { name: 'Collect & Return', path: 'repair' },
-    { name: 'Contact', path: 'contact' },
+    { name: "Home", path: "home" },
+    { name: "PC Finder", path: "finder" },
+    { name: "Build Your PC", path: "configurator" },
+    { name: "Collect & Return", path: "repair" },
+    { name: "Contact", path: "contact" },
   ];
 
   return (
@@ -28,12 +33,12 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => onNavigate("home")}
             className="flex items-center group relative"
           >
-            <img 
-              src={logoImage} 
-              alt="VortexPCs Logo" 
+            <img
+              src={logoImage}
+              alt="VortexPCs Logo"
               className="h-14 w-auto transition-all group-hover:scale-105 relative z-10"
             />
             <div className="absolute inset-0 blur-xl opacity-30 group-hover:opacity-50 transition-opacity bg-gradient-to-r from-cyan-400 to-blue-500"></div>
@@ -47,8 +52,8 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
                 onClick={() => onNavigate(item.path)}
                 className={`px-4 py-2 rounded-lg transition-all ${
                   currentPage === item.path
-                    ? 'bg-white/10 text-white'
-                    : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                    ? "bg-white/10 text-white"
+                    : "text-gray-300 hover:bg-white/5 hover:text-white"
                 }`}
               >
                 {item.name}
@@ -60,7 +65,7 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
           <div className="hidden md:flex items-center space-x-3">
             {/* Shopping Cart */}
             <Button
-              onClick={() => onNavigate('cart')}
+              onClick={() => onNavigate("cart")}
               variant="ghost"
               className="relative"
             >
@@ -72,18 +77,18 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
               )}
             </Button>
 
-            {userRole === 'admin' ? (
+            {userRole === "admin" ? (
               <Button
-                onClick={() => onNavigate('admin')}
+                onClick={() => onNavigate("admin")}
                 variant="outline"
                 className="border-cyan-500/30 hover:border-cyan-500/50 hover:bg-cyan-500/10"
               >
                 <ShieldCheck className="w-4 h-4 mr-2" />
                 Admin
               </Button>
-            ) : userRole === 'customer' ? (
+            ) : userRole === "customer" ? (
               <Button
-                onClick={() => onNavigate('dashboard')}
+                onClick={() => onNavigate("dashboard")}
                 variant="outline"
                 className="border-blue-500/30 hover:border-blue-500/50 hover:bg-blue-500/10"
               >
@@ -93,14 +98,14 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
             ) : (
               <>
                 <Button
-                  onClick={() => onNavigate('login')}
+                  onClick={() => onNavigate("login")}
                   variant="ghost"
                   className="hover:bg-white/5"
                 >
                   Sign In
                 </Button>
                 <Button
-                  onClick={() => onNavigate('login')}
+                  onClick={() => onNavigate("login")}
                   className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 shadow-lg shadow-cyan-400/20"
                 >
                   Get Started
@@ -114,7 +119,11 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 rounded-lg hover:bg-white/5"
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileMenuOpen ? (
+              <X className="w-6 h-6" />
+            ) : (
+              <Menu className="w-6 h-6" />
+            )}
           </button>
         </div>
       </div>
@@ -132,18 +141,18 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
                 }}
                 className={`w-full text-left px-4 py-3 rounded-lg transition-all ${
                   currentPage === item.path
-                    ? 'bg-white/10 text-white'
-                    : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                    ? "bg-white/10 text-white"
+                    : "text-gray-300 hover:bg-white/5 hover:text-white"
                 }`}
               >
                 {item.name}
               </button>
             ))}
             <div className="pt-4 border-t border-white/10 space-y-2">
-              {userRole === 'admin' ? (
+              {userRole === "admin" ? (
                 <Button
                   onClick={() => {
-                    onNavigate('admin');
+                    onNavigate("admin");
                     setMobileMenuOpen(false);
                   }}
                   variant="outline"
@@ -152,10 +161,10 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
                   <ShieldCheck className="w-4 h-4 mr-2" />
                   Admin Dashboard
                 </Button>
-              ) : userRole === 'customer' ? (
+              ) : userRole === "customer" ? (
                 <Button
                   onClick={() => {
-                    onNavigate('dashboard');
+                    onNavigate("dashboard");
                     setMobileMenuOpen(false);
                   }}
                   variant="outline"
@@ -168,7 +177,7 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
                 <>
                   <Button
                     onClick={() => {
-                      onNavigate('login');
+                      onNavigate("login");
                       setMobileMenuOpen(false);
                     }}
                     variant="outline"
@@ -178,7 +187,7 @@ export function Navigation({ currentPage, onNavigate, userRole, cartItemCount = 
                   </Button>
                   <Button
                     onClick={() => {
-                      onNavigate('login');
+                      onNavigate("login");
                       setMobileMenuOpen(false);
                     }}
                     className="w-full bg-gradient-to-r from-cyan-400 to-blue-500"
