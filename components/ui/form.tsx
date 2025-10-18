@@ -11,7 +11,11 @@ import {
   type ControllerProps,
   type FieldPath,
   type FieldValues,
+<<<<<<< HEAD
 } from "react-hook-form@7.55.0";
+=======
+} from "react-hook-form";
+>>>>>>> 037d06695c2ff190d50078afab895a9c0d22b581
 
 import { cn } from "./utils";
 import { Label } from "./label";

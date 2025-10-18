@@ -1,14 +1,19 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+<<<<<<< HEAD
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "vite",
+=======
+  "framework": null,
+>>>>>>> 037d06695c2ff190d50078afab895a9c0d22b581
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
+<<<<<<< HEAD
   ],
   "headers": [
     {
@@ -20,5 +25,7 @@
         }
       ]
     }
+=======
+>>>>>>> 037d06695c2ff190d50078afab895a9c0d22b581
   ]
 }

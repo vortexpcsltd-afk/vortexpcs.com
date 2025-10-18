@@ -42,7 +42,11 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <p
       data-slot="card-description"
+<<<<<<< HEAD
       className={cn("text-muted-foreground", className)}
+=======
+      className={cn("text-gray-400", className)}
+>>>>>>> 037d06695c2ff190d50078afab895a9c0d22b581
       {...props}
     />
   );
