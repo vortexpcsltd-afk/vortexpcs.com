@@ -5,35 +5,12 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-<<<<<<< HEAD
-
-    /* Bundler mode */
-=======
->>>>>>> 037d06695c2ff190d50078afab895a9c0d22b581
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-<<<<<<< HEAD
-
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-
-    /* Path aliases */
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@/components/*": ["./components/*"],
-      "@/styles/*": ["./styles/*"]
-    }
-  },
-  "include": ["src", "components", "styles", "App.tsx"],
-=======
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
@@ -42,10 +19,11 @@
     "esModuleInterop": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./components/*"]
+      "@/*": ["./src/*"],
+      "@/components/*": ["./components/*"],
+      "@/styles/*": ["./styles/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx"],
->>>>>>> 037d06695c2ff190d50078afab895a9c0d22b581
+  "include": ["src", "components", "styles"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
