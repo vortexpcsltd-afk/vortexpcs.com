@@ -33,6 +33,7 @@ import { AboutUs } from "./components/AboutUs";
 import { Contact } from "./components/Contact";
 import { CookieConsentModern } from "./components/CookieConsentModern";
 import { Footer } from "./components/Footer";
+import { FooterClean } from "./components/FooterClean";
 import { LoginDialog } from "./components/LoginDialog";
 import { ShoppingCartModal } from "./components/ShoppingCartModal";
 import { HomePage } from "./components/HomePage";
@@ -383,7 +384,7 @@ export default function App() {
         <main className="min-h-screen pb-20 pt-24">{renderCurrentView()}</main>
 
         {/* Footer */}
-        <Footer onNavigate={setCurrentView} />
+        <FooterClean onNavigate={setCurrentView} />
 
         {/* Cookie Consent Banner */}
         <CookieConsentModern onNavigate={setCurrentView} />
