@@ -1,12 +1,12 @@
 {
-  "version": "2025-10-19-07",
-  "timestamp": "2025-10-19T21:00:00Z",
-  "build": "beautiful-cookie-banner-restored",
+  "version": "2025-10-19-08",
+  "timestamp": "2025-10-19T21:30:00Z",
+  "build": "homepage-footer-external-assets-fix",
   "description": "PCFinder cache bust - Complete blue glassmorphism theme with custom assets",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-FILE-RENAME",
     "CookieConsentModern": "beautiful-animated-design-v1-restored",
-    "HomePage": "clean-no-rgb-v2-custom-bg",
+    "HomePage": "blue-theme-external-bg-v3-fixed",
     "Footer": "glassmorphism-updated-v2-custom-logo",
     "RepairService": "uk-service-v2",
     "TermsPage": "separate-component-v2",
@@ -37,6 +37,7 @@
     "CACHE BUST: PCFinder component version 04 - force CDN refresh",
     "FILE RENAME: PCFinder.tsx → PCFinderBlue.tsx (v05) - ultimate cache bust",
     "MODERN COOKIE BAR: Updated to clean glassmorphism design with proper localStorage keys",
-    "BEAUTIFUL COOKIE BANNER RESTORED: Brought back animated cookie icon with glow effects and sophisticated design"
+    "BEAUTIFUL COOKIE BANNER RESTORED: Brought back animated cookie icon with glow effects and sophisticated design",
+    "HOMEPAGE-FOOTER FIX: Updated HomePage to use external background URL for cache-busting"
   ]
 }

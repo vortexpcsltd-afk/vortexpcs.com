@@ -13,7 +13,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-const heroBackground = "/gaming-keyboard.jpeg";
+const heroBackground = "https://vortexpcs.com/gaming-keyboard.jpeg";
 
 interface HomePageProps {
   setCurrentView: (page: string) => void;
