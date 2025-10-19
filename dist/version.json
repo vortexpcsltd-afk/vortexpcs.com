@@ -1,0 +1,39 @@
+{
+  "version": "2025-10-19-05",
+  "timestamp": "2025-10-19T19:00:00Z",
+  "build": "pcfinder-file-rename-ultimate-fix",
+  "description": "PCFinder cache bust - Complete blue glassmorphism theme with custom assets",
+  "components": {
+    "PCFinder": "blue-glassmorphism-v5-FILE-RENAME",
+    "HomePage": "clean-no-rgb-v2-custom-bg",
+    "Footer": "glassmorphism-updated-v2-custom-logo",
+    "RepairService": "uk-service-v2",
+    "TermsPage": "separate-component-v2",
+    "PrivacyPage": "separate-component-v2",
+    "CookiePolicyPage": "separate-component-v2"
+  },
+  "theme": {
+    "primary": "#0ea5e9",
+    "secondary": "#2563eb",
+    "accent": "#06b6d4",
+    "background": "#000000",
+    "cards": "glassmorphism-white/5-backdrop-blur-xl"
+  },
+  "assets": {
+    "logo": "https://www.vortexpcs.com/vortexpcs-logo.png",
+    "heroBackground": "https://vortexpcs.com/gaming-keyboard.jpeg",
+    "favicon": "https://www.vortexpcs.com/vortexpcs-logo.png"
+  },
+  "changes": [
+    "Removed all RGB rainbow effects",
+    "Replaced with consistent blue theme",
+    "Updated all cards to glassmorphism",
+    "Cleaned App.tsx structure",
+    "Separated legal pages into components",
+    "Updated Footer to 4-column layout",
+    "Updated logo to custom Vortex PCs logo URL",
+    "Updated hero background to custom gaming keyboard image",
+    "CACHE BUST: PCFinder component version 04 - force CDN refresh",
+    "FILE RENAME: PCFinder.tsx → PCFinderBlue.tsx (v05) - ultimate cache bust"
+  ]
+}

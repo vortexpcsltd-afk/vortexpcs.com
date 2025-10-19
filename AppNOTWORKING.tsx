@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { Button } from "./components/ui/button";
 import { Card } from "./components/ui/card";
 import { Badge } from "./components/ui/badge";
@@ -23,7 +23,7 @@ import {
 } from "./components/ui/select";
 import { Checkbox } from "./components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
-import { PCFinder } from "./components/PCFinderBlue";
+import { PCFinder } from "./components/PCFinder";
 import { PCBuilder } from "./components/PCBuilder";
 import { AIAssistant } from "./components/AIAssistant";
 import { MemberArea } from "./components/MemberArea";
@@ -31,7 +31,6 @@ import { AdminPanel } from "./components/AdminPanel";
 import { RepairService } from "./components/RepairService";
 import { AboutUs } from "./components/AboutUs";
 import { Contact } from "./components/Contact";
-import { CookieBar } from "./components/CookieBar";
 import { Footer } from "./components/Footer";
 import { LoginDialog } from "./components/LoginDialog";
 import { ShoppingCartModal } from "./components/ShoppingCartModal";
@@ -39,6 +38,7 @@ import { HomePage } from "./components/HomePage";
 import { TermsPage } from "./components/TermsPage";
 import { PrivacyPage } from "./components/PrivacyPage";
 import { CookiePolicyPage } from "./components/CookiePolicyPage";
+import { CookieConsentBanner } from "./components/CookieConsentBanner";
 import {
   Monitor,
   Cpu,
@@ -48,6 +48,7 @@ import {
   Clock,
   Users,
   Settings,
+  MessageCircle,
   Wrench,
   Star,
   CheckCircle,
@@ -64,14 +65,16 @@ import {
   Info,
   Phone,
 } from "lucide-react";
-const vortexLogo = "https://www.vortexpcs.com/vortexpcs-logo.png";
-const heroBackground = "https://vortexpcs.com/gaming-keyboard.jpeg";
+const vortexLogo = "/vortexpcs-logo.png";
+const heroBackground = "/gaming-keyboard.jpeg";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("home");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [showCookieConsent, setShowCookieConsent] = useState(false);
   const [recommendedBuild, setRecommendedBuild] = useState(null);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [loginTab, setLoginTab] = useState("login");
@@ -112,7 +115,15 @@ export default function App() {
       }
     };
 
+    const checkCookieConsent = () => {
+      const cookieConsent = localStorage.getItem("vortex_cookie_consent");
+      if (!cookieConsent) {
+        setShowCookieConsent(true);
+      }
+    };
+
     checkAuth();
+    checkCookieConsent();
   }, []);
 
   const navigation = [
@@ -225,12 +236,12 @@ export default function App() {
                 className="cursor-pointer group"
                 onClick={() => setCurrentView("home")}
               >
-                <div className="relative w-24 h-24 md:w-32 md:h-32 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
+                <div className="relative w-48 h-48 md:w-64 md:h-64 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
                   <img
                     src={vortexLogo}
                     alt="Vortex PCs"
-                    width="80"
-                    height="80"
+                    width="160"
+                    height="160"
                     loading="eager"
                     className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(14,165,233,0.6)] group-hover:drop-shadow-[0_0_32px_rgba(14,165,233,0.8)] transition-all"
                   />
@@ -386,9 +397,21 @@ export default function App() {
         <Footer onNavigate={setCurrentView} />
 
         {/* Cookie Consent Banner */}
-        <CookieBar onNavigate={setCurrentView} />
+        {showCookieConsent && (
+          <CookieConsentBanner
+            onAccept={() => {
+              localStorage.setItem("vortex_cookie_consent", "accepted");
+              setShowCookieConsent(false);
+            }}
+            onDecline={() => {
+              localStorage.setItem("vortex_cookie_consent", "declined");
+              setShowCookieConsent(false);
+            }}
+            onSettings={() => setCurrentView("cookies")}
+          />
+        )}
 
-        {/* AI Assistant Modal */}
+        {/* AI Assistant */}
         <AIAssistant
           currentPage={currentView}
           userContext={{
