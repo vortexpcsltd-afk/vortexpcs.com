@@ -65,9 +65,8 @@ import {
   Info,
   Phone,
 } from "lucide-react";
-const vortexLogo = "/vortex-logo.png";
-const heroBackground =
-  "https://images.unsplash.com/photo-1587202372634-32705e3bf49c?w=1920&q=80";
+const vortexLogo = "/vortexpcs-logo.png";
+const heroBackground = "/gaming-keyboard.jpeg";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("home");
@@ -237,12 +236,12 @@ export default function App() {
                 className="cursor-pointer group"
                 onClick={() => setCurrentView("home")}
               >
-                <div className="relative w-24 h-24 md:w-32 md:h-32 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
+                <div className="relative w-48 h-48 md:w-64 md:h-64 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
                   <img
                     src={vortexLogo}
                     alt="Vortex PCs"
-                    width="80"
-                    height="80"
+                    width="160"
+                    height="160"
                     loading="eager"
                     className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(14,165,233,0.6)] group-hover:drop-shadow-[0_0_32px_rgba(14,165,233,0.8)] transition-all"
                   />

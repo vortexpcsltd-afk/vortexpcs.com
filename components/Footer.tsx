@@ -1,367 +1,240 @@
 import React from "react";
+import { Button } from "./ui/button";
+import { Separator } from "./ui/separator";
 import {
+  Cpu,
   Mail,
   Phone,
   MapPin,
-  Clock,
   Facebook,
   Twitter,
   Instagram,
-  Linkedin,
   Youtube,
   Shield,
+  Clock,
   Award,
-  Zap,
-  ChevronRight,
+  Users,
 } from "lucide-react";
-const vortexLogo = "/vortexpcs-logo.png";
 
 interface FooterProps {
-  onNavigate: (view: string) => void;
+  onNavigate: (page: string) => void;
 }
 
 export function Footer({ onNavigate }: FooterProps) {
   const currentYear = new Date().getFullYear();
 
-  const productLinks = [
-    { label: "PC Finder", view: "pc-finder" },
-    { label: "Custom PC Builder", view: "pc-builder" },
-    { label: "Pre-Built Systems", view: "home" },
-    { label: "Gaming PCs", view: "home" },
-    { label: "Workstation PCs", view: "home" },
+  const footerSections = [
+    {
+      title: "Services",
+      links: [
+        { label: "PC Finder", id: "pc-finder" },
+        { label: "PC Builder", id: "pc-builder" },
+        { label: "PC Configurator", id: "configurator" },
+        { label: "Repair Service", id: "repair" },
+      ],
+    },
+    {
+      title: "Company",
+      links: [
+        { label: "About Us", id: "about" },
+        { label: "Contact", id: "contact" },
+        { label: "Privacy Policy", id: "privacy" },
+        { label: "Terms of Service", id: "terms" },
+      ],
+    },
+    {
+      title: "Support",
+      links: [
+        { label: "Help Center", id: "help" },
+        { label: "Warranty", id: "warranty" },
+        { label: "Returns", id: "returns" },
+        { label: "Technical Support", id: "tech-support" },
+      ],
+    },
   ];
 
-  const supportLinks = [
-    { label: "Repair Service", view: "repair" },
-    { label: "Warranty Information", view: "home" },
-    { label: "Technical Support", view: "home" },
-    { label: "FAQs", view: "home" },
-    { label: "Build Status", view: "member" },
+  const socialLinks = [
+    { icon: Facebook, label: "Facebook", href: "#" },
+    { icon: Twitter, label: "Twitter", href: "#" },
+    { icon: Instagram, label: "Instagram", href: "#" },
+    { icon: Youtube, label: "YouTube", href: "#" },
   ];
 
-  const companyLinks = [
-    { label: "About Us", view: "about" },
-    { label: "Our Process", view: "home" },
-    { label: "Quality Standards", view: "home" },
-    { label: "Member Area", view: "member" },
-    { label: "Contact Us", view: "contact" },
-  ];
-
-  const legalLinks = [
-    { label: "Terms of Service", view: "terms" },
-    { label: "Privacy Policy", view: "privacy" },
-    { label: "Cookie Policy", view: "cookies" },
-    { label: "Returns & Refunds", view: "home" },
+  const trustSignals = [
+    { icon: Shield, label: "3-Year Warranty", desc: "Comprehensive coverage" },
+    { icon: Clock, label: "5-Day Builds", desc: "Fast turnaround" },
+    { icon: Award, label: "Premium Parts", desc: "Top-tier components" },
+    { icon: Users, label: "Expert Support", desc: "Dedicated team" },
   ];
 
   return (
-    <footer className="relative mt-32 overflow-hidden">
-      {/* Premium gradient background with layers */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black via-slate-950 to-black"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/30 via-transparent to-transparent"></div>
+    <footer className="relative bg-slate-950/90 backdrop-blur-2xl border-t border-white/10 overflow-hidden">
+      {/* Premium gradient accent line */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/60 to-transparent"></div>
 
-      {/* Animated gradient orbs */}
-      <div className="absolute -top-40 left-1/4 w-96 h-96 bg-sky-500/10 rounded-full blur-[100px] animate-pulse"></div>
-      <div
-        className="absolute top-60 right-1/4 w-80 h-80 bg-blue-600/10 rounded-full blur-[100px] animate-pulse"
-        style={{ animationDelay: "2s" }}
-      ></div>
-      <div
-        className="absolute bottom-40 left-1/3 w-72 h-72 bg-cyan-500/10 rounded-full blur-[100px] animate-pulse"
-        style={{ animationDelay: "4s" }}
-      ></div>
+      {/* Background effects */}
+      <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 via-transparent to-blue-500/5"></div>
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl opacity-30"></div>
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl opacity-30"></div>
 
-      {/* Top border glow */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/50 to-transparent"></div>
+      <div className="container mx-auto px-4 relative z-10">
+        {/* Trust Signals Section */}
+        <div className="py-16 border-b border-white/5">
+          <div className="text-center mb-12">
+            <h3 className="text-2xl font-bold bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent mb-4">
+              Why Choose Vortex PCs?
+            </h3>
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              We're committed to delivering the ultimate PC building experience
+              with unmatched quality and service.
+            </p>
+          </div>
 
-      <div className="relative z-10">
-        {/* Premium hero section */}
-        <div className="border-b border-white/5">
-          {/* Reduced vertical padding */}
-          <div className="container mx-auto px-4 md:px-6 lg:px-8 py-4">
-            <div className="max-w-4xl mx-auto text-center">
-              {/* Logo */}
-              <div className="flex justify-center mb-[2px]">
-                <div className="relative group">
-                  <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 via-blue-500/20 to-cyan-500/20 rounded-2xl blur-3xl group-hover:blur-[64px] transition-all duration-500"></div>
-                  {/* Increased logo container and image size by 25% */}
-                  <div className="relative w-40 md:w-60 md:h-60 lg:w-[300px] transition-transform duration-500 group-hover:scale-110">
-                    <img
-                      src={vortexLogo}
-                      alt="Vortex PCs"
-                      width="300"
-                      loading="lazy"
-                      className="w-full h-full object-contain drop-shadow-[0_0_40px_rgba(14,165,233,0.7)]"
-                    />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            {trustSignals.map((signal, index) => (
+              <div key={index} className="relative group">
+                {/* Hover glow */}
+                <div className="absolute -inset-2 bg-gradient-to-r from-sky-500/20 to-blue-500/20 opacity-0 group-hover:opacity-100 blur-xl transition-all duration-500 rounded-2xl"></div>
+
+                <div className="relative bg-gradient-to-br from-white/5 to-white/0 border border-white/10 rounded-2xl p-6 text-center hover:border-sky-500/30 transition-all duration-500 group-hover:translate-y-[-2px]">
+                  <div className="w-12 h-12 mx-auto mb-4 bg-gradient-to-r from-sky-500/20 to-blue-500/20 rounded-xl flex items-center justify-center group-hover:from-sky-500/30 group-hover:to-blue-500/30 transition-all duration-300">
+                    <signal.icon className="w-6 h-6 text-sky-400" />
                   </div>
+                  <h4 className="font-bold text-white mb-2">{signal.label}</h4>
+                  <p className="text-sm text-gray-400">{signal.desc}</p>
                 </div>
               </div>
-
-              {/* Tagline */}
-              <div>
-                <p className="text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                  Premium custom-built PCs engineered for peak performance.
-                  5-day builds, 3-year warranties, and uncompromising quality
-                  across the UK.
-                </p>
-              </div>
-
-              {/* Premium trust badges */}
-              <div className="flex flex-wrap justify-center gap-4 pt-4">
-                <div className="group relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 to-blue-500/20 rounded-xl blur-lg group-hover:blur-xl transition-all"></div>
-                  <div className="relative flex items-center gap-3 px-6 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hover:border-sky-500/30 transition-all">
-                    <Shield className="w-5 h-5 text-sky-400" />
-                    <div className="text-left">
-                      <div className="text-xs text-gray-500">
-                        Industry Leading
-                      </div>
-                      <div className="text-sm text-white">3-Year Warranty</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="group relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 to-blue-500/20 rounded-xl blur-lg group-hover:blur-xl transition-all"></div>
-                  <div className="relative flex items-center gap-3 px-6 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hover:border-sky-500/30 transition-all">
-                    <Zap className="w-5 h-5 text-sky-400" />
-                    <div className="text-left">
-                      <div className="text-xs text-gray-500">Express</div>
-                      <div className="text-sm text-white">5-Day Build</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="group relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 to-blue-500/20 rounded-xl blur-lg group-hover:blur-xl transition-all"></div>
-                  <div className="relative flex items-center gap-3 px-6 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hover:border-sky-500/30 transition-all">
-                    <Award className="w-5 h-5 text-sky-400" />
-                    <div className="text-left">
-                      <div className="text-xs text-gray-500">Certified</div>
-                      <div className="text-sm text-white">Premium Parts</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Main footer content */}
-        <div className="container mx-auto px-4 md:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
-            {/* Products */}
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h3 className="text-white tracking-wide relative inline-block">
-                  Products
-                </h3>
-                <div className="w-12 h-0.5 bg-gradient-to-r from-sky-400 to-transparent"></div>
+        {/* Main Footer Content */}
+        <div className="py-16">
+          <div className="grid lg:grid-cols-5 gap-12">
+            {/* Brand Section */}
+            <div className="lg:col-span-2">
+              <div className="flex items-center mb-6">
+                <div className="bg-gradient-to-r from-sky-600/20 to-blue-600/20 backdrop-blur-xl border border-sky-500/30 rounded-xl p-3 mr-3">
+                  <Cpu className="w-6 h-6 text-sky-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-sky-200 to-blue-300 bg-clip-text text-transparent">
+                    Vortex PCs
+                  </h2>
+                  <p className="text-xs text-sky-400/80 font-medium uppercase tracking-wider">
+                    Premium Custom Builds
+                  </p>
+                </div>
               </div>
-              <ul className="space-y-3">
-                {productLinks.map((link) => (
-                  <li key={link.label}>
-                    <button
-                      onClick={() => onNavigate(link.view)}
-                      className="group flex items-center gap-2 text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
-                    >
-                      <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
-                      <span>{link.label}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
 
-            {/* Support */}
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h3 className="text-white tracking-wide relative inline-block">
-                  Support
-                </h3>
-                <div className="w-12 h-0.5 bg-gradient-to-r from-sky-400 to-transparent"></div>
-              </div>
-              <ul className="space-y-3">
-                {supportLinks.map((link) => (
-                  <li key={link.label}>
-                    <button
-                      onClick={() => onNavigate(link.view)}
-                      className="group flex items-center gap-2 text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
-                    >
-                      <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
-                      <span>{link.label}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+              <p className="text-gray-400 mb-8 leading-relaxed max-w-md">
+                Building premium custom PCs with the highest quality components,
+                expert craftsmanship, and comprehensive support. Your dream PC
+                awaits.
+              </p>
 
-            {/* Company */}
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h3 className="text-white tracking-wide relative inline-block">
-                  Company
-                </h3>
-                <div className="w-12 h-0.5 bg-gradient-to-r from-sky-400 to-transparent"></div>
-              </div>
-              <ul className="space-y-3">
-                {companyLinks.map((link) => (
-                  <li key={link.label}>
-                    <button
-                      onClick={() => onNavigate(link.view)}
-                      className="group flex items-center gap-2 text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
-                    >
-                      <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
-                      <span>{link.label}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Contact */}
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h3 className="text-white tracking-wide relative inline-block">
-                  Get in Touch
-                </h3>
-                <div className="w-12 h-0.5 bg-gradient-to-r from-sky-400 to-transparent"></div>
-              </div>
-              <ul className="space-y-4">
-                <li>
-                  <a
-                    href="mailto:info@vortexpcs.co.uk"
-                    className="group flex items-start gap-3 text-sm text-gray-400 hover:text-sky-400 transition-colors"
-                  >
-                    <Mail className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
-                    <span>info@vortexpcs.co.uk</span>
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="tel:+442012345678"
-                    className="group flex items-start gap-3 text-sm text-gray-400 hover:text-sky-400 transition-colors"
-                  >
-                    <Phone className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
-                    <span>+44 20 1234 5678</span>
-                  </a>
-                </li>
-                <li className="flex items-start gap-3 text-sm text-gray-400">
-                  <Clock className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
-                  <div>
-                    <div>Mon-Fri: 9AM-6PM</div>
-                    <div>Sat: 10AM-4PM GMT</div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3 text-sm text-gray-400">
-                  <MapPin className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
+              {/* Contact Info */}
+              <div className="space-y-4 mb-8">
+                <div className="flex items-center text-sm text-gray-400 hover:text-sky-400 transition-colors">
+                  <Mail className="w-4 h-4 mr-3 text-sky-500" />
+                  <span>hello@vortexpcs.co.uk</span>
+                </div>
+                <div className="flex items-center text-sm text-gray-400 hover:text-sky-400 transition-colors">
+                  <Phone className="w-4 h-4 mr-3 text-sky-500" />
+                  <span>+44 (0) 20 1234 5678</span>
+                </div>
+                <div className="flex items-center text-sm text-gray-400 hover:text-sky-400 transition-colors">
+                  <MapPin className="w-4 h-4 mr-3 text-sky-500" />
                   <span>London, United Kingdom</span>
-                </li>
-              </ul>
-
-              {/* Social Media */}
-              <div className="pt-2">
-                <div className="flex gap-2">
-                  <a
-                    href="https://facebook.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Follow us on Facebook"
-                    className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
-                  >
-                    <Facebook className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
-                  </a>
-                  <a
-                    href="https://twitter.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Follow us on Twitter"
-                    className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
-                  >
-                    <Twitter className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
-                  </a>
-                  <a
-                    href="https://instagram.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Follow us on Instagram"
-                    className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
-                  >
-                    <Instagram className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
-                  </a>
-                  <a
-                    href="https://linkedin.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Follow us on LinkedIn"
-                    className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
-                  >
-                    <Linkedin className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
-                  </a>
-                  <a
-                    href="https://youtube.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Subscribe to our YouTube channel"
-                    className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
-                  >
-                    <Youtube className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
-                  </a>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Divider with gradient */}
-          <div className="relative mb-12">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/5"></div>
-            </div>
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full h-px bg-gradient-to-r from-transparent via-sky-500/20 to-transparent"></div>
-            </div>
-          </div>
-
-          {/* Bottom section */}
-          <div className="space-y-6">
-            {/* Legal links */}
-            <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-3">
-              {legalLinks.map((link, index) => (
-                <React.Fragment key={link.label}>
-                  <button
-                    onClick={() => onNavigate(link.view)}
-                    className="text-xs text-gray-500 hover:text-sky-400 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded-sm px-1"
+              {/* Social Links */}
+              <div className="flex space-x-4">
+                {socialLinks.map((social, index) => (
+                  <a
+                    key={index}
+                    href={social.href}
+                    className="relative p-3 bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20 rounded-xl hover:border-sky-400/40 transition-all duration-300 group"
+                    aria-label={social.label}
                   >
-                    {link.label}
-                  </button>
-                  {index < legalLinks.length - 1 && (
-                    <span className="text-gray-700">•</span>
-                  )}
-                </React.Fragment>
-              ))}
+                    {/* Hover glow */}
+                    <div className="absolute -inset-1 bg-gradient-to-r from-sky-500/0 via-sky-500/30 to-blue-500/0 opacity-0 group-hover:opacity-100 blur transition-all duration-300 rounded-xl"></div>
+
+                    <social.icon className="w-5 h-5 text-sky-400 group-hover:text-sky-300 relative z-10" />
+                  </a>
+                ))}
+              </div>
             </div>
 
-            {/* Copyright and badges */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-              <div className="text-xs text-gray-500 text-center md:text-left">
-                <p>&copy; {currentYear} Vortex PCs Ltd. All rights reserved.</p>
-                <p className="mt-1 text-gray-600">
-                  Company Registration No. 12345678 • VAT No. GB123456789
-                </p>
+            {/* Footer Links */}
+            {footerSections.map((section, index) => (
+              <div key={index}>
+                <h3 className="font-bold text-white mb-6 text-lg">
+                  {section.title}
+                </h3>
+                <ul className="space-y-3">
+                  {section.links.map((link, linkIndex) => (
+                    <li key={linkIndex}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => onNavigate(link.id)}
+                        className="h-auto p-0 text-gray-400 hover:text-sky-400 font-normal justify-start transition-colors duration-200"
+                      >
+                        {link.label}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
               </div>
+            ))}
+          </div>
+        </div>
 
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full">
-                  <span className="text-xs text-gray-400">
-                    Designed & Built in the UK
-                  </span>
-                  <span className="text-sm">🇬🇧</span>
-                </div>
-              </div>
+        <Separator className="bg-white/10" />
+
+        {/* Bottom Section */}
+        <div className="py-8">
+          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+            <div className="text-sm text-gray-400">
+              <span>© {currentYear} Vortex PCs. All rights reserved.</span>
+            </div>
+
+            <div className="flex items-center space-x-6 text-sm">
+              <Button
+                variant="ghost"
+                onClick={() => onNavigate("privacy")}
+                className="h-auto p-0 text-gray-400 hover:text-sky-400 font-normal transition-colors duration-200"
+              >
+                Privacy Policy
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => onNavigate("terms")}
+                className="h-auto p-0 text-gray-400 hover:text-sky-400 font-normal transition-colors duration-200"
+              >
+                Terms of Service
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => onNavigate("cookies")}
+                className="h-auto p-0 text-gray-400 hover:text-sky-400 font-normal transition-colors duration-200"
+              >
+                Cookie Policy
+              </Button>
+            </div>
+
+            <div className="flex items-center space-x-2 text-sm text-gray-400">
+              <span>Built with</span>
+              <span className="text-red-400">♥</span>
+              <span>in the UK</span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Bottom accent line */}
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/40 to-transparent"></div>
     </footer>
   );
 }
