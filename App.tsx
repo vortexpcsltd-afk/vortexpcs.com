@@ -61,8 +61,8 @@ import {
   Info,
   Phone,
 } from "lucide-react";
-const vortexLogo = "/vortex-logo.png";
-const heroBackground = "https://vortexpcs.com/gaming-keyboard.jpeg";
+const vortexLogo = "/vortexpcs-logo.png";
+const heroBackground = "/gaming-keyboard.jpeg";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("home");
@@ -238,14 +238,21 @@ export default function App() {
                   className="cursor-pointer group"
                   onClick={() => setCurrentView("home")}
                 >
-                  <div className="relative w-56 h-56 md:w-72 md:h-72 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
+                  <div className="relative h-16 w-auto flex items-center justify-center transition-all duration-300 group-hover:scale-110">
                     <img
                       src={vortexLogo}
                       alt="Vortex PCs"
-                      width="180"
-                      height="180"
+                      width="120"
+                      height="64"
                       loading="eager"
-                      className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(14,165,233,0.6)] group-hover:drop-shadow-[0_0_32px_rgba(14,165,233,0.8)] transition-all"
+                      onError={(e) => {
+                        console.error("Logo failed to load:", vortexLogo);
+                        e.currentTarget.style.border = "2px solid red";
+                      }}
+                      onLoad={() =>
+                        console.log("Logo loaded successfully:", vortexLogo)
+                      }
+                      className="h-full w-auto object-contain drop-shadow-[0_0_20px_rgba(14,165,233,0.6)] group-hover:drop-shadow-[0_0_32px_rgba(14,165,233,0.8)] transition-all"
                     />
                   </div>
                 </div>
