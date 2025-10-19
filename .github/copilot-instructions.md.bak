@@ -1,0 +1,155 @@
+# VortexPCs AI Coding Assistant Instructions
+
+## Project Overview
+
+VortexPCs is a React/TypeScript single-page application for a UK-based custom PC building service. The app features PC configuration tools, repair services, and member dashboards with a premium dark theme and glassmorphism UI.
+
+## Architecture
+
+### Component Structure
+
+- **Main App**: `App.tsx` - Central router with global state management
+- **Core Components**: Located in `/components/` - All feature components
+- **UI Components**: `/components/ui/` - Reusable Radix UI-based design system
+- **Styles**: `/styles/globals.css` - Tailwind CSS with custom glassmorphism effects
+
+### Navigation Pattern
+
+The app uses a string-based navigation system where components receive `onNavigate: (page: string) => void` props. Key pages: `'home'`, `'pc-finder'`, `'pc-builder'`, `'configurator'`, `'repair'`, `'member-area'`, `'about'`, `'contact'`.
+
+## Key Technical Patterns
+
+### PC Configuration System
+
+The core business logic centers around PC compatibility checking:
+
+```tsx
+interface Component {
+  name: string;
+  price: number;
+  specs: string;
+  socket?: string; // CPU/Motherboard compatibility
+  ramType?: string; // DDR4/DDR5 compatibility
+  formFactor?: string; // ATX/Mini-ITX/Micro-ATX compatibility
+  length?: number; // GPU clearance
+}
+```
+
+**Critical Compatibility Rules:**
+
+- CPU socket must match Motherboard socket (`AM4`, `AM5`, `LGA1700`)
+- RAM type must match Motherboard (`DDR4`, `DDR5`)
+- Form factors: `ATX` > `Micro-ATX` > `Mini-ITX` (size constraints)
+- GPU length vs case clearance validation
+
+### Component Data Structure
+
+Mock data follows this pattern in `componentOptions` objects:
+
+```tsx
+const componentOptions = {
+  cpu: [{ name, price, socket, maxTDP, badge }],
+  motherboard: [{ name, price, socket, ramType, formFactor, chipset }],
+  gpu: [{ name, price, length, badge }],
+  // ... other components
+};
+```
+
+### State Management
+
+No external state library - uses React's `useState` and prop drilling. Global cart state managed in `App.tsx`.
+
+## Design System
+
+### Theme Architecture
+
+- **Base**: Dark gradient background from deep blue to black
+- **Glass Effects**: `.glass` and `.glass-strong` CSS classes for backdrop-blur
+- **RGB Glow**: `.rgb-glow` for animated borders using CSS custom properties
+- **Color Scheme**: Electric cyan primary with ice blue accents
+
+### UI Components
+
+All UI components use Radix UI primitives with custom styling. Import pattern:
+
+```tsx
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+```
+
+### Typography
+
+Custom typography scales defined in CSS variables. Headings use gradient text effects frequently:
+
+```tsx
+className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent"
+```
+
+## Development Workflow
+
+### Build Commands
+
+```bash
+npm run dev      # Development server (Vite)
+npm run build    # Production build (TypeScript + Vite)
+npm run preview  # Preview production build
+```
+
+### File Organization
+
+- Components are co-located with their logic (no separate hooks/utils folders)
+- Mock data embedded directly in component files
+- Shared types defined inline per component
+
+### TypeScript Patterns
+
+- Interface definitions at component file tops
+- Props interfaces named `{ComponentName}Props`
+- Extensive use of optional properties (`?`) for flexible component APIs
+
+## Business Logic
+
+### PC Builder Flow
+
+1. **PCFinder**: Question-based recommendation engine → generates `BuildConfig`
+2. **PCConfigurator**: Simplified component selector with compatibility warnings
+3. **PCBuilder**: Advanced component selector with detailed specs and compatibility validation
+
+### Compatibility Engine
+
+The `getCompatibilityIssues()` and `checkCompatibility()` functions are critical. They return arrays of issues with severity levels (`'critical'`, `'warning'`) and user-friendly messages from "Kevin" (the founder persona).
+
+### Expert Commentary System
+
+Components generate contextual advice using component specifications:
+
+```tsx
+const getKevinInsight = () => {
+  // Analyzes selected components and returns personalized technical advice
+  // Uses component names/specs to generate realistic expert commentary
+};
+```
+
+## Development Guidelines
+
+### Component Patterns
+
+- Use collapsible sections for complex forms (`Collapsible` from Radix UI)
+- Modal dialogs for compatibility warnings (`AlertDialog`)
+- Consistent icon usage from `lucide-react`
+- Progress tracking with `useState` for multi-step flows
+
+### Styling Conventions
+
+- Glass morphism cards for main content areas
+- RGB glow effects for premium components
+- Gradient buttons for primary actions
+- Consistent spacing using Tailwind classes
+
+### Data Flow
+
+- Props flow down through component hierarchy
+- Callback functions (`onNavigate`, `onAddToCart`) flow up
+- No complex state management - keep data local to components
+
+When working on this codebase, prioritize the PC compatibility logic as it's the core differentiator. The "Kevin's insights" commentary system creates personality and expertise that sets this apart from generic PC builders.
