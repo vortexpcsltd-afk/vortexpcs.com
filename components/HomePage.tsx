@@ -91,14 +91,14 @@ export function HomePage({ setCurrentView }: HomePageProps) {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
               <Button
-                onClick={() => onNavigate("finder")}
+                onClick={() => setCurrentView("pc-finder")}
                 size="lg"
                 className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 shadow-2xl shadow-cyan-400/30 text-lg px-8 py-6"
               >
                 Find Your Perfect PC
               </Button>
               <Button
-                onClick={() => onNavigate("configurator")}
+                onClick={() => setCurrentView("pc-builder")}
                 size="lg"
                 variant="outline"
                 className="border-white/20 hover:bg-white/5 text-lg px-8 py-6"
@@ -236,14 +236,14 @@ export function HomePage({ setCurrentView }: HomePageProps) {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button
-                onClick={() => onNavigate("finder")}
+                onClick={() => setCurrentView("pc-finder")}
                 size="lg"
                 className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 shadow-xl shadow-cyan-400/30"
               >
                 Start PC Finder
               </Button>
               <Button
-                onClick={() => onNavigate("repair")}
+                onClick={() => setCurrentView("repair")}
                 size="lg"
                 variant="outline"
                 className="border-white/20 hover:bg-white/5"

@@ -6,8 +6,8 @@ import { Progress } from "./ui/progress";
 import { Badge } from "./ui/badge";
 
 interface PCFinderProps {
-  onComplete: (build: BuildConfig) => void;
-  onNavigate: (page: string) => void;
+  setCurrentView: (page: string) => void;
+  setRecommendedBuild: (build: any) => void;
 }
 
 export interface BuildConfig {
@@ -36,7 +36,10 @@ interface BuildRecommendation {
   description: string;
 }
 
-export function PCFinder({ onComplete, onNavigate }: PCFinderProps) {
+export function PCFinder({
+  setCurrentView,
+  setRecommendedBuild,
+}: PCFinderProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [showIntro, setShowIntro] = useState(true);
   const [showResults, setShowResults] = useState(false);
@@ -527,7 +530,10 @@ export function PCFinder({ onComplete, onNavigate }: PCFinderProps) {
 
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button
-                    onClick={() => onComplete(answers as BuildConfig)}
+                    onClick={() => {
+                      setRecommendedBuild(answers);
+                      setCurrentView("configurator");
+                    }}
                     className="flex-1 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600"
                   >
                     Customise This Build
