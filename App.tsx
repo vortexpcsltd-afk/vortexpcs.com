@@ -23,7 +23,7 @@ import {
 } from "./components/ui/select";
 import { Checkbox } from "./components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
-import { PCFinder } from "./components/PCFinder";
+import { PCFinder } from "./components/PCFinderOLD";
 import { PCBuilder } from "./components/PCBuilder";
 import { AIAssistant } from "./components/AIAssistant";
 import { MemberArea } from "./components/MemberArea";
