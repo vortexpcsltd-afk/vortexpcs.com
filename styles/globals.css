@@ -41,6 +41,8 @@ body {
   min-height: 100vh;
 }
 
+/* Force Vercel rebuild - v2 */
+
 #root {
   min-height: 100vh;
 }
