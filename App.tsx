@@ -61,7 +61,7 @@ import {
   Info,
   Phone,
 } from "lucide-react";
-const vortexLogo = "https://www.vortexpcs.com/vortexpcs-logo.png";
+const vortexLogo = "/vortex-logo.png";
 const heroBackground = "https://vortexpcs.com/gaming-keyboard.jpeg";
 
 export default function App() {
