@@ -31,7 +31,7 @@ import { AdminPanel } from "./components/AdminPanel";
 import { RepairService } from "./components/RepairService";
 import { AboutUs } from "./components/AboutUs";
 import { Contact } from "./components/Contact";
-import { CookieBar } from "./components/CookieBar";
+import { CookieBarBlue } from "./components/CookieBarBlue";
 import { Footer } from "./components/Footer";
 import { LoginDialog } from "./components/LoginDialog";
 import { ShoppingCartModal } from "./components/ShoppingCartModal";
@@ -386,7 +386,7 @@ export default function App() {
         <Footer onNavigate={setCurrentView} />
 
         {/* Cookie Consent Banner */}
-        <CookieBar onNavigate={setCurrentView} />
+        <CookieBarBlue onNavigate={setCurrentView} />
 
         {/* AI Assistant Modal */}
         <AIAssistant
