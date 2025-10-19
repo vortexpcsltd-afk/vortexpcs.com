@@ -4,10 +4,10 @@ import { Card } from "./ui/card";
 const backgroundImage = "/vortex-keyboard.png";
 
 interface HomePageProps {
-  onNavigate: (page: string) => void;
+  setCurrentView: (page: string) => void;
 }
 
-export function HomePage({ onNavigate }: HomePageProps) {
+export function HomePage({ setCurrentView }: HomePageProps) {
   const features = [
     {
       icon: Cpu,
