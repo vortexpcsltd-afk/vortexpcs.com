@@ -5,6 +5,8 @@ import { Card } from "./ui/card";
 import { Progress } from "./ui/progress";
 import { Badge } from "./ui/badge";
 
+// Cache buster - force reload: v2024.10.19.001
+
 interface PCFinderProps {
   setCurrentView: (page: string) => void;
   setRecommendedBuild: (build: any) => void;
