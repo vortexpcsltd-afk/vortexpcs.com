@@ -557,7 +557,7 @@ function HomePage({ setCurrentView }) {
   return (
     <div className="space-y-20">
       {/* Hero Section */}
-      <section className="relative overflow-hidden py-32">
+      <section className="relative overflow-hidden py-24 sm:py-32">
         {/* Hero background effects */}
         <div className="absolute inset-0 overflow-hidden">
           {/* RGB Keyboard Background Image */}
@@ -569,10 +569,10 @@ function HomePage({ setCurrentView }) {
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/50 to-transparent"></div>
         </div>
 
-        <div className="container mx-auto px-4 relative z-10">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center max-w-5xl mx-auto">
             {/* Premium badge */}
-            <div className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-cyan-500/10 border border-sky-500/30 mb-12 backdrop-blur-xl shadow-2xl shadow-sky-500/20 hover:shadow-sky-500/40 transition-all duration-500 group">
+            <div className="inline-flex items-center px-4 sm:px-6 py-3 rounded-full bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-cyan-500/10 border border-sky-500/30 mb-8 sm:mb-12 backdrop-blur-xl shadow-2xl shadow-sky-500/20 hover:shadow-sky-500/40 transition-all duration-500 group">
               <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 to-blue-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <Star className="w-5 h-5 text-yellow-400 mr-3 animate-pulse relative z-10" />
               <span className="text-sm font-medium bg-gradient-to-r from-sky-300 to-blue-300 bg-clip-text text-transparent relative z-10">
@@ -581,16 +581,16 @@ function HomePage({ setCurrentView }) {
             </div>
 
             {/* Main heading with enhanced gradient */}
-            <h1 className="text-6xl md:text-8xl font-bold mb-8 leading-tight">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold mb-8 leading-tight">
               <span className="inline-block bg-gradient-to-r from-white via-sky-200 to-blue-300 bg-clip-text text-transparent animate-gradient">
                 Built to Perfection
               </span>
             </h1>
 
-            <p className="text-xl md:text-2xl text-gray-300/90 mb-12 max-w-3xl mx-auto leading-relaxed">
-              Experience ultimate performance with our custom-built PCs. Premium
-              components, expert craftsmanship, and comprehensive warranty - all
-              delivered in just 5 days.
+            <p className="text-lg sm:text-xl md:text-2xl text-gray-300/90 mb-12 max-w-3xl mx-auto leading-relaxed px-4">
+              " Experience ultimate performance with our custom-built PCs.
+              Premium components, expert craftsmanship, and comprehensive
+              warranty - all delivered in just 5 days.
             </p>
 
             {/* Enhanced CTAs */}
@@ -621,7 +621,7 @@ function HomePage({ setCurrentView }) {
             </div>
 
             {/* Stats badges */}
-            <div className="grid grid-cols-3 gap-6 mt-20 max-w-3xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mt-20 max-w-3xl mx-auto px-4">
               {[
                 { label: "5-Day Builds", icon: Clock },
                 { label: "3-Year Warranty", icon: Shield },
@@ -652,24 +652,24 @@ function HomePage({ setCurrentView }) {
       </section>
 
       {/* Features Grid */}
-      <section className="py-32 relative">
-        <div className="container mx-auto px-4">
+      <section className="py-24 sm:py-32 relative">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
             <div className="inline-block mb-4">
               <span className="text-sm uppercase tracking-wider text-sky-400 font-medium">
                 Our Advantages
               </span>
             </div>
-            <h2 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent px-4">
               Why Choose Vortex PCs?
             </h2>
-            <p className="text-gray-400 text-xl max-w-3xl mx-auto">
+            <p className="text-gray-400 text-lg sm:text-xl max-w-3xl mx-auto px-4">
               We're not just another PC builder. We're craftsmen dedicated to
               delivering the ultimate computing experience.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) => (
               <div key={index} className="relative group">
                 {/* Animated RGB border glow - always visible */}
@@ -693,26 +693,26 @@ function HomePage({ setCurrentView }) {
       </section>
 
       {/* Testimonials */}
-      <section className="py-32 relative overflow-hidden">
+      <section className="py-24 sm:py-32 relative overflow-hidden">
         {/* Background effect */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-sky-500/5 to-transparent"></div>
 
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="text-center mb-20">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-16 sm:mb-20">
             <div className="inline-block mb-4">
               <span className="text-sm uppercase tracking-wider text-sky-400 font-medium">
                 Testimonials
               </span>
             </div>
-            <h2 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent px-4">
               What Our Customers Say
             </h2>
-            <p className="text-gray-400 text-xl">
+            <p className="text-gray-400 text-lg sm:text-xl px-4">
               Join thousands of satisfied customers worldwide
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
             {testimonials.map((testimonial, index) => (
               <div key={index} className="relative group">
                 {/* Hover glow */}
@@ -761,8 +761,8 @@ function HomePage({ setCurrentView }) {
       </section>
 
       {/* CTA Section */}
-      <section className="py-32">
-        <div className="container mx-auto px-4">
+      <section className="py-24 sm:py-32">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="relative group">
             {/* Animated background glow */}
             <div className="absolute inset-0 bg-gradient-to-r from-sky-600/30 via-blue-600/30 to-cyan-600/30 blur-3xl opacity-50 group-hover:opacity-75 transition-opacity duration-500 rounded-3xl"></div>
