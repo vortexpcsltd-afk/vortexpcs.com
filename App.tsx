@@ -1,29 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Button } from "./components/ui/button";
 import { Card } from "./components/ui/card";
-import { Badge } from "./components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "./components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
-import { Progress } from "./components/ui/progress";
-import { Avatar, AvatarFallback, AvatarImage } from "./components/ui/avatar";
-import { Input } from "./components/ui/input";
-import { Label } from "./components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./components/ui/select";
-import { Checkbox } from "./components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
+import { Avatar, AvatarFallback } from "./components/ui/avatar";
 import { PCFinder } from "./components/PCFinderBlue.tsx";
 import { PCBuilder } from "./components/PCBuilder.tsx";
 import { AIAssistant } from "./components/AIAssistant.tsx";
@@ -36,10 +15,7 @@ import { Footer } from "./components/Footer.tsx";
 import { LoginDialog } from "./components/LoginDialog.tsx";
 import { ShoppingCartModal } from "./components/ShoppingCartModal.tsx";
 import {
-  Monitor,
   Cpu,
-  HardDrive,
-  Zap,
   Shield,
   Clock,
   Users,
@@ -47,7 +23,6 @@ import {
   MessageCircle,
   Wrench,
   Star,
-  CheckCircle,
   ArrowRight,
   Menu,
   X,
@@ -56,8 +31,6 @@ import {
   Search,
   LogIn,
   UserPlus,
-  Lock,
-  Mail,
   Info,
   Phone,
 } from "lucide-react";
@@ -238,7 +211,7 @@ export default function App() {
                   className="cursor-pointer group"
                   onClick={() => setCurrentView("home")}
                 >
-                  <div className="relative h-16 w-auto flex items-center justify-center transition-all duration-300 group-hover:scale-110">
+                  <div className="relative h-12 sm:h-16 w-auto flex items-center justify-center transition-all duration-300 group-hover:scale-110">
                     <img
                       src={vortexLogo}
                       alt="Vortex PCs"
@@ -252,7 +225,7 @@ export default function App() {
                       onLoad={() =>
                         console.log("Logo loaded successfully:", vortexLogo)
                       }
-                      className="h-full w-auto object-contain drop-shadow-[0_0_20px_rgba(14,165,233,0.6)] group-hover:drop-shadow-[0_0_32px_rgba(14,165,233,0.8)] transition-all"
+                      className="h-full w-auto object-contain min-w-[80px] sm:min-w-[120px] drop-shadow-[0_0_20px_rgba(14,165,233,0.6)] group-hover:drop-shadow-[0_0_32px_rgba(14,165,233,0.8)] transition-all"
                     />
                   </div>
                 </div>
@@ -498,7 +471,11 @@ export default function App() {
 }
 
 // HomePage Component
-function HomePage({ setCurrentView }) {
+function HomePage({
+  setCurrentView,
+}: {
+  setCurrentView: (view: string) => void;
+}) {
   const features = [
     {
       icon: Cpu,
@@ -834,27 +811,35 @@ function HomePage({ setCurrentView }) {
 }
 
 // Cookie Consent Banner
-function CookieConsentBanner({ onAccept, onDecline, onSettings }) {
+function CookieConsentBanner({
+  onAccept,
+  onDecline,
+  onSettings,
+}: {
+  onAccept: () => void;
+  onDecline: () => void;
+  onSettings: () => void;
+}) {
   return (
-    <div className="fixed bottom-6 left-6 w-full max-w-md z-50 animate-in slide-in-from-bottom-8 duration-700">
+    <div className="fixed bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-auto sm:w-full sm:max-w-md z-50 animate-in slide-in-from-bottom-8 duration-700">
       {/* Glow effect */}
       <div className="absolute -inset-1 bg-gradient-to-r from-sky-500 to-blue-500 rounded-2xl blur-lg opacity-40 animate-pulse"></div>
 
       {/* Main card */}
-      <div className="relative bg-gradient-to-br from-slate-900/95 to-slate-950/95 backdrop-blur-2xl border border-sky-500/30 rounded-2xl p-6 shadow-2xl">
+      <div className="relative bg-gradient-to-br from-slate-900/95 to-slate-950/95 backdrop-blur-2xl border border-sky-500/30 rounded-2xl p-4 sm:p-6 shadow-2xl">
         {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-sky-500/20 to-transparent rounded-full blur-2xl"></div>
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-blue-500/20 to-transparent rounded-full blur-2xl"></div>
+        <div className="absolute top-0 right-0 w-24 sm:w-32 h-24 sm:h-32 bg-gradient-to-br from-sky-500/20 to-transparent rounded-full blur-2xl"></div>
+        <div className="absolute bottom-0 left-0 w-20 sm:w-24 h-20 sm:h-24 bg-gradient-to-tr from-blue-500/20 to-transparent rounded-full blur-2xl"></div>
 
-        <div className="relative space-y-4">
+        <div className="relative space-y-3 sm:space-y-4">
           {/* Header with animated cookie icon */}
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3 sm:gap-4">
             <div className="flex-shrink-0">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-sky-500 to-blue-500 rounded-full blur opacity-60 animate-pulse"></div>
-                <div className="relative w-12 h-12 bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/40 rounded-full flex items-center justify-center">
+                <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/40 rounded-full flex items-center justify-center">
                   <svg
-                    className="w-6 h-6 text-sky-400"
+                    className="w-5 h-5 sm:w-6 sm:h-6 text-sky-400"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -880,14 +865,14 @@ function CookieConsentBanner({ onAccept, onDecline, onSettings }) {
               </div>
             </div>
 
-            <div className="flex-1">
-              <h3 className="font-bold text-white mb-2 flex items-center gap-2">
-                Cookie Settings
-                <span className="text-xs px-2 py-0.5 bg-sky-500/20 border border-sky-500/30 rounded-full text-sky-400">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-white mb-2 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <span className="text-sm sm:text-base">Cookie Settings</span>
+                <span className="text-xs px-2 py-0.5 bg-sky-500/20 border border-sky-500/30 rounded-full text-sky-400 self-start">
                   GDPR Compliant
                 </span>
               </h3>
-              <p className="text-sm text-gray-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
                 We use cookies to power up your experience! Our cookies help us
                 remember your PC configurations, analyse performance, and serve
                 you the best content.
@@ -924,19 +909,19 @@ function CookieConsentBanner({ onAccept, onDecline, onSettings }) {
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
             <Button
               variant="outline"
               size="sm"
               onClick={onDecline}
-              className="flex-1 border-white/20 text-gray-300 hover:bg-white/10 hover:border-white/30 transition-all"
+              className="flex-1 border-white/20 text-gray-300 hover:bg-white/10 hover:border-white/30 transition-all text-xs sm:text-sm"
             >
               Essential Only
             </Button>
             <Button
               size="sm"
               onClick={onAccept}
-              className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300"
+              className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300 text-xs sm:text-sm"
             >
               Accept All
             </Button>

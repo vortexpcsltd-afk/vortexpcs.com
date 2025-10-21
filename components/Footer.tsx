@@ -1,6 +1,20 @@
-import React from 'react';
-import { Mail, Phone, MapPin, Clock, Facebook, Twitter, Instagram, Linkedin, Youtube, Shield, Award, Zap, ChevronRight } from 'lucide-react';
-const vortexLogo = 'https://www.vortexpcs.com/vortexpcs-logo.png';
+import React from "react";
+import {
+  Mail,
+  Phone,
+  MapPin,
+  Clock,
+  Facebook,
+  Twitter,
+  Instagram,
+  Linkedin,
+  Youtube,
+  Shield,
+  Award,
+  Zap,
+  ChevronRight,
+} from "lucide-react";
+const vortexLogo = "https://www.vortexpcs.com/vortexpcs-logo.png";
 
 interface FooterProps {
   onNavigate: (view: string) => void;
@@ -10,34 +24,34 @@ export function Footer({ onNavigate }: FooterProps) {
   const currentYear = new Date().getFullYear();
 
   const productLinks = [
-    { label: 'PC Finder', view: 'pc-finder' },
-    { label: 'Custom PC Builder', view: 'pc-builder' },
-    { label: 'Pre-Built Systems', view: 'home' },
-    { label: 'Gaming PCs', view: 'home' },
-    { label: 'Workstation PCs', view: 'home' },
+    { label: "PC Finder", view: "pc-finder" },
+    { label: "Custom PC Builder", view: "pc-builder" },
+    { label: "Pre-Built Systems", view: "home" },
+    { label: "Gaming PCs", view: "home" },
+    { label: "Workstation PCs", view: "home" },
   ];
 
   const supportLinks = [
-    { label: 'Repair Service', view: 'repair' },
-    { label: 'Warranty Information', view: 'home' },
-    { label: 'Technical Support', view: 'home' },
-    { label: 'FAQs', view: 'home' },
-    { label: 'Build Status', view: 'member' },
+    { label: "Repair Service", view: "repair" },
+    { label: "Warranty Information", view: "home" },
+    { label: "Technical Support", view: "home" },
+    { label: "FAQs", view: "home" },
+    { label: "Build Status", view: "member" },
   ];
 
   const companyLinks = [
-    { label: 'About Us', view: 'about' },
-    { label: 'Our Process', view: 'home' },
-    { label: 'Quality Standards', view: 'home' },
-    { label: 'Member Area', view: 'member' },
-    { label: 'Contact Us', view: 'contact' },
+    { label: "About Us", view: "about" },
+    { label: "Our Process", view: "home" },
+    { label: "Quality Standards", view: "home" },
+    { label: "Member Area", view: "member" },
+    { label: "Contact Us", view: "contact" },
   ];
 
   const legalLinks = [
-    { label: 'Terms of Service', view: 'terms' },
-    { label: 'Privacy Policy', view: 'privacy' },
-    { label: 'Cookie Policy', view: 'cookies' },
-    { label: 'Returns & Refunds', view: 'home' },
+    { label: "Terms of Service", view: "terms" },
+    { label: "Privacy Policy", view: "privacy" },
+    { label: "Cookie Policy", view: "cookies" },
+    { label: "Returns & Refunds", view: "home" },
   ];
 
   return (
@@ -45,15 +59,21 @@ export function Footer({ onNavigate }: FooterProps) {
       {/* Premium gradient background with layers */}
       <div className="absolute inset-0 bg-gradient-to-b from-black via-slate-950 to-black"></div>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/30 via-transparent to-transparent"></div>
-      
+
       {/* Animated gradient orbs */}
       <div className="absolute -top-40 left-1/4 w-96 h-96 bg-sky-500/10 rounded-full blur-[100px] animate-pulse"></div>
-      <div className="absolute top-60 right-1/4 w-80 h-80 bg-blue-600/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '2s' }}></div>
-      <div className="absolute bottom-40 left-1/3 w-72 h-72 bg-cyan-500/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '4s' }}></div>
+      <div
+        className="absolute top-60 right-1/4 w-80 h-80 bg-blue-600/10 rounded-full blur-[100px] animate-pulse"
+        style={{ animationDelay: "2s" }}
+      ></div>
+      <div
+        className="absolute bottom-40 left-1/3 w-72 h-72 bg-cyan-500/10 rounded-full blur-[100px] animate-pulse"
+        style={{ animationDelay: "4s" }}
+      ></div>
 
       {/* Top border glow */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/50 to-transparent"></div>
-      
+
       <div className="relative z-10">
         {/* Premium hero section */}
         <div className="border-b border-white/5">
@@ -63,10 +83,10 @@ export function Footer({ onNavigate }: FooterProps) {
               <div className="flex justify-center mb-0.5">
                 <div className="relative group">
                   <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 via-blue-500/20 to-cyan-500/20 rounded-2xl blur-3xl group-hover:blur-[64px] transition-all duration-500"></div>
-                  <div className="relative w-32 h-32 md:w-48 md:h-48 lg:w-60 lg:h-60 transition-transform duration-500 group-hover:scale-110">
-                    <img 
-                      src={vortexLogo} 
-                      alt="Vortex PCs" 
+                  <div className="relative w-48 h-48 md:w-56 md:h-56 lg:w-60 lg:h-60 transition-transform duration-500 group-hover:scale-110">
+                    <img
+                      src={vortexLogo}
+                      alt="Vortex PCs"
                       width="240"
                       height="240"
                       loading="lazy"
@@ -79,7 +99,9 @@ export function Footer({ onNavigate }: FooterProps) {
               {/* Tagline */}
               <div>
                 <p className="text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                  Premium custom-built PCs engineered for peak performance. 5-day builds, 3-year warranties, and uncompromising quality across the UK.
+                  Premium custom-built PCs engineered for peak performance.
+                  5-day builds, 3-year warranties, and uncompromising quality
+                  across the UK.
                 </p>
               </div>
 
@@ -90,7 +112,9 @@ export function Footer({ onNavigate }: FooterProps) {
                   <div className="relative flex items-center gap-3 px-6 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hover:border-sky-500/30 transition-all">
                     <Shield className="w-5 h-5 text-sky-400" />
                     <div className="text-left">
-                      <div className="text-xs text-gray-500">Industry Leading</div>
+                      <div className="text-xs text-gray-500">
+                        Industry Leading
+                      </div>
                       <div className="text-sm text-white">3-Year Warranty</div>
                     </div>
                   </div>
@@ -124,12 +148,11 @@ export function Footer({ onNavigate }: FooterProps) {
 
         {/* Main footer content */}
         <div className="container mx-auto px-4 md:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
-            
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 md:gap-12 mb-16">
             {/* Products */}
             <div className="space-y-6">
               <div className="space-y-2">
-                <h3 className="text-white tracking-wide relative inline-block">
+                <h3 className="text-white tracking-wide relative inline-block text-sm sm:text-base">
                   Products
                 </h3>
                 <div className="w-12 h-0.5 bg-gradient-to-r from-sky-400 to-transparent"></div>
@@ -139,7 +162,7 @@ export function Footer({ onNavigate }: FooterProps) {
                   <li key={link.label}>
                     <button
                       onClick={() => onNavigate(link.view)}
-                      className="group flex items-center gap-2 text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
+                      className="group flex items-center gap-2 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
                     >
                       <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
                       <span>{link.label}</span>
@@ -152,7 +175,7 @@ export function Footer({ onNavigate }: FooterProps) {
             {/* Support */}
             <div className="space-y-6">
               <div className="space-y-2">
-                <h3 className="text-white tracking-wide relative inline-block">
+                <h3 className="text-white tracking-wide relative inline-block text-sm sm:text-base">
                   Support
                 </h3>
                 <div className="w-12 h-0.5 bg-gradient-to-r from-sky-400 to-transparent"></div>
@@ -162,7 +185,7 @@ export function Footer({ onNavigate }: FooterProps) {
                   <li key={link.label}>
                     <button
                       onClick={() => onNavigate(link.view)}
-                      className="group flex items-center gap-2 text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
+                      className="group flex items-center gap-2 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
                     >
                       <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
                       <span>{link.label}</span>
@@ -175,7 +198,7 @@ export function Footer({ onNavigate }: FooterProps) {
             {/* Company */}
             <div className="space-y-6">
               <div className="space-y-2">
-                <h3 className="text-white tracking-wide relative inline-block">
+                <h3 className="text-white tracking-wide relative inline-block text-sm sm:text-base">
                   Company
                 </h3>
                 <div className="w-12 h-0.5 bg-gradient-to-r from-sky-400 to-transparent"></div>
@@ -185,7 +208,7 @@ export function Footer({ onNavigate }: FooterProps) {
                   <li key={link.label}>
                     <button
                       onClick={() => onNavigate(link.view)}
-                      className="group flex items-center gap-2 text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
+                      className="group flex items-center gap-2 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
                     >
                       <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
                       <span>{link.label}</span>
@@ -198,32 +221,38 @@ export function Footer({ onNavigate }: FooterProps) {
             {/* Contact */}
             <div className="space-y-6">
               <div className="space-y-2">
-                <h3 className="text-white tracking-wide relative inline-block">
+                <h3 className="text-white tracking-wide relative inline-block text-sm sm:text-base">
                   Get in Touch
                 </h3>
                 <div className="w-12 h-0.5 bg-gradient-to-r from-sky-400 to-transparent"></div>
               </div>
               <ul className="space-y-4">
                 <li>
-                  <a href="mailto:info@vortexpcs.co.uk" className="group flex items-start gap-3 text-sm text-gray-400 hover:text-sky-400 transition-colors">
+                  <a
+                    href="mailto:info@vortexpcs.co.uk"
+                    className="group flex items-start gap-3 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-colors"
+                  >
                     <Mail className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
                     <span>info@vortexpcs.co.uk</span>
                   </a>
                 </li>
                 <li>
-                  <a href="tel:+442012345678" className="group flex items-start gap-3 text-sm text-gray-400 hover:text-sky-400 transition-colors">
+                  <a
+                    href="tel:+442012345678"
+                    className="group flex items-start gap-3 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-colors"
+                  >
                     <Phone className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
                     <span>+44 20 1234 5678</span>
                   </a>
                 </li>
-                <li className="flex items-start gap-3 text-sm text-gray-400">
+                <li className="flex items-start gap-3 text-xs sm:text-sm text-gray-400">
                   <Clock className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
                   <div>
                     <div>Mon-Fri: 9AM-6PM</div>
                     <div>Sat: 10AM-4PM GMT</div>
                   </div>
                 </li>
-                <li className="flex items-start gap-3 text-sm text-gray-400">
+                <li className="flex items-start gap-3 text-xs sm:text-sm text-gray-400">
                   <MapPin className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
                   <span>London, United Kingdom</span>
                 </li>
@@ -232,45 +261,45 @@ export function Footer({ onNavigate }: FooterProps) {
               {/* Social Media */}
               <div className="pt-2">
                 <div className="flex gap-2">
-                  <a 
-                    href="https://facebook.com" 
-                    target="_blank" 
+                  <a
+                    href="https://facebook.com"
+                    target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Follow us on Facebook"
                     className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
                   >
                     <Facebook className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
                   </a>
-                  <a 
-                    href="https://twitter.com" 
-                    target="_blank" 
+                  <a
+                    href="https://twitter.com"
+                    target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Follow us on Twitter"
                     className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
                   >
                     <Twitter className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
                   </a>
-                  <a 
-                    href="https://instagram.com" 
-                    target="_blank" 
+                  <a
+                    href="https://instagram.com"
+                    target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Follow us on Instagram"
                     className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
                   >
                     <Instagram className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
                   </a>
-                  <a 
-                    href="https://linkedin.com" 
-                    target="_blank" 
+                  <a
+                    href="https://linkedin.com"
+                    target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Follow us on LinkedIn"
                     className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
                   >
                     <Linkedin className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
                   </a>
-                  <a 
-                    href="https://youtube.com" 
-                    target="_blank" 
+                  <a
+                    href="https://youtube.com"
+                    target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Subscribe to our YouTube channel"
                     className="w-9 h-9 flex items-center justify-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 hover:scale-110 transition-all duration-300 group"
@@ -315,12 +344,16 @@ export function Footer({ onNavigate }: FooterProps) {
             <div className="flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="text-xs text-gray-500 text-center md:text-left">
                 <p>&copy; {currentYear} Vortex PCs Ltd. All rights reserved.</p>
-                <p className="mt-1 text-gray-600">Company Registration No. 12345678 • VAT No. GB123456789</p>
+                <p className="mt-1 text-gray-600">
+                  Company Registration No. 12345678 • VAT No. GB123456789
+                </p>
               </div>
 
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full">
-                  <span className="text-xs text-gray-400">Designed & Built in the UK</span>
+                  <span className="text-xs text-gray-400">
+                    Designed & Built in the UK
+                  </span>
                   <span className="text-sm">🇬🇧</span>
                 </div>
               </div>

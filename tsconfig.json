@@ -28,6 +28,13 @@
       "@/styles/*": ["./styles/*"]
     }
   },
-  "include": ["src", "components", "styles", "App.tsx"],
+  "include": [
+    "src",
+    "components",
+    "styles",
+    "config",
+    "App.tsx",
+    "vite-env.d.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
