@@ -1202,17 +1202,17 @@ export function PCFinder({
         {/* Question Card */}
         <div className="max-w-4xl mx-auto px-4">
           <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/10 backdrop-blur-xl p-4 md:p-8 lg:p-12">
-            <div className="text-center mb-6 md:mb-8">
-              <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-4">
+            <div className="text-center mb-4 md:mb-6 lg:mb-8">
+              <h2 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold text-white mb-2 md:mb-4">
                 {currentQuestion?.title}
               </h2>
-              <p className="text-base md:text-lg text-gray-300">
+              <p className="text-sm md:text-base lg:text-lg text-gray-300">
                 {currentQuestion?.subtitle}
               </p>
             </div>
 
             {/* Question Content */}
-            <div className="space-y-4 md:space-y-6">
+            <div className="space-y-3 md:space-y-4 lg:space-y-6">
               {currentQuestion?.type === "choice" && (
                 <div className="grid gap-3 md:grid-cols-2 md:gap-4">
                   {currentQuestion.options?.map((option: any) => (
@@ -1221,17 +1221,19 @@ export function PCFinder({
                       onClick={() =>
                         handleAnswer(currentQuestion.id, option.value)
                       }
-                      className="group p-6 rounded-xl border-2 border-white/10 hover:border-sky-500/50 transition-all duration-300 text-left bg-white/5 hover:bg-white/10"
+                      className="group p-4 md:p-6 rounded-xl border-2 border-white/10 hover:border-sky-500/50 transition-all duration-300 text-left bg-white/5 hover:bg-white/10"
                     >
-                      <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 rounded-lg bg-gradient-to-r from-sky-500 to-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <option.icon className="w-6 h-6 text-white" />
+                      <div className="flex items-start space-x-3 md:space-x-4">
+                        <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-gradient-to-r from-sky-500 to-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+                          <option.icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
                         </div>
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold text-white mb-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg md:text-xl font-bold text-white mb-1 md:mb-2">
                             {option.label}
                           </h3>
-                          <p className="text-gray-400">{option.description}</p>
+                          <p className="text-sm md:text-base text-gray-400">
+                            {option.description}
+                          </p>
                         </div>
                       </div>
                     </button>
@@ -1240,18 +1242,20 @@ export function PCFinder({
               )}
 
               {currentQuestion?.type === "slider" && (
-                <div className="space-y-8">
+                <div className="space-y-6 md:space-y-8">
                   <div className="text-center">
-                    <div className="text-4xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent mb-2">
+                    <div className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent mb-2">
                       {currentQuestion.formatValue?.(
                         answers[currentQuestion.id] ||
                           currentQuestion.defaultValue
                       )}
                     </div>
-                    <p className="text-gray-400">Slide to adjust your budget</p>
+                    <p className="text-sm md:text-base text-gray-400">
+                      Slide to adjust your budget
+                    </p>
                   </div>
 
-                  <div className="px-4 md:px-8">
+                  <div className="px-2 md:px-4 lg:px-8">
                     <Slider
                       value={[
                         answers[currentQuestion.id] ||
@@ -1268,7 +1272,7 @@ export function PCFinder({
                       step={currentQuestion.step}
                       className="w-full"
                     />
-                    <div className="flex justify-between mt-2 text-sm text-gray-400">
+                    <div className="flex justify-between mt-2 text-xs md:text-sm text-gray-400">
                       <span>
                         {currentQuestion.formatValue?.(
                           currentQuestion.min || 0
