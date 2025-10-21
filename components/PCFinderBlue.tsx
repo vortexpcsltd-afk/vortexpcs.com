@@ -504,6 +504,38 @@ export function PCFinder({
         ],
       },
       {
+        id: "rgb_preference",
+        title: "How much RGB lighting do you want?",
+        subtitle: "RGB lighting adds visual flair but affects the price",
+        type: "choice",
+        options: [
+          {
+            value: "none",
+            label: "No RGB",
+            icon: Shield,
+            description: "Clean, professional look with no lighting effects",
+          },
+          {
+            value: "subtle",
+            label: "Subtle RGB",
+            icon: Star,
+            description: "Minimal RGB accents, tasteful and understated",
+          },
+          {
+            value: "moderate",
+            label: "Moderate RGB",
+            icon: Sparkles,
+            description: "Balanced RGB lighting across key components",
+          },
+          {
+            value: "full",
+            label: "Full RGB Experience",
+            icon: Palette,
+            description: "Maximum RGB everywhere - fans, RAM, cables, strips",
+          },
+        ],
+      },
+      {
         id: "timeline",
         title: "When do you need your PC?",
         subtitle:
@@ -566,61 +598,86 @@ export function PCFinder({
   };
 
   // Generate personalized expert comments based on configuration
-  const generateExpertComments = (answers: any, _buildType: any) => {
+  const generateExpertComments = (answers: any, buildCategory: any) => {
     const comments = [];
 
-    // Purpose-specific insights
+    // Build category-specific insights (for diverse recommendations)
+    if (
+      buildCategory === "Ultimate Gaming" ||
+      buildCategory === "High-Performance Gaming"
+    ) {
+      comments.push(
+        "This flagship gaming configuration features the latest RTX 4090 with 24GB VRAM, delivering uncompromising 4K gaming performance with ray tracing enabled across all titles."
+      );
+      comments.push(
+        "The high-speed DDR5-6400 memory and Gen5 NVMe storage create a zero-bottleneck gaming experience, with instant load times and seamless texture streaming even in the most demanding open-world games."
+      );
+    } else if (
+      buildCategory === "Performance Gaming" ||
+      buildCategory === "Budget Gaming"
+    ) {
+      comments.push(
+        "This optimised gaming build strikes the perfect balance between performance and value, delivering excellent 1080p-1440p gaming with modern features like ray tracing and DLSS 3.0 support."
+      );
+      comments.push(
+        "We've carefully selected components to ensure smooth gameplay across all current titles whilst maintaining excellent price-to-performance ratio for future gaming releases."
+      );
+    } else if (
+      buildCategory === "Creative Workstation" ||
+      buildCategory === "Content Creation Workstation"
+    ) {
+      comments.push(
+        "This professional workstation is optimised for creative workflows with 64GB of high-speed memory enabling smooth 4K video editing and real-time colour grading without proxy files."
+      );
+      comments.push(
+        "The powerful GPU provides hardware acceleration for Adobe Creative Suite, DaVinci Resolve, and Blender, dramatically reducing export times and enabling real-time preview of complex effects."
+      );
+    } else if (buildCategory === "Development Workstation") {
+      comments.push(
+        "This development powerhouse features multi-core processing ideal for compilation, virtualisation, and running multiple Docker containers simultaneously without performance degradation."
+      );
+      comments.push(
+        "The generous memory allocation and fast NVMe storage significantly improve IDE responsiveness and build times, essential for productive development workflows."
+      );
+    } else if (
+      buildCategory === "Productivity & Media" ||
+      buildCategory === "Budget Productivity"
+    ) {
+      comments.push(
+        "This efficient productivity system delivers excellent performance for office applications, web browsing, and media consumption whilst maintaining low power consumption and quiet operation."
+      );
+      comments.push(
+        "The balanced configuration provides reliable performance for daily computing tasks with enough capability for light creative work and casual gaming when needed."
+      );
+    }
+
+    // Purpose-specific insights (keeping some original logic)
     if (answers.purpose === "gaming") {
       if (answers.gaming_detail === "4k_ultra") {
         comments.push(
-          "We've selected the RTX 4090 for its exceptional 4K performance – you'll experience native 4K gaming at high frame rates without compromise. The 24GB VRAM ensures future-proofing for upcoming AAA titles."
-        );
-        comments.push(
-          "The combination of DDR5-6400 RAM and Gen5 NVMe storage eliminates bottlenecks, delivering instantaneous load times and seamless texture streaming in demanding open-world games."
-        );
-      } else if (answers.gaming_detail === "1440p_high") {
-        comments.push(
-          "The RTX 4070 Ti Super hits the sweet spot for 1440p gaming – delivering consistently high frame rates whilst maintaining excellent value. Its 16GB VRAM provides headroom for texture-heavy titles and future releases."
-        );
-        comments.push(
-          "We've paired this with a 9800X3D for its industry-leading gaming cache technology, ensuring maximum FPS in CPU-intensive titles like strategy games and flight simulators."
+          "Experience native 4K gaming without compromise – this build maintains 60+ FPS in demanding titles like Cyberpunk 2077 and Microsoft Flight Simulator with all settings maximised."
         );
       } else if (answers.gaming_detail === "competitive") {
         comments.push(
-          "For competitive gaming, we've prioritised high frame rates and low latency. This configuration will easily maintain 240+ FPS in esports titles, giving you the competitive edge you need."
-        );
-      } else {
-        comments.push(
-          "This 1080p configuration delivers exceptional performance for modern gaming. The RTX 4060 Ti's 16GB VRAM is uncommon at this tier – we've included it to ensure smooth performance with high texture settings and ray tracing enabled."
+          "For competitive gaming, this configuration prioritises high frame rates and low latency, easily maintaining 240+ FPS in esports titles for maximum competitive advantage."
         );
       }
     } else if (answers.purpose === "creative") {
       if (answers.creative_detail === "video_editing") {
         comments.push(
-          "The 64GB DDR5-6400 RAM is essential for 4K timeline scrubbing and multi-layer colour grading in Premiere Pro and DaVinci Resolve. This capacity allows you to work with RED and ARRI RAW footage without proxies."
-        );
-        comments.push(
-          "We've specified Gen5 NVMe storage for your cache and project files – the increased sequential read speeds dramatically reduce export times and enable real-time playback of complex timelines."
+          "Professional video editors will appreciate the real-time 4K timeline playback and accelerated rendering capabilities, cutting export times by up to 70% compared to CPU-only workflows."
         );
       } else if (answers.creative_detail === "3d_rendering") {
         comments.push(
-          "The RTX 4070 Ti Super offers excellent CUDA core count for GPU-accelerated rendering in Blender Cycles and Octane. Combined with the 16-core CPU, you'll see significant improvements in both interactive viewport performance and final render times."
-        );
-        comments.push(
-          "We've configured ample storage for your asset libraries and render output – the Gen5 NVMe ensures your scene files load instantly, even with heavy texture sets."
-        );
-      } else if (answers.creative_detail === "streaming") {
-        comments.push(
-          "This configuration excels at simultaneous gaming and streaming. The NVIDIA encoder handles stream encoding with minimal performance impact, whilst the multi-core CPU manages OBS, chat overlays, and background tasks effortlessly."
+          "3D artists and architects benefit from GPU-accelerated rendering in Blender Cycles and V-Ray, with viewport performance that enables smooth navigation of complex scenes."
         );
       }
-    } else if (answers.purpose === "development") {
-      comments.push(
-        "The 64GB RAM and 16-core CPU are specifically chosen for running multiple Docker containers and virtual machines simultaneously. You'll be able to run entire development environments without performance degradation."
-      );
-      comments.push(
-        "Fast NVMe storage significantly improves compilation times for large codebases. We've also included ample capacity for local databases and test environments."
-      );
+    } else if (answers.purpose === "content_creation") {
+      if (answers.content_creation_detail === "streaming") {
+        comments.push(
+          "Streamers benefit from the dedicated NVENC encoder which maintains crystal-clear stream quality whilst gaming, with zero impact on gaming performance or frame rates."
+        );
+      }
     }
 
     // Content creation insights
@@ -674,6 +731,25 @@ export function PCFinder({
       );
     }
 
+    // RGB lighting insights
+    if (answers.rgb_preference === "full") {
+      comments.push(
+        "We've created a stunning RGB showcase with synchronised lighting across all components. The RGB RAM, fans, cable extensions, and LED strips create an immersive gaming atmosphere that responds to your system's performance."
+      );
+    } else if (answers.rgb_preference === "moderate") {
+      comments.push(
+        "The balanced RGB setup provides excellent visual appeal without being overwhelming. Key components feature tasteful lighting that enhances your setup whilst maintaining a professional appearance."
+      );
+    } else if (answers.rgb_preference === "subtle") {
+      comments.push(
+        "We've included minimal RGB accents that add character without distraction. The understated lighting provides just enough visual interest whilst keeping the focus on performance."
+      );
+    } else if (answers.rgb_preference === "none") {
+      comments.push(
+        "This clean, professional build focuses purely on performance with no RGB distractions. The understated aesthetic is perfect for office environments or users who prefer a minimalist setup."
+      );
+    }
+
     // Budget-tier specific insights
     if (answers.budget >= 3000) {
       comments.push(
@@ -684,176 +760,160 @@ export function PCFinder({
     return comments;
   };
 
-  // PC Builder component data for accurate pricing
-  const pcBuilderComponents = {
-    cpu: [
-      { name: "AMD Ryzen 9 9950X3D", price: 649.99, category: "flagship" },
-      { name: "Intel Core Ultra 9 285K", price: 589.99, category: "flagship" },
-      { name: "AMD Ryzen 9 9900X", price: 449.99, category: "high-end" },
-      { name: "AMD Ryzen 7 9800X3D", price: 449.99, category: "gaming" },
-      { name: "Intel Core i7-14700K", price: 399.99, category: "high-end" },
-      { name: "AMD Ryzen 7 9700X", price: 349.99, category: "performance" },
-      {
-        name: "Intel Core Ultra 7 265K",
-        price: 329.99,
-        category: "performance",
-      },
-      { name: "AMD Ryzen 5 9600X", price: 229.99, category: "mainstream" },
-      { name: "Intel Core i5-14400F", price: 189.99, category: "mainstream" },
-      { name: "Intel Core i5-13400F", price: 169.99, category: "budget" },
-      { name: "AMD Ryzen 5 7600", price: 159.99, category: "budget" },
-      { name: "Intel Core i5-12400", price: 149.99, category: "budget" },
-    ],
-    gpu: [
-      { name: "RTX 4090 24GB", price: 1599.99, category: "flagship" },
-      { name: "RTX 4080 Super 16GB", price: 999.99, category: "high-end" },
-      { name: "RTX 4070 Ti Super 16GB", price: 799.99, category: "high-end" },
-      { name: "RTX 4070 Super 12GB", price: 599.99, category: "performance" },
-      { name: "RTX 4060 Ti 16GB", price: 449.99, category: "mainstream" },
-      { name: "RTX 4060 8GB", price: 299.99, category: "budget" },
-    ],
-    ram: [
-      { name: "128GB DDR5-6000", price: 599.99, category: "flagship" },
-      { name: "64GB DDR5-6400", price: 349.99, category: "high-end" },
-      { name: "64GB DDR5-6000", price: 329.99, category: "high-end" },
-      { name: "32GB DDR5-6000 RGB", price: 189.99, category: "performance" },
-      { name: "32GB DDR5-5600", price: 159.99, category: "mainstream" },
-      { name: "16GB DDR5-5600", price: 99.99, category: "budget" },
-      { name: "16GB DDR5-5200", price: 89.99, category: "budget" },
-    ],
-    storage: [
-      { name: "4TB NVMe Gen5 + 8TB HDD", price: 599.99, category: "flagship" },
-      { name: "2TB NVMe Gen5 + 4TB HDD", price: 349.99, category: "high-end" },
-      {
-        name: "2TB NVMe Gen4 + 4TB HDD",
-        price: 279.99,
-        category: "performance",
-      },
-      {
-        name: "2TB NVMe Gen4 + 2TB HDD",
-        price: 239.99,
-        category: "performance",
-      },
-      {
-        name: "1TB NVMe Gen4 + 2TB HDD",
-        price: 179.99,
-        category: "mainstream",
-      },
-      { name: "1TB NVMe Gen4", price: 129.99, category: "mainstream" },
-      { name: "2TB NVMe Gen4", price: 199.99, category: "premium" },
-    ],
-    cooling: [
-      { name: "360mm RGB AIO", price: 179.99, category: "premium" },
-      { name: "280mm RGB AIO", price: 149.99, category: "performance" },
-      { name: "280mm AIO", price: 129.99, category: "performance" },
-      { name: "240mm AIO", price: 109.99, category: "mainstream" },
-      { name: "Stock Cooler", price: 0, category: "budget" },
-    ],
-    case: [
-      { name: "Premium ATX RGB", price: 249.99, category: "premium" },
-      { name: "ATX RGB", price: 179.99, category: "performance" },
-      { name: "ATX Standard", price: 129.99, category: "mainstream" },
-      { name: "Micro-ATX", price: 99.99, category: "budget" },
-    ],
-    psu: [
-      { name: "1000W 80+ Gold Modular", price: 189.99, category: "flagship" },
-      { name: "850W 80+ Gold Modular", price: 149.99, category: "high-end" },
-      { name: "750W 80+ Gold Modular", price: 129.99, category: "performance" },
-      { name: "650W 80+ Gold", price: 99.99, category: "mainstream" },
-      { name: "550W 80+ Bronze", price: 79.99, category: "budget" },
-    ],
-    motherboard: [
-      { name: "X670E Flagship", price: 399.99, category: "flagship" },
-      { name: "Z790 High-End", price: 299.99, category: "high-end" },
-      { name: "B650 Performance", price: 179.99, category: "performance" },
-      { name: "B550/B660 Mainstream", price: 129.99, category: "mainstream" },
-      { name: "A520/H610 Budget", price: 89.99, category: "budget" },
-    ],
+  // Function to adjust build specs based on RGB preference
+  const adjustSpecsForRGB = (originalSpecs: any, rgbPreference: string) => {
+    const specs = { ...originalSpecs };
+
+    if (rgbPreference === "none") {
+      // Remove RGB mentions and use non-RGB variants
+      specs.ram = specs.ram.replace(" RGB", "");
+      specs.cooling = specs.cooling.replace("RGB ", "");
+    } else if (rgbPreference === "subtle") {
+      // Minimal RGB mentions
+      if (!specs.ram.includes("RGB")) {
+        specs.ram = specs.ram.replace("DDR5", "DDR5 RGB");
+      }
+    } else if (rgbPreference === "moderate") {
+      // Add RGB to key components
+      if (!specs.ram.includes("RGB")) {
+        specs.ram = specs.ram.replace("DDR5", "DDR5 RGB");
+      }
+      if (!specs.cooling.includes("RGB") && !specs.cooling.includes("Stock")) {
+        specs.cooling = specs.cooling.replace("AIO", "RGB AIO");
+      }
+    } else if (rgbPreference === "full") {
+      // Maximum RGB everywhere
+      if (!specs.ram.includes("RGB")) {
+        specs.ram = specs.ram.replace("DDR5", "DDR5 RGB");
+      }
+      if (!specs.cooling.includes("RGB") && !specs.cooling.includes("Stock")) {
+        specs.cooling = specs.cooling.replace("AIO", "RGB AIO");
+      }
+      // Add RGB case and fans mention
+      specs.extras = "RGB Case Fans, LED Strips, RGB Cables";
+    }
+
+    return specs;
   };
 
   // Function to calculate accurate pricing from PC Builder components
-  const calculateAccuratePrice = (specs: any): number => {
+  const calculateAccuratePrice = (
+    specs: any,
+    rgbPreference?: string
+  ): number => {
     let totalPrice = 0;
 
-    // Map PC Finder specs to PC Builder components
-    const componentMappings = {
-      cpu: specs.cpu,
-      gpu: specs.gpu,
-      ram: specs.ram,
-      storage: specs.storage,
-      cooling: specs.cooling,
+    // Simple pricing based on spec content - more reliable than complex matching
+    const componentPrices = {
+      // CPU Pricing
+      cpu: specs.cpu.includes("9950X")
+        ? 649.99
+        : specs.cpu.includes("9900X")
+        ? 449.99
+        : specs.cpu.includes("9800X")
+        ? 449.99
+        : specs.cpu.includes("9700X")
+        ? 349.99
+        : specs.cpu.includes("9600X")
+        ? 229.99
+        : specs.cpu.includes("i7-14700K")
+        ? 399.99
+        : specs.cpu.includes("i5-14400")
+        ? 189.99
+        : specs.cpu.includes("i5-13400F")
+        ? 169.99
+        : specs.cpu.includes("7600")
+        ? 159.99
+        : specs.cpu.includes("i5-12400")
+        ? 149.99
+        : 179.99, // default
+
+      // GPU Pricing
+      gpu: specs.gpu.includes("4090")
+        ? 1599.99
+        : specs.gpu.includes("4080")
+        ? 999.99
+        : specs.gpu.includes("4070 Ti")
+        ? 799.99
+        : specs.gpu.includes("4070")
+        ? 599.99
+        : specs.gpu.includes("4060 Ti")
+        ? 449.99
+        : specs.gpu.includes("4060")
+        ? 299.99
+        : specs.gpu.includes("RTX 3060")
+        ? 199.99
+        : specs.gpu.includes("GTX 1660")
+        ? 149.99
+        : specs.gpu.includes("Integrated")
+        ? 0
+        : 250.99, // default
+
+      // RAM Pricing (adjust for RGB)
+      ram: specs.ram.includes("128GB")
+        ? 599.99
+        : specs.ram.includes("64GB")
+        ? 329.99
+        : specs.ram.includes("32GB")
+        ? 189.99
+        : specs.ram.includes("16GB")
+        ? 99.99
+        : 129.99, // default
+
+      // Storage Pricing
+      storage:
+        specs.storage.includes("4TB") && specs.storage.includes("Gen5")
+          ? 599.99
+          : specs.storage.includes("2TB") && specs.storage.includes("Gen5")
+          ? 349.99
+          : specs.storage.includes("2TB") && specs.storage.includes("4TB")
+          ? 279.99
+          : specs.storage.includes("2TB")
+          ? 239.99
+          : specs.storage.includes("1TB") && specs.storage.includes("HDD")
+          ? 179.99
+          : specs.storage.includes("500GB")
+          ? 79.99
+          : 129.99, // 1TB NVMe
+
+      // Cooling Pricing (adjust for RGB)
+      cooling: specs.cooling.includes("360mm")
+        ? 179.99
+        : specs.cooling.includes("280mm")
+        ? 149.99
+        : specs.cooling.includes("240mm")
+        ? 109.99
+        : specs.cooling.includes("Stock")
+        ? 0
+        : 89.99, // default
+
+      // Fixed component pricing
+      motherboard: 89.99, // Budget motherboard
+      case: 79.99, // Budget case
+      psu: 69.99, // Budget PSU
     };
 
-    // Calculate price for each component
-    for (const [componentType, componentName] of Object.entries(
-      componentMappings
-    )) {
-      const componentsOfType =
-        pcBuilderComponents[componentType as keyof typeof pcBuilderComponents];
-      const matchingComponent = componentsOfType.find(
-        (comp) =>
-          componentName
-            .toLowerCase()
-            .includes(comp.name.toLowerCase().split(" ")[0]) ||
-          comp.name
-            .toLowerCase()
-            .includes(componentName.toLowerCase().split(" ")[0])
-      );
-
-      if (matchingComponent) {
-        totalPrice += matchingComponent.price;
-      } else {
-        // Fallback pricing based on component type and estimated tier
-        const fallbackPrices = {
-          cpu: componentName.includes("9950X")
-            ? 649.99
-            : componentName.includes("9800X")
-            ? 449.99
-            : componentName.includes("9600X")
-            ? 229.99
-            : 189.99,
-          gpu: componentName.includes("4090")
-            ? 1599.99
-            : componentName.includes("4080")
-            ? 999.99
-            : componentName.includes("4070 Ti")
-            ? 799.99
-            : componentName.includes("4070")
-            ? 599.99
-            : componentName.includes("4060 Ti")
-            ? 449.99
-            : 299.99,
-          ram: componentName.includes("128GB")
-            ? 599.99
-            : componentName.includes("64GB")
-            ? 329.99
-            : componentName.includes("32GB")
-            ? 189.99
-            : 99.99,
-          storage: componentName.includes("4TB")
-            ? 599.99
-            : componentName.includes("2TB") && componentName.includes("Gen5")
-            ? 349.99
-            : componentName.includes("2TB")
-            ? 279.99
-            : 129.99,
-          cooling: componentName.includes("360mm")
-            ? 179.99
-            : componentName.includes("280mm")
-            ? 149.99
-            : componentName.includes("240mm")
-            ? 109.99
-            : 0,
-        };
-        totalPrice +=
-          fallbackPrices[componentType as keyof typeof fallbackPrices] || 0;
-      }
+    // RGB pricing adjustments
+    let rgbCost = 0;
+    if (rgbPreference === "full") {
+      rgbCost = 150; // RGB RAM upgrade, RGB fans, LED strips, RGB cables
+    } else if (rgbPreference === "moderate") {
+      rgbCost = 75; // RGB fans and some RGB components
+    } else if (rgbPreference === "subtle") {
+      rgbCost = 30; // Minimal RGB accents
     }
+    // "none" adds £0
 
-    // Add motherboard, case, and PSU estimates
-    totalPrice += 179.99; // Average motherboard
-    totalPrice += 179.99; // Average case
-    totalPrice += 129.99; // Average PSU
+    totalPrice =
+      componentPrices.cpu +
+      componentPrices.gpu +
+      componentPrices.ram +
+      componentPrices.storage +
+      componentPrices.cooling +
+      componentPrices.motherboard +
+      componentPrices.case +
+      componentPrices.psu +
+      rgbCost;
 
     return Math.round(totalPrice);
   };
@@ -867,7 +927,7 @@ export function PCFinder({
     creative_detail?: string;
     content_creation_detail?: string;
     future_proofing?: boolean;
-    rgb_preference?: boolean;
+    rgb_preference?: string;
     size_constraints?: string;
   }
 
@@ -1091,11 +1151,11 @@ export function PCFinder({
       description:
         "Entry-level creative workstation for photo editing and light video work",
       specs: {
-        cpu: "AMD Ryzen 5 7600 or Intel Core i5-12400",
-        gpu: "RTX 4060 8GB",
-        ram: "16GB DDR5-5200",
-        storage: "1TB NVMe Gen4",
-        cooling: "Stock Cooler",
+        cpu: "AMD Ryzen 7 9700X or Intel Core i7-14700K",
+        gpu: "RTX 3060 12GB",
+        ram: "32GB DDR5-5600",
+        storage: "2TB NVMe Gen4",
+        cooling: "240mm AIO",
       },
       features: [
         "Photo Editing",
@@ -1116,10 +1176,10 @@ export function PCFinder({
       description:
         "Perfect for office work, web browsing, and basic productivity tasks",
       specs: {
-        cpu: "AMD Ryzen 5 7600 or Intel Core i5-12400",
-        gpu: "RTX 4060 8GB",
+        cpu: "Intel Core i5-13400F or AMD Ryzen 5 7600",
+        gpu: "Integrated Graphics",
         ram: "16GB DDR5-5200",
-        storage: "1TB NVMe Gen4",
+        storage: "500GB NVMe Gen4",
         cooling: "Stock Cooler",
       },
       features: [
@@ -1208,23 +1268,79 @@ export function PCFinder({
       gaming_detail: answers.gaming_detail,
       creative_detail: answers.creative_detail,
       content_creation_detail: answers.content_creation_detail,
+      rgb_preference: answers.rgb_preference,
     };
 
-    // Calculate scores for all build templates
-    const scoredBuilds = buildTemplates.map((build) => {
-      const accuratePrice = calculateAccuratePrice(build.specs);
-      return {
-        ...build,
-        score: calculateBuildScore(build, profile, accuratePrice),
-        accuratePrice: accuratePrice,
-        adjustedPrice: Math.min(build.basePrice, profile.budget), // Keep for compatibility
-      };
-    });
+    // Calculate scores for all build templates and filter by budget
+    const scoredBuilds = buildTemplates
+      .map((build) => {
+        const accuratePrice = calculateAccuratePrice(
+          build.specs,
+          answers.rgb_preference
+        );
+        return {
+          ...build,
+          score: calculateBuildScore(build, profile, accuratePrice),
+          accuratePrice: accuratePrice,
+          adjustedPrice: Math.min(build.basePrice, profile.budget), // Keep for compatibility
+        };
+      })
+      .filter((build) => {
+        // Hard budget filter - exclude builds that exceed budget by more than 10%
+        return build.accuratePrice <= profile.budget * 1.1;
+      });
 
-    // Sort by score and select top recommendations
-    const topBuilds = scoredBuilds
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
+    // Sort by score and select diverse recommendations
+    let topBuilds = scoredBuilds.sort((a, b) => b.score - a.score);
+
+    // Ensure diversity by selecting builds from different categories/price points
+    const diverseBuilds: any[] = [];
+    const usedCategories = new Set<string>();
+
+    for (const build of topBuilds) {
+      if (diverseBuilds.length >= 3) break;
+
+      // Add if it's a different category or if we don't have enough builds yet
+      if (!usedCategories.has(build.category) || diverseBuilds.length === 0) {
+        diverseBuilds.push(build);
+        usedCategories.add(build.category);
+      }
+    }
+
+    // If we still need more builds, add highest-scoring ones regardless of category
+    if (diverseBuilds.length < 3) {
+      for (const build of topBuilds) {
+        if (diverseBuilds.length >= 3) break;
+        if (!diverseBuilds.includes(build)) {
+          diverseBuilds.push(build);
+        }
+      }
+    }
+
+    topBuilds = diverseBuilds;
+
+    // Fallback: if no builds are within budget, show the cheapest builds available
+    if (topBuilds.length === 0) {
+      console.log(
+        `No builds found within budget of £${profile.budget}. Showing cheapest alternatives.`
+      );
+      const allBuildsWithPricing = buildTemplates.map((build) => {
+        const accuratePrice = calculateAccuratePrice(
+          build.specs,
+          answers.rgb_preference
+        );
+        return {
+          ...build,
+          score: calculateBuildScore(build, profile, accuratePrice),
+          accuratePrice: accuratePrice,
+          adjustedPrice: Math.min(build.basePrice, profile.budget),
+        };
+      });
+
+      topBuilds = allBuildsWithPricing
+        .sort((a, b) => a.accuratePrice - b.accuratePrice) // Sort by price ascending
+        .slice(0, 3); // Take 3 cheapest
+    }
 
     const builds: any[] = [];
 
@@ -1288,12 +1404,12 @@ export function PCFinder({
         price: build.accuratePrice, // Use accurate pricing instead of adjusted price
         category: build.category,
         description: build.description,
-        specs: build.specs,
+        specs: adjustSpecsForRGB(build.specs, answers.rgb_preference || "none"),
         features: build.features,
         images: Array(6).fill(PLACEHOLDER_IMAGE),
         expertComments: generateExpertComments(
           answers,
-          answers.gaming_detail || answers.creative_detail || answers.purpose
+          build.category // Use build category for unique comments
         ),
         intelligentScore: build.score, // Add score for debugging/analytics
         recommendation:
@@ -1491,6 +1607,16 @@ export function PCFinder({
                             {build.specs.cooling}
                           </span>
                         </div>
+                        {build.specs.extras && (
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-2 md:p-3 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20 gap-1">
+                            <span className="text-sky-400 text-sm md:text-base">
+                              RGB Lighting
+                            </span>
+                            <span className="text-sky-300 font-medium text-sm md:text-base break-words">
+                              {build.specs.extras}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
