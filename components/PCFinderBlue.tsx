@@ -684,15 +684,294 @@ export function PCFinder({
     return comments;
   };
 
-  const generateBuildRecommendations = (answers: any) => {
-    const builds = [];
+  // Enhanced multi-factor scoring system for intelligent recommendations
+  interface UserProfile {
+    budget: number;
+    purpose: string;
+    performance_level?: string;
+    gaming_detail?: string;
+    creative_detail?: string;
+    content_creation_detail?: string;
+    future_proofing?: boolean;
+    rgb_preference?: boolean;
+    size_constraints?: string;
+  }
 
-    // Determine performance tier
-    let performanceTier = "mid";
-    if (answers.budget >= 3000) performanceTier = "extreme";
-    else if (answers.budget >= 2000) performanceTier = "high";
-    else if (answers.budget >= 1000) performanceTier = "mid";
-    else performanceTier = "budget";
+  interface BuildTemplate {
+    name: string;
+    basePrice: number;
+    category: string;
+    description: string;
+    specs: any;
+    features: string[];
+    targetUseCase: string[];
+    performanceScore: number;
+    valueScore: number;
+    futureProofScore: number;
+    powerEfficiency: number;
+  }
+
+  const buildTemplates: BuildTemplate[] = [
+    {
+      name: "Gaming Beast 4K",
+      basePrice: 4200,
+      category: "Ultimate Gaming",
+      description: "Crushes 4K gaming with RTX 4090 and latest processors",
+      specs: {
+        cpu: "Intel Core Ultra 9 285K or AMD Ryzen 9 9950X3D",
+        gpu: "RTX 4090 24GB",
+        ram: "32GB DDR5-6400 RGB",
+        storage: "2TB NVMe Gen5 + 2TB HDD",
+        cooling: "360mm RGB AIO",
+      },
+      features: [
+        "4K 60+ FPS",
+        "Ray Tracing Ultra",
+        "DLSS 3.0",
+        "3-Year Warranty",
+      ],
+      targetUseCase: ["gaming", "4k_ultra", "competitive"],
+      performanceScore: 100,
+      valueScore: 70,
+      futureProofScore: 95,
+      powerEfficiency: 60,
+    },
+    {
+      name: "Gaming Master 1440p",
+      basePrice: 2400,
+      category: "High-Performance Gaming",
+      description: "Perfect for 1440p high-refresh gaming with RTX 4070 Ti",
+      specs: {
+        cpu: "AMD Ryzen 7 9800X3D or Intel Core i7-14700K",
+        gpu: "RTX 4070 Ti Super 16GB",
+        ram: "32GB DDR5-6000 RGB",
+        storage: "1TB NVMe Gen4 + 1TB HDD",
+        cooling: "280mm AIO",
+      },
+      features: [
+        "1440p 120+ FPS",
+        "Ray Tracing High",
+        "DLSS 3.0",
+        "3-Year Warranty",
+      ],
+      targetUseCase: ["gaming", "1440p_high"],
+      performanceScore: 85,
+      valueScore: 90,
+      futureProofScore: 80,
+      powerEfficiency: 75,
+    },
+    {
+      name: "Gaming Core 1080p",
+      basePrice: 1400,
+      category: "Performance Gaming",
+      description: "Excellent 1080p gaming performance with modern features",
+      specs: {
+        cpu: "AMD Ryzen 5 9600X or Intel Core i5-13400F",
+        gpu: "RTX 4060 Ti 16GB",
+        ram: "16GB DDR5-5600",
+        storage: "1TB NVMe Gen4",
+        cooling: "240mm AIO",
+      },
+      features: [
+        "1080p 144+ FPS",
+        "Ray Tracing Medium",
+        "DLSS 3.0",
+        "3-Year Warranty",
+      ],
+      targetUseCase: ["gaming", "1080p_budget", "competitive"],
+      performanceScore: 70,
+      valueScore: 95,
+      futureProofScore: 65,
+      powerEfficiency: 85,
+    },
+    {
+      name: "Creator Workstation Pro",
+      basePrice: 3200,
+      category: "Creative Workstation",
+      description:
+        "Optimised for video editing, 3D rendering, and creative workflows",
+      specs: {
+        cpu: "AMD Ryzen 9 9950X or Intel Core Ultra 9 285K",
+        gpu: "RTX 4070 Ti Super 16GB",
+        ram: "64GB DDR5-6400",
+        storage: "2TB NVMe Gen5 + 4TB HDD",
+        cooling: "360mm AIO",
+      },
+      features: [
+        "4K Video Editing",
+        "GPU Acceleration",
+        "64GB RAM",
+        "3-Year Warranty",
+      ],
+      targetUseCase: ["creative", "video_editing", "3d_rendering"],
+      performanceScore: 95,
+      valueScore: 80,
+      futureProofScore: 90,
+      powerEfficiency: 70,
+    },
+    {
+      name: "Content Creator Studio",
+      basePrice: 2600,
+      category: "Content Creation Workstation",
+      description:
+        "Optimised for streaming, video production, and content creation",
+      specs: {
+        cpu: "AMD Ryzen 7 9800X3D or Intel Core i7-14700K",
+        gpu: "RTX 4070 Super 12GB",
+        ram: "32GB DDR5-6000 RGB",
+        storage: "2TB NVMe Gen4 + 2TB HDD",
+        cooling: "280mm RGB AIO",
+      },
+      features: [
+        "NVENC Encoder",
+        "Multi-Core Performance",
+        "Fast Storage",
+        "3-Year Warranty",
+      ],
+      targetUseCase: ["content_creation", "streaming", "youtube"],
+      performanceScore: 80,
+      valueScore: 85,
+      futureProofScore: 75,
+      powerEfficiency: 80,
+    },
+    {
+      name: "Developer Powerhouse",
+      basePrice: 2700,
+      category: "Development Workstation",
+      description:
+        "Multi-core performance for compilation, VMs, and development",
+      specs: {
+        cpu: "AMD Ryzen 9 9950X or Intel Core Ultra 9 285K",
+        gpu: "RTX 4060 Ti 16GB",
+        ram: "64GB DDR5-6000",
+        storage: "2TB NVMe Gen4 + 2TB HDD",
+        cooling: "280mm AIO",
+      },
+      features: [
+        "16+ Cores",
+        "Fast Compilation",
+        "VM Ready",
+        "3-Year Warranty",
+      ],
+      targetUseCase: ["development", "professional"],
+      performanceScore: 90,
+      valueScore: 85,
+      futureProofScore: 85,
+      powerEfficiency: 90,
+    },
+    {
+      name: "Home & Office Pro",
+      basePrice: 1100,
+      category: "Productivity & Media",
+      description:
+        "Perfect for daily tasks, media consumption, and light productivity",
+      specs: {
+        cpu: "AMD Ryzen 5 7600 or Intel Core i5-12400F",
+        gpu: "RTX 4060 8GB",
+        ram: "16GB DDR5-5600",
+        storage: "1TB NVMe Gen4",
+        cooling: "240mm AIO",
+      },
+      features: [
+        "Silent Operation",
+        "Energy Efficient",
+        "4K Media",
+        "3-Year Warranty",
+      ],
+      targetUseCase: ["home", "professional", "photo_editing"],
+      performanceScore: 60,
+      valueScore: 100,
+      futureProofScore: 50,
+      powerEfficiency: 95,
+    },
+  ];
+
+  const calculateBuildScore = (
+    build: BuildTemplate,
+    profile: UserProfile
+  ): number => {
+    let score = 0;
+    const weights = {
+      budget: 0.3,
+      useCase: 0.25,
+      performance: 0.2,
+      value: 0.15,
+      futureProof: 0.1,
+    };
+
+    // Budget compatibility score (0-100)
+    const budgetRatio = profile.budget / build.basePrice;
+    let budgetScore = 0;
+    if (budgetRatio >= 1.1) budgetScore = 100; // Can afford with headroom
+    else if (budgetRatio >= 0.95) budgetScore = 90; // Can afford
+    else if (budgetRatio >= 0.8) budgetScore = 70; // Stretch budget
+    else if (budgetRatio >= 0.6) budgetScore = 40; // Significant stretch
+    else budgetScore = 10; // Too expensive
+
+    // Use case matching score (0-100)
+    let useCaseScore = 0;
+    const userDetails = [
+      profile.purpose,
+      profile.gaming_detail,
+      profile.creative_detail,
+      profile.content_creation_detail,
+    ].filter(Boolean);
+
+    for (const userDetail of userDetails) {
+      if (userDetail && build.targetUseCase.includes(userDetail)) {
+        useCaseScore += 50;
+      }
+    }
+    useCaseScore = Math.min(useCaseScore, 100);
+
+    // Performance preference weighting
+    let performanceWeight = weights.performance;
+    if (
+      profile.gaming_detail === "4k_ultra" ||
+      profile.creative_detail === "3d_rendering"
+    ) {
+      performanceWeight += 0.1;
+    }
+
+    // Value preference weighting
+    let valueWeight = weights.value;
+    if (profile.budget < 1500) {
+      valueWeight += 0.1;
+    }
+
+    // Calculate weighted score
+    score =
+      budgetScore * weights.budget +
+      useCaseScore * weights.useCase +
+      build.performanceScore * performanceWeight +
+      build.valueScore * valueWeight +
+      build.futureProofScore * weights.futureProof;
+
+    return Math.round(score);
+  };
+
+  const generateBuildRecommendations = (answers: any): any[] => {
+    const profile: UserProfile = {
+      budget: answers.budget || 1500,
+      purpose: answers.purpose || "gaming",
+      gaming_detail: answers.gaming_detail,
+      creative_detail: answers.creative_detail,
+      content_creation_detail: answers.content_creation_detail,
+    };
+
+    // Calculate scores for all build templates
+    const scoredBuilds = buildTemplates.map((build) => ({
+      ...build,
+      score: calculateBuildScore(build, profile),
+      adjustedPrice: Math.min(build.basePrice, profile.budget),
+    }));
+
+    // Sort by score and select top recommendations
+    const topBuilds = scoredBuilds
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    const builds: any[] = [];
 
     // First, add relevant Strapi builds if available
     if (strapiBuilds.length > 0) {
@@ -716,8 +995,8 @@ export function PCFinder({
         return build.featured; // Include featured builds as general recommendations
       });
 
-      // Add up to 2 relevant Strapi builds
-      relevantStrapiBuilds.slice(0, 2).forEach((strapiBuild) => {
+      // Add up to 1 relevant Strapi build (reduced to make room for intelligent recommendations)
+      relevantStrapiBuilds.slice(0, 1).forEach((strapiBuild) => {
         builds.push({
           name: strapiBuild.name,
           price: strapiBuild.price || Math.min(answers.budget, 2500),
@@ -747,175 +1026,29 @@ export function PCFinder({
       });
     }
 
-    // Build recommendations based on purpose and budget
-    if (answers.purpose === "gaming") {
-      if (
-        answers.gaming_detail === "4k_ultra" ||
-        performanceTier === "extreme"
-      ) {
-        builds.push({
-          name: "Gaming Beast 4K",
-          price: Math.min(answers.budget, 4500),
-          category: "Ultimate Gaming",
-          description: "Crushes 4K gaming with RTX 4090 and latest processors",
-          specs: {
-            cpu: "Intel Core Ultra 9 285K or AMD Ryzen 9 9950X3D",
-            gpu: "RTX 4090 24GB",
-            ram: "32GB DDR5-6400 RGB",
-            storage: "2TB NVMe Gen5 + 2TB HDD",
-            cooling: "360mm RGB AIO",
-          },
-          features: [
-            "4K 60+ FPS",
-            "Ray Tracing Ultra",
-            "DLSS 3.0",
-            "3-Year Warranty",
-          ],
-          images: Array(6).fill(PLACEHOLDER_IMAGE),
-          expertComments: generateExpertComments(answers, "4k_ultra"),
-        });
-      } else if (
-        answers.gaming_detail === "1440p_high" ||
-        performanceTier === "high"
-      ) {
-        builds.push({
-          name: "Gaming Master 1440p",
-          price: Math.min(answers.budget, 2500),
-          category: "High-Performance Gaming",
-          description: "Perfect for 1440p high-refresh gaming with RTX 4070 Ti",
-          specs: {
-            cpu: "AMD Ryzen 7 9800X3D or Intel Core i7-14700K",
-            gpu: "RTX 4070 Ti Super 16GB",
-            ram: "32GB DDR5-6000 RGB",
-            storage: "1TB NVMe Gen4 + 1TB HDD",
-            cooling: "280mm AIO",
-          },
-          features: [
-            "1440p 120+ FPS",
-            "Ray Tracing High",
-            "DLSS 3.0",
-            "3-Year Warranty",
-          ],
-          images: Array(6).fill(PLACEHOLDER_IMAGE),
-          expertComments: generateExpertComments(answers, "1440p_high"),
-        });
-      } else {
-        builds.push({
-          name: "Gaming Core 1080p",
-          price: Math.min(answers.budget, 1500),
-          category: "Performance Gaming",
-          description:
-            "Excellent 1080p gaming performance with modern features",
-          specs: {
-            cpu: "AMD Ryzen 5 9600X or Intel Core i5-13400F",
-            gpu: "RTX 4060 Ti 16GB",
-            ram: "16GB DDR5-5600",
-            storage: "1TB NVMe Gen4",
-            cooling: "240mm AIO",
-          },
-          features: [
-            "1080p 144+ FPS",
-            "Ray Tracing Medium",
-            "DLSS 3.0",
-            "3-Year Warranty",
-          ],
-          images: Array(6).fill(PLACEHOLDER_IMAGE),
-          expertComments: generateExpertComments(answers, "1080p"),
-        });
-      }
-    } else if (answers.purpose === "creative") {
+    // Add intelligent recommendations based on scoring
+    topBuilds.forEach((build, index) => {
       builds.push({
-        name: "Creator Workstation Pro",
-        price: Math.min(answers.budget, 3500),
-        category: "Creative Workstation",
-        description:
-          "Optimised for video editing, 3D rendering, and creative workflows",
-        specs: {
-          cpu: "AMD Ryzen 9 9950X or Intel Core Ultra 9 285K",
-          gpu: "RTX 4070 Ti Super 16GB",
-          ram: "64GB DDR5-6400",
-          storage: "2TB NVMe Gen5 + 4TB HDD",
-          cooling: "360mm AIO",
-        },
-        features: [
-          "4K Video Editing",
-          "GPU Acceleration",
-          "64GB RAM",
-          "3-Year Warranty",
-        ],
+        name: build.name,
+        price: build.adjustedPrice,
+        category: build.category,
+        description: build.description,
+        specs: build.specs,
+        features: build.features,
         images: Array(6).fill(PLACEHOLDER_IMAGE),
-        expertComments: generateExpertComments(answers, "creative"),
+        expertComments: generateExpertComments(
+          answers,
+          answers.gaming_detail || answers.creative_detail || answers.purpose
+        ),
+        intelligentScore: build.score, // Add score for debugging/analytics
+        recommendation:
+          index === 0
+            ? "Best Match"
+            : index === 1
+            ? "Great Value"
+            : "Alternative Option",
       });
-    } else if (answers.purpose === "content_creation") {
-      builds.push({
-        name: "Content Creator Studio",
-        price: Math.min(answers.budget, 2800),
-        category: "Content Creation Workstation",
-        description:
-          "Optimised for streaming, video production, and content creation",
-        specs: {
-          cpu: "AMD Ryzen 7 9800X3D or Intel Core i7-14700K",
-          gpu: "RTX 4070 Super 12GB",
-          ram: "32GB DDR5-6000 RGB",
-          storage: "2TB NVMe Gen4 + 2TB HDD",
-          cooling: "280mm RGB AIO",
-        },
-        features: [
-          "NVENC Encoder",
-          "Multi-Core Performance",
-          "Fast Storage",
-          "3-Year Warranty",
-        ],
-        images: Array(6).fill(PLACEHOLDER_IMAGE),
-        expertComments: generateExpertComments(answers, "content_creation"),
-      });
-    } else if (answers.purpose === "development") {
-      builds.push({
-        name: "Developer Powerhouse",
-        price: Math.min(answers.budget, 2800),
-        category: "Development Workstation",
-        description:
-          "Multi-core performance for compilation, VMs, and development",
-        specs: {
-          cpu: "AMD Ryzen 9 9950X or Intel Core Ultra 9 285K",
-          gpu: "RTX 4060 Ti 16GB",
-          ram: "64GB DDR5-6000",
-          storage: "2TB NVMe Gen4 + 2TB HDD",
-          cooling: "280mm AIO",
-        },
-        features: [
-          "16+ Cores",
-          "Fast Compilation",
-          "VM Ready",
-          "3-Year Warranty",
-        ],
-        images: Array(6).fill(PLACEHOLDER_IMAGE),
-        expertComments: generateExpertComments(answers, "development"),
-      });
-    } else {
-      builds.push({
-        name: "Home & Office Pro",
-        price: Math.min(answers.budget, 1200),
-        category: "Productivity & Media",
-        description:
-          "Perfect for daily tasks, media consumption, and light productivity",
-        specs: {
-          cpu: "AMD Ryzen 5 7600 or Intel Core i5-12400F",
-          gpu: "RTX 4060 8GB",
-          ram: "16GB DDR5-5600",
-          storage: "1TB NVMe Gen4",
-          cooling: "240mm AIO",
-        },
-        features: [
-          "Silent Operation",
-          "Energy Efficient",
-          "4K Media",
-          "3-Year Warranty",
-        ],
-        images: Array(6).fill(PLACEHOLDER_IMAGE),
-        expertComments: generateExpertComments(answers, "home"),
-      });
-    }
+    });
 
     return builds;
   };
@@ -1041,14 +1174,16 @@ export function PCFinder({
                                 Kevin's Insight
                               </h3>
                               <div className="space-y-3">
-                                {build.expertComments.map((comment, idx) => (
-                                  <p
-                                    key={idx}
-                                    className="text-sm md:text-base text-gray-300 leading-relaxed"
-                                  >
-                                    {comment}
-                                  </p>
-                                ))}
+                                {build.expertComments.map(
+                                  (comment: string, idx: number) => (
+                                    <p
+                                      key={idx}
+                                      className="text-sm md:text-base text-gray-300 leading-relaxed"
+                                    >
+                                      {comment}
+                                    </p>
+                                  )
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1110,16 +1245,18 @@ export function PCFinder({
                         Key Features
                       </h3>
                       <div className="flex flex-wrap gap-2">
-                        {build.features.map((feature, featureIndex) => (
-                          <Badge
-                            key={featureIndex}
-                            variant="secondary"
-                            className="bg-green-500/20 text-green-300 border-green-500/30"
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            {feature}
-                          </Badge>
-                        ))}
+                        {build.features.map(
+                          (feature: string, featureIndex: number) => (
+                            <Badge
+                              key={featureIndex}
+                              variant="secondary"
+                              className="bg-green-500/20 text-green-300 border-green-500/30"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              {feature}
+                            </Badge>
+                          )
+                        )}
                       </div>
                     </div>
 
