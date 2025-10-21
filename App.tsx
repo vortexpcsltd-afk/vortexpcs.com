@@ -31,6 +31,8 @@ import {
   Search,
   LogIn,
   UserPlus,
+  LogOut,
+  Home,
   Info,
   Phone,
 } from "lucide-react";
@@ -209,9 +211,12 @@ export default function App() {
                 {/* Logo */}
                 <div
                   className="cursor-pointer group"
-                  onClick={() => setCurrentView("home")}
+                  onClick={() => {
+                    setCurrentView("home");
+                    setIsMenuOpen(false);
+                  }}
                 >
-                  <div className="relative h-12 sm:h-16 w-auto flex items-center justify-center transition-all duration-300 group-hover:scale-110">
+                  <div className="relative h-12 sm:h-14 md:h-16 w-auto flex items-center justify-center transition-all duration-300 group-hover:scale-110">
                     <img
                       src={vortexLogo}
                       alt="Vortex PCs"
@@ -256,9 +261,10 @@ export default function App() {
                 </nav>
 
                 {/* Right Actions */}
-                <div className="flex items-center space-x-5">
+                <div className="flex items-center space-x-3">
+                  {/* Desktop Authentication - Hidden on Mobile */}
                   {isLoggedIn ? (
-                    <div className="flex items-center space-x-2.5">
+                    <div className="hidden md:flex items-center space-x-2.5">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -280,7 +286,7 @@ export default function App() {
                       )}
                     </div>
                   ) : (
-                    <div className="flex items-center space-x-2.5">
+                    <div className="hidden md:flex items-center space-x-2.5">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -322,33 +328,62 @@ export default function App() {
                     )}
                   </Button>
 
+                  {/* Hamburger Menu Button - Mobile Only */}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="md:hidden min-w-[44px] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    className="md:hidden min-w-[44px] min-h-[44px] text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
                     aria-label="Navigation menu"
                     aria-expanded={isMenuOpen}
                     aria-controls="mobile-navigation"
                   >
+                    <div className="absolute inset-0 bg-gradient-to-r from-sky-500/0 via-sky-500/10 to-sky-500/0 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"></div>
                     {isMenuOpen ? (
-                      <X className="w-6 h-6" />
+                      <X className="w-6 h-6 relative z-10" />
                     ) : (
-                      <Menu className="w-6 h-6" />
+                      <Menu className="w-6 h-6 relative z-10" />
                     )}
                   </Button>
                 </div>
               </div>
             </div>
 
-            {/* Mobile Menu */}
+            {/* Mobile Menu Overlay */}
+            {isMenuOpen && (
+              <div
+                className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                onClick={() => setIsMenuOpen(false)}
+                aria-hidden="true"
+              />
+            )}
+
+            {/* Mobile Navigation Menu */}
             {isMenuOpen && (
               <div
                 id="mobile-navigation"
-                className="md:hidden border-t border-white/10 bg-black/30 backdrop-blur-xl"
+                className="md:hidden absolute top-full left-0 right-0 z-50 border-t border-white/10 bg-black/80 backdrop-blur-xl"
               >
                 <div className="container mx-auto px-4 md:px-6 lg:px-8 py-5">
-                  <div className="flex flex-col space-y-2.5">
+                  {/* Navigation Links */}
+                  <div className="flex flex-col space-y-2.5 mb-5">
+                    {/* Home Link */}
+                    <button
+                      onClick={() => {
+                        setCurrentView("home");
+                        setIsMenuOpen(false);
+                      }}
+                      className={`flex items-center space-x-2.5 px-5 py-4 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                        currentView === "home"
+                          ? "bg-white/10 text-sky-400"
+                          : "hover:bg-white/5 text-gray-300"
+                      }`}
+                    >
+                      <Home className="w-5 h-5" />
+                      <span>Home</span>
+                    </button>
+
+                    {/* Other Navigation Items */}
                     {navigation.map((item) => (
                       <button
                         key={item.id}
@@ -367,6 +402,73 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-white/10 mb-5"></div>
+
+                  {/* Authentication Section */}
+                  {isLoggedIn ? (
+                    <div className="flex flex-col space-y-2.5">
+                      <button
+                        onClick={() => {
+                          setCurrentView("member");
+                          setIsMenuOpen(false);
+                        }}
+                        className="flex items-center space-x-2.5 px-5 py-4 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      >
+                        <User className="w-5 h-5" />
+                        <span>My Account</span>
+                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => {
+                            setCurrentView("admin");
+                            setIsMenuOpen(false);
+                          }}
+                          className="flex items-center space-x-2.5 px-5 py-4 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                        >
+                          <Shield className="w-5 h-5" />
+                          <span>Admin Panel</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setIsLoggedIn(false);
+                          setIsAdmin(false);
+                          setCurrentView("home");
+                          setIsMenuOpen(false);
+                        }}
+                        className="flex items-center space-x-2.5 px-5 py-4 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      >
+                        <LogOut className="w-5 h-5" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col space-y-2.5">
+                      <button
+                        onClick={() => {
+                          setShowLoginDialog(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="flex items-center space-x-2.5 px-5 py-4 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      >
+                        <LogIn className="w-5 h-5" />
+                        <span>Login</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setLoginTab("register");
+                          setShowLoginDialog(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="flex items-center justify-center space-x-2.5 px-5 py-4 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white rounded-lg shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300 min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      >
+                        <UserPlus className="w-5 h-5" />
+                        <span>Sign Up</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

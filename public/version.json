@@ -1,12 +1,15 @@
 {
-  "version": "2025-10-19-05",
-  "timestamp": "2025-10-19T19:00:00Z",
-  "build": "pcfinder-file-rename-ultimate-fix",
-  "description": "PCFinder cache bust - Complete blue glassmorphism theme with custom assets",
+  "version": "2025-10-21-01",
+  "timestamp": "2025-10-21T21:50:00Z",
+  "build": "navigation-responsiveness-fixes",
+  "description": "Complete navigation responsiveness overhaul - Fixed logo navigation, mobile menu, and desktop UX",
   "components": {
-    "PCFinder": "blue-glassmorphism-v5-FILE-RENAME",
+    "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
     "HomePage": "clean-no-rgb-v2-custom-bg",
     "Footer": "glassmorphism-updated-v2-custom-logo",
+    "Navigation": "responsive-redesign-v1",
+    "MobileMenu": "dark-background-v1",
+    "DesktopAuth": "login-signup-buttons-v1",
     "RepairService": "uk-service-v2",
     "TermsPage": "separate-component-v2",
     "PrivacyPage": "separate-component-v2",
@@ -25,15 +28,16 @@
     "favicon": "https://www.vortexpcs.com/vortexpcs-logo.png"
   },
   "changes": [
-    "Removed all RGB rainbow effects",
-    "Replaced with consistent blue theme",
-    "Updated all cards to glassmorphism",
-    "Cleaned App.tsx structure",
-    "Separated legal pages into components",
-    "Updated Footer to 4-column layout",
-    "Updated logo to custom Vortex PCs logo URL",
-    "Updated hero background to custom gaming keyboard image",
-    "CACHE BUST: PCFinder component version 04 - force CDN refresh",
-    "FILE RENAME: PCFinder.tsx → PCFinderBlue.tsx (v05) - ultimate cache bust"
+    "NAVIGATION OVERHAUL: Complete responsive design improvements",
+    "Fixed logo click navigation - works properly on desktop and mobile",
+    "Removed hamburger menu from desktop - added Login/Signup buttons",
+    "Enhanced mobile menu with dark background for readability",
+    "Added Home link to mobile navigation menu",
+    "Fixed logo sizing - proper responsive scaling (not oversized on desktop)",
+    "Cleaned up all TypeScript errors across components",
+    "Optimized PC Finder mobile responsiveness - especially Kevin's Insight section",
+    "Simplified event handling - removed complex propagation issues",
+    "Professional desktop navigation with traditional UX patterns",
+    "Mobile-first responsive design with glassmorphism consistency"
   ]
 }

@@ -934,30 +934,30 @@ export function PCFinder({
       <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-blue-950 py-12">
         <div className="container mx-auto px-4">
           {/* Header */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 mb-4">
+          <div className="text-center mb-8 md:mb-12">
+            <div className="inline-flex items-center px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 mb-4">
               <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
               <span className="text-sm text-green-300">
                 Perfect Match Found
               </span>
             </div>
-            <h1 className="text-4xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent">
+            <h1 className="text-3xl md:text-4xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent px-4">
               Your Ideal PC Build
             </h1>
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+            <p className="text-lg md:text-xl text-gray-300 max-w-2xl mx-auto px-4">
               Based on your requirements, we've found the perfect configuration
               for your needs and budget
             </p>
           </div>
 
           {/* Recommendations Grid */}
-          <div className="grid gap-8 max-w-6xl mx-auto">
+          <div className="grid gap-6 md:gap-8 max-w-6xl mx-auto">
             {recommendations.map((build, index) => (
               <Card
                 key={index}
                 className="bg-gradient-to-br from-white/5 to-white/[0.02] border-white/10 backdrop-blur-xl overflow-hidden group hover:border-sky-500/30 transition-all duration-300"
               >
-                <div className="grid lg:grid-cols-2 gap-8 p-8">
+                <div className="grid lg:grid-cols-2 gap-6 md:gap-8 p-4 md:p-6 lg:p-8">
                   {/* Product Images */}
                   <div className="space-y-6">
                     <ProductImageGallery
@@ -966,7 +966,7 @@ export function PCFinder({
                     />
 
                     {/* Action Buttons */}
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <Button
                         onClick={() => setCurrentView("pc-builder")}
                         className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white border-0"
@@ -974,29 +974,31 @@ export function PCFinder({
                         <Settings className="w-4 h-4 mr-2" />
                         Customise Build
                       </Button>
-                      <Button
-                        variant="outline"
-                        className="border-white/20 text-white hover:bg-white/10"
-                      >
-                        <Bookmark className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="border-white/20 text-white hover:bg-white/10"
-                      >
-                        <Heart className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-3">
+                        <Button
+                          variant="outline"
+                          className="flex-1 sm:flex-none border-white/20 text-white hover:bg-white/10"
+                        >
+                          <Bookmark className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="flex-1 sm:flex-none border-white/20 text-white hover:bg-white/10"
+                        >
+                          <Heart className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
                   {/* Product Details */}
-                  <div className="space-y-6">
+                  <div className="space-y-4 md:space-y-6">
                     {/* Header */}
                     <div>
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                         <Badge
                           variant="secondary"
-                          className="bg-sky-500/20 text-sky-300 border-sky-500/30"
+                          className="bg-sky-500/20 text-sky-300 border-sky-500/30 w-fit"
                         >
                           {build.category}
                         </Badge>
@@ -1009,77 +1011,91 @@ export function PCFinder({
                           </span>
                         </div>
                       </div>
-                      <h2 className="text-3xl font-bold text-white mb-2">
+                      <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
                         {build.name}
                       </h2>
-                      <div className="flex items-baseline gap-3">
-                        <span className="text-4xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                      <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
+                        <span className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
                           £{build.price.toLocaleString()}
                         </span>
-                        <span className="text-lg text-gray-400">inc. VAT</span>
+                        <span className="text-base md:text-lg text-gray-400">
+                          inc. VAT
+                        </span>
                       </div>
                     </div>
 
-                    <p className="text-gray-300 text-lg leading-relaxed">
+                    <p className="text-gray-300 text-base md:text-lg leading-relaxed">
                       {build.description}
                     </p>
 
                     {/* Expert Comments */}
                     {build.expertComments &&
                       build.expertComments.length > 0 && (
-                        <div className="space-y-3 p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20">
+                        <div className="space-y-3 p-3 md:p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20">
                           <div className="flex items-center gap-2 mb-2">
-                            <div className="w-8 h-8 rounded-full bg-sky-500/20 flex items-center justify-center">
-                              <Sparkles className="w-4 h-4 text-sky-400" />
+                            <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-sky-500/20 flex items-center justify-center flex-shrink-0">
+                              <Sparkles className="w-3.5 h-3.5 md:w-4 md:h-4 text-sky-400" />
                             </div>
-                            <h3 className="font-bold text-white">
+                            <h3 className="font-bold text-white text-sm md:text-base">
                               Kevin's Insight
                             </h3>
                           </div>
-                          {build.expertComments.map((comment, idx) => (
-                            <p
-                              key={idx}
-                              className="text-sm text-gray-300 leading-relaxed pl-10"
-                            >
-                              {comment}
-                            </p>
-                          ))}
+                          <div className="space-y-2">
+                            {build.expertComments.map((comment, idx) => (
+                              <p
+                                key={idx}
+                                className="text-xs md:text-sm text-gray-300 leading-relaxed pl-8 md:pl-10"
+                              >
+                                {comment}
+                              </p>
+                            ))}
+                          </div>
                         </div>
                       )}
 
                     {/* Specifications */}
-                    <div className="space-y-4">
-                      <h3 className="text-xl font-bold text-white">
+                    <div className="space-y-3 md:space-y-4">
+                      <h3 className="text-lg md:text-xl font-bold text-white">
                         Key Specifications
                       </h3>
-                      <div className="grid gap-3">
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-white/5 border border-white/10">
-                          <span className="text-gray-400">Processor</span>
-                          <span className="text-white font-medium">
+                      <div className="grid gap-2 md:gap-3">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-2 md:p-3 rounded-lg bg-white/5 border border-white/10 gap-1">
+                          <span className="text-gray-400 text-sm md:text-base">
+                            Processor
+                          </span>
+                          <span className="text-white font-medium text-sm md:text-base break-words">
                             {build.specs.cpu}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-white/5 border border-white/10">
-                          <span className="text-gray-400">Graphics Card</span>
-                          <span className="text-white font-medium">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-2 md:p-3 rounded-lg bg-white/5 border border-white/10 gap-1">
+                          <span className="text-gray-400 text-sm md:text-base">
+                            Graphics Card
+                          </span>
+                          <span className="text-white font-medium text-sm md:text-base break-words">
                             {build.specs.gpu}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-white/5 border border-white/10">
-                          <span className="text-gray-400">Memory</span>
-                          <span className="text-white font-medium">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-2 md:p-3 rounded-lg bg-white/5 border border-white/10 gap-1">
+                          <span className="text-gray-400 text-sm md:text-base">
+                            Memory
+                          </span>
+                          <span className="text-white font-medium text-sm md:text-base break-words">
                             {build.specs.ram}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-white/5 border border-white/10">
-                          <span className="text-gray-400">Storage</span>
-                          <span className="text-white font-medium">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-2 md:p-3 rounded-lg bg-white/5 border border-white/10 gap-1">
+                          <span className="text-gray-400 text-sm md:text-base">
+                            Storage
+                          </span>
+                          <span className="text-white font-medium text-sm md:text-base break-words">
                             {build.specs.storage}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-white/5 border border-white/10">
-                          <span className="text-gray-400">Cooling</span>
-                          <span className="text-white font-medium">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-2 md:p-3 rounded-lg bg-white/5 border border-white/10 gap-1">
+                          <span className="text-gray-400 text-sm md:text-base">
+                            Cooling
+                          </span>
+                          <span className="text-white font-medium text-sm md:text-base break-words">
                             {build.specs.cooling}
                           </span>
                         </div>
@@ -1088,7 +1104,7 @@ export function PCFinder({
 
                     {/* Features */}
                     <div className="space-y-3">
-                      <h3 className="text-xl font-bold text-white">
+                      <h3 className="text-lg md:text-xl font-bold text-white">
                         Key Features
                       </h3>
                       <div className="flex flex-wrap gap-2">
@@ -1152,24 +1168,24 @@ export function PCFinder({
     <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-blue-950 py-12">
       <div className="container mx-auto px-4">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20 mb-4">
+        <div className="text-center mb-8 md:mb-12">
+          <div className="inline-flex items-center px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20 mb-4">
             <Sparkles className="w-4 h-4 text-sky-400 mr-2" />
             <span className="text-sm text-sky-300">AI-Powered PC Finder</span>
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent">
+          <h1 className="text-3xl md:text-4xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent px-4">
             Find Your Perfect PC
           </h1>
-          <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-gray-300 max-w-2xl mx-auto px-4">
             Our intelligent questionnaire will help you discover the ideal PC
             configuration for your specific needs and budget
           </p>
         </div>
 
         {/* Progress */}
-        <div className="max-w-2xl mx-auto mb-12">
+        <div className="max-w-2xl mx-auto mb-8 md:mb-12 px-4">
           <div className="flex justify-between items-center mb-4">
-            <span className="text-sm text-gray-400">
+            <span className="text-xs md:text-sm text-gray-400">
               Question {currentStep + 1} of {questions.length}
             </span>
             <span className="text-sm text-gray-400">
@@ -1184,21 +1200,21 @@ export function PCFinder({
         </div>
 
         {/* Question Card */}
-        <div className="max-w-4xl mx-auto">
-          <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/10 backdrop-blur-xl p-8 md:p-12">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+        <div className="max-w-4xl mx-auto px-4">
+          <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/10 backdrop-blur-xl p-4 md:p-8 lg:p-12">
+            <div className="text-center mb-6 md:mb-8">
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-4">
                 {currentQuestion?.title}
               </h2>
-              <p className="text-lg text-gray-300">
+              <p className="text-base md:text-lg text-gray-300">
                 {currentQuestion?.subtitle}
               </p>
             </div>
 
             {/* Question Content */}
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               {currentQuestion?.type === "choice" && (
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid gap-3 md:grid-cols-2 md:gap-4">
                   {currentQuestion.options?.map((option: any) => (
                     <button
                       key={option.value}
@@ -1235,7 +1251,7 @@ export function PCFinder({
                     <p className="text-gray-400">Slide to adjust your budget</p>
                   </div>
 
-                  <div className="px-8">
+                  <div className="px-4 md:px-8">
                     <Slider
                       value={[
                         answers[currentQuestion.id] ||
@@ -1275,7 +1291,7 @@ export function PCFinder({
                             currentQuestion.defaultValue
                         )
                       }
-                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white px-8 py-3"
+                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white px-8 py-3 w-full sm:w-auto"
                     >
                       Continue
                       <ArrowRight className="w-4 h-4 ml-2" />
@@ -1287,11 +1303,11 @@ export function PCFinder({
 
             {/* Navigation */}
             {currentStep > 0 && (
-              <div className="mt-8 text-center">
+              <div className="mt-6 md:mt-8 text-center">
                 <Button
                   variant="outline"
                   onClick={goBack}
-                  className="border-white/20 text-white hover:bg-white/10"
+                  className="border-white/20 text-white hover:bg-white/10 w-full sm:w-auto"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Previous Question
