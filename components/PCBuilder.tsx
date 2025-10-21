@@ -2062,8 +2062,245 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     setShowCompatibilityDialog(false);
   };
 
-  const currentCategoryData = (componentData as any)[activeCategory] || [];
-  const filteredComponents = currentCategoryData; // Add filtering logic here
+  // Intelligent component filtering based on compatibility
+  const getCompatibleComponents = (
+    category: string,
+    currentComponents: any
+  ) => {
+    const allComponents = (componentData as any)[category] || [];
+
+    // If no components selected yet, show all
+    if (Object.keys(currentComponents).length === 0) {
+      return allComponents;
+    }
+
+    return allComponents.filter((component: any) => {
+      // CPU-Motherboard Socket Compatibility
+      if (category === "cpu" && currentComponents.motherboard) {
+        const motherboard = componentData.motherboard.find(
+          (mb: any) => mb.id === currentComponents.motherboard
+        );
+        if (motherboard && component.socket !== motherboard.socket) {
+          return false;
+        }
+      }
+
+      if (category === "motherboard" && currentComponents.cpu) {
+        const cpu = componentData.cpu.find(
+          (c: any) => c.id === currentComponents.cpu
+        );
+        if (cpu && component.socket !== cpu.socket) {
+          return false;
+        }
+      }
+
+      // GPU-Case Clearance
+      if (category === "gpu" && currentComponents.case) {
+        const pcCase = componentData.case.find(
+          (c: any) => c.id === currentComponents.case
+        );
+        if (pcCase && component.length > pcCase.maxGpuLength) {
+          return false;
+        }
+      }
+
+      if (category === "case" && currentComponents.gpu) {
+        const gpu = componentData.gpu.find(
+          (g: any) => g.id === currentComponents.gpu
+        );
+        if (gpu && gpu.length > component.maxGpuLength) {
+          return false;
+        }
+      }
+
+      // RAM-Motherboard Compatibility
+      if (category === "ram" && currentComponents.motherboard) {
+        const motherboard = componentData.motherboard.find(
+          (mb: any) => mb.id === currentComponents.motherboard
+        );
+        if (motherboard && !motherboard.ramSupport.includes(component.type)) {
+          return false;
+        }
+      }
+
+      if (category === "motherboard" && currentComponents.ram) {
+        const ram = componentData.ram.find(
+          (r: any) => r.id === currentComponents.ram
+        );
+        if (ram && !component.ramSupport.includes(ram.type)) {
+          return false;
+        }
+      }
+
+      // Case-Motherboard Form Factor
+      if (category === "case" && currentComponents.motherboard) {
+        const motherboard = componentData.motherboard.find(
+          (mb: any) => mb.id === currentComponents.motherboard
+        );
+        if (
+          motherboard &&
+          !component.compatibility.includes(
+            motherboard.formFactor.toLowerCase()
+          )
+        ) {
+          return false;
+        }
+      }
+
+      if (category === "motherboard" && currentComponents.case) {
+        const pcCase = componentData.case.find(
+          (c: any) => c.id === currentComponents.case
+        );
+        if (
+          pcCase &&
+          !pcCase.compatibility.includes(component.formFactor.toLowerCase())
+        ) {
+          return false;
+        }
+      }
+
+      // CPU Cooler Height-Case Clearance
+      if (
+        category === "cooling" &&
+        currentComponents.case &&
+        component.type === "Air"
+      ) {
+        const pcCase = componentData.case.find(
+          (c: any) => c.id === currentComponents.case
+        );
+        if (pcCase && component.height > pcCase.maxCpuCoolerHeight) {
+          return false;
+        }
+      }
+
+      if (category === "case" && currentComponents.cooling) {
+        const cooling = componentData.cooling.find(
+          (cool: any) => cool.id === currentComponents.cooling
+        );
+        if (
+          cooling &&
+          cooling.type === "Air" &&
+          cooling.height > component.maxCpuCoolerHeight
+        ) {
+          return false;
+        }
+      }
+
+      // PSU Length-Case Compatibility
+      if (category === "psu" && currentComponents.case) {
+        const pcCase = componentData.case.find(
+          (c: any) => c.id === currentComponents.case
+        );
+        if (pcCase && component.length > pcCase.maxPsuLength) {
+          return false;
+        }
+      }
+
+      if (category === "case" && currentComponents.psu) {
+        const psu = componentData.psu.find(
+          (p: any) => p.id === currentComponents.psu
+        );
+        if (psu && psu.length > component.maxPsuLength) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  // Performance optimization suggestions
+  const getPerformanceOptimizations = (currentComponents: any) => {
+    const suggestions = [];
+
+    // CPU-GPU Balance Check
+    if (currentComponents.cpu && currentComponents.gpu) {
+      const cpu = componentData.cpu.find(
+        (c: any) => c.id === currentComponents.cpu
+      );
+      const gpu = componentData.gpu.find(
+        (g: any) => g.id === currentComponents.gpu
+      );
+
+      if (cpu && gpu) {
+        const cpuTier =
+          cpu.price > 400 ? "high" : cpu.price > 200 ? "mid" : "low";
+        const gpuTier =
+          gpu.price > 800 ? "high" : gpu.price > 400 ? "mid" : "low";
+
+        if (cpuTier === "low" && gpuTier === "high") {
+          suggestions.push({
+            type: "bottleneck",
+            severity: "warning",
+            title: "Potential CPU Bottleneck",
+            description:
+              "Your GPU may be limited by the CPU in demanding games.",
+            recommendation:
+              "Consider upgrading to a higher-tier CPU for optimal performance.",
+          });
+        }
+
+        if (cpuTier === "high" && gpuTier === "low") {
+          suggestions.push({
+            type: "underutilized",
+            severity: "info",
+            title: "CPU Not Fully Utilized",
+            description: "Your powerful CPU could support a more capable GPU.",
+            recommendation:
+              "Consider a higher-tier GPU to match your CPU's capabilities.",
+          });
+        }
+      }
+    }
+
+    // PSU Wattage Recommendation
+    if (
+      currentComponents.cpu &&
+      currentComponents.gpu &&
+      currentComponents.psu
+    ) {
+      const cpu = componentData.cpu.find(
+        (c: any) => c.id === currentComponents.cpu
+      );
+      const gpu = componentData.gpu.find(
+        (g: any) => g.id === currentComponents.gpu
+      );
+      const psu = componentData.psu.find(
+        (p: any) => p.id === currentComponents.psu
+      );
+
+      if (cpu && gpu && psu) {
+        const estimatedPower = (cpu.tdp || 65) + (gpu.power || 150) + 150;
+        const recommendedPower = estimatedPower * 1.2;
+
+        if (psu.wattage < recommendedPower) {
+          suggestions.push({
+            type: "power",
+            severity: "warning",
+            title: "PSU May Be Undersized",
+            description: `System may consume up to ${estimatedPower}W, recommend ${Math.round(
+              recommendedPower
+            )}W PSU.`,
+            recommendation:
+              "Consider a higher wattage PSU for better efficiency and headroom.",
+          });
+        }
+      }
+    }
+
+    return suggestions;
+  };
+
+  const filteredComponents = getCompatibleComponents(
+    activeCategory,
+    selectedComponents
+  );
+  const performanceOptimizations =
+    getPerformanceOptimizations(selectedComponents);
+  const totalComponentsInCategory = (
+    (componentData as any)[activeCategory] || []
+  ).length;
+  const filteredCount = filteredComponents.length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-blue-950 py-12">
@@ -2324,6 +2561,27 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                 <p className="text-gray-400 mt-1 text-sm sm:text-base">
                   Choose the perfect {activeCategory} for your build
                 </p>
+                {/* Compatibility Status */}
+                {Object.keys(selectedComponents).length > 0 && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-sky-500/10 border border-sky-500/20">
+                      <div className="w-2 h-2 rounded-full bg-sky-400"></div>
+                      <span className="text-xs text-sky-300">
+                        {filteredCount} of {totalComponentsInCategory}{" "}
+                        compatible
+                      </span>
+                    </div>
+                    {filteredCount < totalComponentsInCategory && (
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
+                        <AlertTriangle className="w-3 h-3 text-amber-400" />
+                        <span className="text-xs text-amber-300">
+                          {totalComponentsInCategory - filteredCount}{" "}
+                          incompatible
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3">

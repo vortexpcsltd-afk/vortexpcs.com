@@ -684,6 +684,180 @@ export function PCFinder({
     return comments;
   };
 
+  // PC Builder component data for accurate pricing
+  const pcBuilderComponents = {
+    cpu: [
+      { name: "AMD Ryzen 9 9950X3D", price: 649.99, category: "flagship" },
+      { name: "Intel Core Ultra 9 285K", price: 589.99, category: "flagship" },
+      { name: "AMD Ryzen 9 9900X", price: 449.99, category: "high-end" },
+      { name: "AMD Ryzen 7 9800X3D", price: 449.99, category: "gaming" },
+      { name: "Intel Core i7-14700K", price: 399.99, category: "high-end" },
+      { name: "AMD Ryzen 7 9700X", price: 349.99, category: "performance" },
+      {
+        name: "Intel Core Ultra 7 265K",
+        price: 329.99,
+        category: "performance",
+      },
+      { name: "AMD Ryzen 5 9600X", price: 229.99, category: "mainstream" },
+      { name: "Intel Core i5-14400F", price: 189.99, category: "mainstream" },
+      { name: "Intel Core i5-13400F", price: 169.99, category: "budget" },
+      { name: "AMD Ryzen 5 7600", price: 159.99, category: "budget" },
+      { name: "Intel Core i5-12400", price: 149.99, category: "budget" },
+    ],
+    gpu: [
+      { name: "RTX 4090 24GB", price: 1599.99, category: "flagship" },
+      { name: "RTX 4080 Super 16GB", price: 999.99, category: "high-end" },
+      { name: "RTX 4070 Ti Super 16GB", price: 799.99, category: "high-end" },
+      { name: "RTX 4070 Super 12GB", price: 599.99, category: "performance" },
+      { name: "RTX 4060 Ti 16GB", price: 449.99, category: "mainstream" },
+      { name: "RTX 4060 8GB", price: 299.99, category: "budget" },
+    ],
+    ram: [
+      { name: "128GB DDR5-6000", price: 599.99, category: "flagship" },
+      { name: "64GB DDR5-6400", price: 349.99, category: "high-end" },
+      { name: "64GB DDR5-6000", price: 329.99, category: "high-end" },
+      { name: "32GB DDR5-6000 RGB", price: 189.99, category: "performance" },
+      { name: "32GB DDR5-5600", price: 159.99, category: "mainstream" },
+      { name: "16GB DDR5-5600", price: 99.99, category: "budget" },
+      { name: "16GB DDR5-5200", price: 89.99, category: "budget" },
+    ],
+    storage: [
+      { name: "4TB NVMe Gen5 + 8TB HDD", price: 599.99, category: "flagship" },
+      { name: "2TB NVMe Gen5 + 4TB HDD", price: 349.99, category: "high-end" },
+      {
+        name: "2TB NVMe Gen4 + 4TB HDD",
+        price: 279.99,
+        category: "performance",
+      },
+      {
+        name: "2TB NVMe Gen4 + 2TB HDD",
+        price: 239.99,
+        category: "performance",
+      },
+      {
+        name: "1TB NVMe Gen4 + 2TB HDD",
+        price: 179.99,
+        category: "mainstream",
+      },
+      { name: "1TB NVMe Gen4", price: 129.99, category: "mainstream" },
+      { name: "2TB NVMe Gen4", price: 199.99, category: "premium" },
+    ],
+    cooling: [
+      { name: "360mm RGB AIO", price: 179.99, category: "premium" },
+      { name: "280mm RGB AIO", price: 149.99, category: "performance" },
+      { name: "280mm AIO", price: 129.99, category: "performance" },
+      { name: "240mm AIO", price: 109.99, category: "mainstream" },
+      { name: "Stock Cooler", price: 0, category: "budget" },
+    ],
+    case: [
+      { name: "Premium ATX RGB", price: 249.99, category: "premium" },
+      { name: "ATX RGB", price: 179.99, category: "performance" },
+      { name: "ATX Standard", price: 129.99, category: "mainstream" },
+      { name: "Micro-ATX", price: 99.99, category: "budget" },
+    ],
+    psu: [
+      { name: "1000W 80+ Gold Modular", price: 189.99, category: "flagship" },
+      { name: "850W 80+ Gold Modular", price: 149.99, category: "high-end" },
+      { name: "750W 80+ Gold Modular", price: 129.99, category: "performance" },
+      { name: "650W 80+ Gold", price: 99.99, category: "mainstream" },
+      { name: "550W 80+ Bronze", price: 79.99, category: "budget" },
+    ],
+    motherboard: [
+      { name: "X670E Flagship", price: 399.99, category: "flagship" },
+      { name: "Z790 High-End", price: 299.99, category: "high-end" },
+      { name: "B650 Performance", price: 179.99, category: "performance" },
+      { name: "B550/B660 Mainstream", price: 129.99, category: "mainstream" },
+      { name: "A520/H610 Budget", price: 89.99, category: "budget" },
+    ],
+  };
+
+  // Function to calculate accurate pricing from PC Builder components
+  const calculateAccuratePrice = (specs: any): number => {
+    let totalPrice = 0;
+
+    // Map PC Finder specs to PC Builder components
+    const componentMappings = {
+      cpu: specs.cpu,
+      gpu: specs.gpu,
+      ram: specs.ram,
+      storage: specs.storage,
+      cooling: specs.cooling,
+    };
+
+    // Calculate price for each component
+    for (const [componentType, componentName] of Object.entries(
+      componentMappings
+    )) {
+      const componentsOfType =
+        pcBuilderComponents[componentType as keyof typeof pcBuilderComponents];
+      const matchingComponent = componentsOfType.find(
+        (comp) =>
+          componentName
+            .toLowerCase()
+            .includes(comp.name.toLowerCase().split(" ")[0]) ||
+          comp.name
+            .toLowerCase()
+            .includes(componentName.toLowerCase().split(" ")[0])
+      );
+
+      if (matchingComponent) {
+        totalPrice += matchingComponent.price;
+      } else {
+        // Fallback pricing based on component type and estimated tier
+        const fallbackPrices = {
+          cpu: componentName.includes("9950X")
+            ? 649.99
+            : componentName.includes("9800X")
+            ? 449.99
+            : componentName.includes("9600X")
+            ? 229.99
+            : 189.99,
+          gpu: componentName.includes("4090")
+            ? 1599.99
+            : componentName.includes("4080")
+            ? 999.99
+            : componentName.includes("4070 Ti")
+            ? 799.99
+            : componentName.includes("4070")
+            ? 599.99
+            : componentName.includes("4060 Ti")
+            ? 449.99
+            : 299.99,
+          ram: componentName.includes("128GB")
+            ? 599.99
+            : componentName.includes("64GB")
+            ? 329.99
+            : componentName.includes("32GB")
+            ? 189.99
+            : 99.99,
+          storage: componentName.includes("4TB")
+            ? 599.99
+            : componentName.includes("2TB") && componentName.includes("Gen5")
+            ? 349.99
+            : componentName.includes("2TB")
+            ? 279.99
+            : 129.99,
+          cooling: componentName.includes("360mm")
+            ? 179.99
+            : componentName.includes("280mm")
+            ? 149.99
+            : componentName.includes("240mm")
+            ? 109.99
+            : 0,
+        };
+        totalPrice +=
+          fallbackPrices[componentType as keyof typeof fallbackPrices] || 0;
+      }
+    }
+
+    // Add motherboard, case, and PSU estimates
+    totalPrice += 179.99; // Average motherboard
+    totalPrice += 179.99; // Average case
+    totalPrice += 129.99; // Average PSU
+
+    return Math.round(totalPrice);
+  };
+
   // Enhanced multi-factor scoring system for intelligent recommendations
   interface UserProfile {
     budget: number;
@@ -884,11 +1058,88 @@ export function PCFinder({
       futureProofScore: 50,
       powerEfficiency: 95,
     },
+
+    // Budget Builds - £600-£800 Range
+    {
+      name: "Budget Gaming Essential",
+      basePrice: 699,
+      category: "Budget Gaming",
+      description: "Solid 1080p gaming performance at an unbeatable price",
+      specs: {
+        cpu: "AMD Ryzen 5 7600 or Intel Core i5-12400",
+        gpu: "RTX 4060 8GB",
+        ram: "16GB DDR5-5200",
+        storage: "1TB NVMe Gen4",
+        cooling: "Stock Cooler",
+      },
+      features: [
+        "1080p 60+ FPS",
+        "Ray Tracing Capable",
+        "Great Value",
+        "3-Year Warranty",
+      ],
+      targetUseCase: ["gaming", "1080p_budget", "home"],
+      performanceScore: 55,
+      valueScore: 100,
+      futureProofScore: 45,
+      powerEfficiency: 95,
+    },
+    {
+      name: "Budget Creator Basic",
+      basePrice: 749,
+      category: "Budget Creative",
+      description:
+        "Entry-level creative workstation for photo editing and light video work",
+      specs: {
+        cpu: "AMD Ryzen 5 7600 or Intel Core i5-12400",
+        gpu: "RTX 4060 8GB",
+        ram: "16GB DDR5-5200",
+        storage: "1TB NVMe Gen4",
+        cooling: "Stock Cooler",
+      },
+      features: [
+        "Photo Editing",
+        "1080p Video",
+        "GPU Acceleration",
+        "Efficient",
+      ],
+      targetUseCase: ["creative", "photo_editing", "home"],
+      performanceScore: 50,
+      valueScore: 95,
+      futureProofScore: 40,
+      powerEfficiency: 90,
+    },
+    {
+      name: "Budget Office Pro",
+      basePrice: 599,
+      category: "Budget Productivity",
+      description:
+        "Perfect for office work, web browsing, and basic productivity tasks",
+      specs: {
+        cpu: "AMD Ryzen 5 7600 or Intel Core i5-12400",
+        gpu: "RTX 4060 8GB",
+        ram: "16GB DDR5-5200",
+        storage: "1TB NVMe Gen4",
+        cooling: "Stock Cooler",
+      },
+      features: [
+        "Silent Operation",
+        "Energy Efficient",
+        "Reliable",
+        "Great Value",
+      ],
+      targetUseCase: ["home", "professional"],
+      performanceScore: 45,
+      valueScore: 100,
+      futureProofScore: 35,
+      powerEfficiency: 100,
+    },
   ];
 
   const calculateBuildScore = (
     build: BuildTemplate,
-    profile: UserProfile
+    profile: UserProfile,
+    accuratePrice: number
   ): number => {
     let score = 0;
     const weights = {
@@ -899,8 +1150,8 @@ export function PCFinder({
       futureProof: 0.1,
     };
 
-    // Budget compatibility score (0-100)
-    const budgetRatio = profile.budget / build.basePrice;
+    // Budget compatibility score (0-100) - now using accurate pricing
+    const budgetRatio = profile.budget / accuratePrice;
     let budgetScore = 0;
     if (budgetRatio >= 1.1) budgetScore = 100; // Can afford with headroom
     else if (budgetRatio >= 0.95) budgetScore = 90; // Can afford
@@ -960,11 +1211,15 @@ export function PCFinder({
     };
 
     // Calculate scores for all build templates
-    const scoredBuilds = buildTemplates.map((build) => ({
-      ...build,
-      score: calculateBuildScore(build, profile),
-      adjustedPrice: Math.min(build.basePrice, profile.budget),
-    }));
+    const scoredBuilds = buildTemplates.map((build) => {
+      const accuratePrice = calculateAccuratePrice(build.specs);
+      return {
+        ...build,
+        score: calculateBuildScore(build, profile, accuratePrice),
+        accuratePrice: accuratePrice,
+        adjustedPrice: Math.min(build.basePrice, profile.budget), // Keep for compatibility
+      };
+    });
 
     // Sort by score and select top recommendations
     const topBuilds = scoredBuilds
@@ -1030,7 +1285,7 @@ export function PCFinder({
     topBuilds.forEach((build, index) => {
       builds.push({
         name: build.name,
-        price: build.adjustedPrice,
+        price: build.accuratePrice, // Use accurate pricing instead of adjusted price
         category: build.category,
         description: build.description,
         specs: build.specs,
