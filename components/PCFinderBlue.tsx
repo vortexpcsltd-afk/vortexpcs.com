@@ -951,13 +951,13 @@ export function PCFinder({
           </div>
 
           {/* Recommendations Grid */}
-          <div className="grid gap-6 md:gap-8 max-w-6xl mx-auto">
+          <div className="grid gap-6 md:gap-8 max-w-6xl mx-auto px-4">
             {recommendations.map((build, index) => (
               <Card
                 key={index}
                 className="bg-gradient-to-br from-white/5 to-white/[0.02] border-white/10 backdrop-blur-xl overflow-hidden group hover:border-sky-500/30 transition-all duration-300"
               >
-                <div className="grid lg:grid-cols-2 gap-6 md:gap-8 p-4 md:p-6 lg:p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 p-4 md:p-6 lg:p-8">
                   {/* Product Images */}
                   <div className="space-y-6">
                     <ProductImageGallery
@@ -1011,11 +1011,11 @@ export function PCFinder({
                           </span>
                         </div>
                       </div>
-                      <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                      <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-white mb-2">
                         {build.name}
                       </h2>
                       <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
-                        <span className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                        <span className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
                           £{build.price.toLocaleString()}
                         </span>
                         <span className="text-base md:text-lg text-gray-400">
@@ -1024,31 +1024,33 @@ export function PCFinder({
                       </div>
                     </div>
 
-                    <p className="text-gray-300 text-base md:text-lg leading-relaxed">
+                    <p className="text-sm md:text-base lg:text-lg text-gray-300 leading-relaxed">
                       {build.description}
                     </p>
 
                     {/* Expert Comments */}
                     {build.expertComments &&
                       build.expertComments.length > 0 && (
-                        <div className="space-y-3 p-3 md:p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-sky-500/20 flex items-center justify-center flex-shrink-0">
-                              <Sparkles className="w-3.5 h-3.5 md:w-4 md:h-4 text-sky-400" />
+                        <div className="space-y-3 p-4 md:p-6 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20">
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-sky-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-sky-400" />
                             </div>
-                            <h3 className="font-bold text-white text-sm md:text-base">
-                              Kevin's Insight
-                            </h3>
-                          </div>
-                          <div className="space-y-2">
-                            {build.expertComments.map((comment, idx) => (
-                              <p
-                                key={idx}
-                                className="text-xs md:text-sm text-gray-300 leading-relaxed pl-8 md:pl-10"
-                              >
-                                {comment}
-                              </p>
-                            ))}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-white text-base md:text-lg mb-3">
+                                Kevin's Insight
+                              </h3>
+                              <div className="space-y-3">
+                                {build.expertComments.map((comment, idx) => (
+                                  <p
+                                    key={idx}
+                                    className="text-sm md:text-base text-gray-300 leading-relaxed"
+                                  >
+                                    {comment}
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1214,7 +1216,7 @@ export function PCFinder({
             {/* Question Content */}
             <div className="space-y-3 md:space-y-4 lg:space-y-6">
               {currentQuestion?.type === "choice" && (
-                <div className="grid gap-3 md:grid-cols-2 md:gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                   {currentQuestion.options?.map((option: any) => (
                     <button
                       key={option.value}
