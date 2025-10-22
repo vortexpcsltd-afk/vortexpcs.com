@@ -1767,6 +1767,8 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
   const [sortBy, setSortBy] = useState("price");
   const [compatibilityIssues, setCompatibilityIssues] = useState<any[]>([]);
   const [showCompatibilityDialog, setShowCompatibilityDialog] = useState(false);
+  const [showIncompatibilityModal, setShowIncompatibilityModal] =
+    useState(false);
 
   // Import recommended build on mount or when it changes
   useEffect(() => {
@@ -1828,7 +1830,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     },
     {
       id: "cpu",
-      label: "Processor",
+      label: "CPU",
       icon: Cpu,
       count: componentData.cpu?.length || 0,
     },
@@ -1840,7 +1842,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     },
     {
       id: "ram",
-      label: "Memory",
+      label: "RAM",
       icon: HardDrive,
       count: componentData.ram?.length || 0,
     },
@@ -1852,7 +1854,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     },
     {
       id: "psu",
-      label: "Power Supply",
+      label: "PSU",
       icon: Zap,
       count: componentData.psu?.length || 0,
     },
@@ -2209,94 +2211,180 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     });
   };
 
-  // Performance optimization suggestions
-  const getPerformanceOptimizations = (currentComponents: any) => {
-    const suggestions = [];
+  // Function to get detailed incompatibility information for the current category
+  const getIncompatibilityDetails = (
+    category: string,
+    currentComponents: any
+  ) => {
+    const allComponents = (componentData as any)[category] || [];
+    const compatibleComponents = getCompatibleComponents(
+      category,
+      currentComponents
+    );
+    const incompatibleComponents = allComponents.filter(
+      (component: any) =>
+        !compatibleComponents.some(
+          (compatible: any) => compatible.id === component.id
+        )
+    );
 
-    // CPU-GPU Balance Check
-    if (currentComponents.cpu && currentComponents.gpu) {
-      const cpu = componentData.cpu.find(
-        (c: any) => c.id === currentComponents.cpu
-      );
-      const gpu = componentData.gpu.find(
-        (g: any) => g.id === currentComponents.gpu
-      );
+    const details: any[] = [];
 
-      if (cpu && gpu) {
-        const cpuTier =
-          cpu.price > 400 ? "high" : cpu.price > 200 ? "mid" : "low";
-        const gpuTier =
-          gpu.price > 800 ? "high" : gpu.price > 400 ? "mid" : "low";
+    incompatibleComponents.forEach((component: any) => {
+      const issues: string[] = [];
 
-        if (cpuTier === "low" && gpuTier === "high") {
-          suggestions.push({
-            type: "bottleneck",
-            severity: "warning",
-            title: "Potential CPU Bottleneck",
-            description:
-              "Your GPU may be limited by the CPU in demanding games.",
-            recommendation:
-              "Consider upgrading to a higher-tier CPU for optimal performance.",
-          });
-        }
-
-        if (cpuTier === "high" && gpuTier === "low") {
-          suggestions.push({
-            type: "underutilized",
-            severity: "info",
-            title: "CPU Not Fully Utilized",
-            description: "Your powerful CPU could support a more capable GPU.",
-            recommendation:
-              "Consider a higher-tier GPU to match your CPU's capabilities.",
-          });
+      // CPU-Motherboard Socket Compatibility
+      if (category === "cpu" && currentComponents.motherboard) {
+        const motherboard = componentData.motherboard.find(
+          (mb: any) => mb.id === currentComponents.motherboard
+        );
+        if (motherboard && component.socket !== motherboard.socket) {
+          issues.push(
+            `Socket mismatch: ${component.socket} CPU cannot fit in ${motherboard.socket} motherboard socket`
+          );
         }
       }
-    }
 
-    // PSU Wattage Recommendation
-    if (
-      currentComponents.cpu &&
-      currentComponents.gpu &&
-      currentComponents.psu
-    ) {
-      const cpu = componentData.cpu.find(
-        (c: any) => c.id === currentComponents.cpu
-      );
-      const gpu = componentData.gpu.find(
-        (g: any) => g.id === currentComponents.gpu
-      );
-      const psu = componentData.psu.find(
-        (p: any) => p.id === currentComponents.psu
-      );
-
-      if (cpu && gpu && psu) {
-        const estimatedPower = (cpu.tdp || 65) + (gpu.power || 150) + 150;
-        const recommendedPower = estimatedPower * 1.2;
-
-        if (psu.wattage < recommendedPower) {
-          suggestions.push({
-            type: "power",
-            severity: "warning",
-            title: "PSU May Be Undersized",
-            description: `System may consume up to ${estimatedPower}W, recommend ${Math.round(
-              recommendedPower
-            )}W PSU.`,
-            recommendation:
-              "Consider a higher wattage PSU for better efficiency and headroom.",
-          });
+      if (category === "motherboard" && currentComponents.cpu) {
+        const cpu = componentData.cpu.find(
+          (c: any) => c.id === currentComponents.cpu
+        );
+        if (cpu && component.socket !== cpu.socket) {
+          issues.push(
+            `Socket mismatch: ${component.socket} motherboard cannot fit ${cpu.socket} CPU`
+          );
         }
       }
-    }
 
-    return suggestions;
+      // GPU-Case Clearance
+      if (category === "gpu" && currentComponents.case) {
+        const pcCase = componentData.case.find(
+          (c: any) => c.id === currentComponents.case
+        );
+        if (pcCase && component.length > pcCase.maxGpuLength) {
+          issues.push(
+            `Length clearance: ${component.length}mm GPU too long for ${pcCase.maxGpuLength}mm case clearance`
+          );
+        }
+      }
+
+      if (category === "case" && currentComponents.gpu) {
+        const gpu = componentData.gpu.find(
+          (g: any) => g.id === currentComponents.gpu
+        );
+        if (gpu && gpu.length > component.maxGpuLength) {
+          issues.push(
+            `GPU clearance: Selected ${gpu.length}mm GPU won't fit in this case (max: ${component.maxGpuLength}mm)`
+          );
+        }
+      }
+
+      // RAM-Motherboard Compatibility
+      if (category === "ram" && currentComponents.motherboard) {
+        const motherboard = componentData.motherboard.find(
+          (mb: any) => mb.id === currentComponents.motherboard
+        );
+        if (motherboard && !motherboard.ramSupport.includes(component.type)) {
+          issues.push(
+            `Memory type mismatch: ${component.type} RAM not supported by motherboard (supports: ${motherboard.ramSupport})`
+          );
+        }
+      }
+
+      if (category === "motherboard" && currentComponents.ram) {
+        const ram = componentData.ram.find(
+          (r: any) => r.id === currentComponents.ram
+        );
+        if (ram && !component.ramSupport.includes(ram.type)) {
+          issues.push(
+            `Memory type mismatch: Selected ${
+              ram.type
+            } RAM not supported (supports: ${component.ramSupport.join(", ")})`
+          );
+        }
+      }
+
+      // Case-Motherboard Form Factor
+      if (category === "case" && currentComponents.motherboard) {
+        const motherboard = componentData.motherboard.find(
+          (mb: any) => mb.id === currentComponents.motherboard
+        );
+        if (
+          motherboard &&
+          !component.compatibility.includes(
+            motherboard.formFactor.toLowerCase()
+          )
+        ) {
+          issues.push(
+            `Form factor mismatch: ${
+              motherboard.formFactor
+            } motherboard won't fit in this case (supports: ${component.compatibility.join(
+              ", "
+            )})`
+          );
+        }
+      }
+
+      if (category === "motherboard" && currentComponents.case) {
+        const pcCase = componentData.case.find(
+          (c: any) => c.id === currentComponents.case
+        );
+        if (
+          pcCase &&
+          !pcCase.compatibility.includes(component.formFactor.toLowerCase())
+        ) {
+          issues.push(
+            `Form factor mismatch: ${component.formFactor} motherboard won't fit in selected case`
+          );
+        }
+      }
+
+      // CPU Cooler Height-Case Clearance
+      if (
+        category === "cooling" &&
+        currentComponents.case &&
+        component.type === "Air"
+      ) {
+        const pcCase = componentData.case.find(
+          (c: any) => c.id === currentComponents.case
+        );
+        if (pcCase && component.height > pcCase.maxCpuCoolerHeight) {
+          issues.push(
+            `Height clearance: ${component.height}mm cooler too tall for ${pcCase.maxCpuCoolerHeight}mm case clearance`
+          );
+        }
+      }
+
+      if (category === "case" && currentComponents.cooling) {
+        const cooling = componentData.cooling.find(
+          (cool: any) => cool.id === currentComponents.cooling
+        );
+        if (
+          cooling &&
+          cooling.type === "Air" &&
+          cooling.height > component.maxCpuCoolerHeight
+        ) {
+          issues.push(
+            `Cooler clearance: Selected ${cooling.height}mm cooler won't fit in this case (max: ${component.maxCpuCoolerHeight}mm)`
+          );
+        }
+      }
+
+      if (issues.length > 0) {
+        details.push({
+          component: component,
+          issues: issues,
+        });
+      }
+    });
+
+    return details;
   };
 
   const filteredComponents = getCompatibleComponents(
     activeCategory,
     selectedComponents
   );
-  const performanceOptimizations =
-    getPerformanceOptimizations(selectedComponents);
   const totalComponentsInCategory = (
     (componentData as any)[activeCategory] || []
   ).length;
@@ -2572,13 +2660,16 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                       </span>
                     </div>
                     {filteredCount < totalComponentsInCategory && (
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
+                      <button
+                        onClick={() => setShowIncompatibilityModal(true)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                      >
                         <AlertTriangle className="w-3 h-3 text-amber-400" />
                         <span className="text-xs text-amber-300">
                           {totalComponentsInCategory - filteredCount}{" "}
                           incompatible
                         </span>
-                      </div>
+                      </button>
                     )}
                   </div>
                 )}
@@ -2885,6 +2976,101 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
             onCancel={handleCompatibilityCancel}
           />
         )}
+
+        {/* Incompatibility Details Modal */}
+        <AlertDialog
+          open={showIncompatibilityModal}
+          onOpenChange={setShowIncompatibilityModal}
+        >
+          <AlertDialogContent className="max-w-3xl bg-black/95 border-white/10 text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-2xl bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent flex items-center gap-3">
+                <AlertTriangle className="w-6 h-6 text-amber-400" />
+                Incompatible{" "}
+                {activeCategory.charAt(0).toUpperCase() +
+                  activeCategory.slice(1)}{" "}
+                Components
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-400">
+                These components are not compatible with your current build.
+                Here's why and how to fix it:
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {getIncompatibilityDetails(
+                activeCategory,
+                selectedComponents
+              ).map((detail: any, index: number) => (
+                <div
+                  key={index}
+                  className="border border-amber-500/20 rounded-lg p-4 bg-amber-500/5"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-16 h-16 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
+                      <Package className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-white mb-1">
+                        {detail.component.name}
+                      </h4>
+                      <p className="text-sm text-gray-400 mb-3">
+                        £{detail.component.price?.toFixed(2)}
+                      </p>
+
+                      <div className="space-y-2">
+                        {detail.issues.map(
+                          (issue: string, issueIndex: number) => (
+                            <div
+                              key={issueIndex}
+                              className="flex items-start gap-2"
+                            >
+                              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                              <p className="text-sm text-amber-200">{issue}</p>
+                            </div>
+                          )
+                        )}
+                      </div>
+
+                      <div className="mt-3 p-3 rounded-lg bg-sky-500/10 border border-sky-500/20">
+                        <p className="text-sm text-sky-300">
+                          <strong>How to fix:</strong>{" "}
+                          {detail.issues[0]?.includes("Socket")
+                            ? "Choose a compatible CPU and motherboard with matching sockets"
+                            : detail.issues[0]?.includes("Length") ||
+                              detail.issues[0]?.includes("clearance")
+                            ? "Select a larger case or smaller component"
+                            : detail.issues[0]?.includes("Memory type")
+                            ? "Choose compatible RAM type supported by your motherboard"
+                            : detail.issues[0]?.includes("Form factor")
+                            ? "Select compatible motherboard and case form factors"
+                            : "Review component specifications and choose compatible alternatives"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {getIncompatibilityDetails(activeCategory, selectedComponents)
+                .length === 0 && (
+                <div className="text-center py-8 text-gray-400">
+                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No incompatible components found for this category.</p>
+                </div>
+              )}
+            </div>
+
+            <AlertDialogFooter>
+              <AlertDialogAction
+                onClick={() => setShowIncompatibilityModal(false)}
+                className="bg-sky-600 hover:bg-sky-700 text-white"
+              >
+                Got it, thanks!
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

@@ -50,29 +50,15 @@ export default function App() {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [loginTab, setLoginTab] = useState("login");
   const [showCartModal, setShowCartModal] = useState(false);
-  const [cartItems, setCartItems] = useState([
-    {
-      id: "1",
-      name: "AMD Ryzen 9 7950X3D",
-      category: "Processor",
-      price: 599.99,
-      quantity: 1,
-    },
-    {
-      id: "2",
-      name: "NVIDIA GeForce RTX 4080 SUPER",
-      category: "Graphics Card",
-      price: 1099.99,
-      quantity: 1,
-    },
-    {
-      id: "3",
-      name: "Corsair Vengeance RGB DDR5 32GB",
-      category: "Memory",
-      price: 149.99,
-      quantity: 2,
-    },
-  ]);
+  const [cartItems, setCartItems] = useState<
+    Array<{
+      id: string;
+      name: string;
+      category: string;
+      price: number;
+      quantity: number;
+    }>
+  >([]);
 
   // Simulate login state and cookie consent
   useEffect(() => {
@@ -667,9 +653,9 @@ function HomePage({
             </h1>
 
             <p className="text-lg sm:text-xl md:text-2xl text-gray-300/90 mb-12 max-w-3xl mx-auto leading-relaxed px-4">
-              " Experience ultimate performance with our custom-built PCs.
-              Premium components, expert craftsmanship, and comprehensive
-              warranty - all delivered in just 5 days.
+              Experience ultimate performance with our custom-built PCs. Premium
+              components, expert craftsmanship, and comprehensive warranty - all
+              delivered in just 5 days.
             </p>
 
             {/* Enhanced CTAs */}
