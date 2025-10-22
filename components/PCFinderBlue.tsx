@@ -1374,7 +1374,7 @@ export function PCFinder({
           category: strapiBuild.category || "Custom Build",
           description:
             strapiBuild.description ||
-            "Professional custom build from our catalog",
+            "Professional custom build specification designed for your needs",
           specs: strapiBuild.components || {
             cpu: "High-performance processor",
             gpu: "Latest graphics card",
@@ -1390,7 +1390,7 @@ export function PCFinder({
           ],
           images: Array(6).fill(PLACEHOLDER_IMAGE),
           expertComments: [
-            `This is one of our most popular pre-configured builds, carefully selected to deliver excellent performance for ${answers.purpose} workloads.`,
+            `This custom build specification has been carefully selected to deliver excellent performance for ${answers.purpose} workloads.`,
           ],
           isFromStrapi: true, // Mark as Strapi build for tracking
         });

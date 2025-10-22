@@ -417,7 +417,7 @@ function getMockCategories(): Category[] {
     {
       id: 2,
       name: "Gaming PCs",
-      description: "High-performance gaming systems",
+      description: "High-performance custom gaming builds",
       slug: "gaming-pcs",
     },
     {

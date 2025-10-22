@@ -2644,10 +2644,29 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-bold text-white capitalize">
-                  {activeCategory}
+                  {activeCategory === "cpu"
+                    ? "CPU"
+                    : activeCategory === "gpu"
+                    ? "GPU"
+                    : activeCategory === "ram"
+                    ? "RAM"
+                    : activeCategory === "psu"
+                    ? "PSU"
+                    : activeCategory.charAt(0).toUpperCase() +
+                      activeCategory.slice(1)}
                 </h2>
                 <p className="text-gray-400 mt-1 text-sm sm:text-base">
-                  Choose the perfect {activeCategory} for your build
+                  Choose the perfect{" "}
+                  {activeCategory === "cpu"
+                    ? "CPU"
+                    : activeCategory === "gpu"
+                    ? "GPU"
+                    : activeCategory === "ram"
+                    ? "RAM"
+                    : activeCategory === "psu"
+                    ? "PSU"
+                    : activeCategory}{" "}
+                  for your build
                 </p>
                 {/* Compatibility Status */}
                 {Object.keys(selectedComponents).length > 0 && (
@@ -2764,70 +2783,78 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
               <Plus className="w-4 h-4 text-green-400 mr-2" />
               <span className="text-sm text-green-300">Optional Extras</span>
             </div>
-            <h2 className="text-3xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white via-green-100 to-emerald-200 bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 bg-gradient-to-r from-white via-green-100 to-emerald-200 bg-clip-text text-transparent px-4">
               Enhance Your Setup
             </h2>
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+            <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto px-4">
               Complete your gaming experience with premium peripherals
             </p>
           </div>
 
           <Tabs defaultValue="keyboard" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-5 bg-white/10 backdrop-blur-xl p-1 rounded-xl">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-1 rounded-xl gap-1">
               <TabsTrigger
                 value="keyboard"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
               >
-                <Keyboard className="w-4 h-4 mr-2" />
-                Keyboards
+                <Keyboard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Keyboards</span>
+                <span className="sm:hidden">Keys</span>
               </TabsTrigger>
               <TabsTrigger
                 value="mouse"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
               >
-                <Mouse className="w-4 h-4 mr-2" />
-                Mice
+                <Mouse className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Mice</span>
+                <span className="sm:hidden">Mice</span>
               </TabsTrigger>
               <TabsTrigger
                 value="monitor"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
               >
-                <Monitor className="w-4 h-4 mr-2" />
-                Monitors
+                <Monitor className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Monitors</span>
+                <span className="sm:hidden">Screens</span>
               </TabsTrigger>
               <TabsTrigger
                 value="gamepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
               >
-                <Settings className="w-4 h-4 mr-2" />
-                Gamepads
+                <Settings className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Gamepads</span>
+                <span className="sm:hidden">Pads</span>
               </TabsTrigger>
               <TabsTrigger
                 value="mousepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
               >
-                <Package className="w-4 h-4 mr-2" />
-                Mousepads
+                <Package className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Mousepads</span>
+                <span className="sm:hidden">Pads</span>
               </TabsTrigger>
             </TabsList>
 
             {/* Keyboards */}
             <TabsContent value="keyboard" className="space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <div>
-                  <h3 className="text-2xl font-bold text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">
                     Gaming Keyboards
                   </h3>
-                  <p className="text-gray-400 mt-1">
+                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
                     Premium mechanical keyboards for the ultimate typing
                     experience
                   </p>
                 </div>
-                <Badge variant="secondary" className="text-sm">
+                <Badge
+                  variant="secondary"
+                  className="text-sm self-start sm:self-auto"
+                >
                   {(selectedPeripherals.keyboard || []).length} selected
                 </Badge>
               </div>
-              <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.keyboard.map((keyboard: any) => (
                   <PeripheralCard
                     key={keyboard.id}
@@ -2845,18 +2872,23 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
 
             {/* Mice */}
             <TabsContent value="mouse" className="space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <div>
-                  <h3 className="text-2xl font-bold text-white">Gaming Mice</h3>
-                  <p className="text-gray-400 mt-1">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">
+                    Gaming Mice
+                  </h3>
+                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
                     Precision gaming mice with cutting-edge sensors
                   </p>
                 </div>
-                <Badge variant="secondary" className="text-sm">
+                <Badge
+                  variant="secondary"
+                  className="text-sm self-start sm:self-auto"
+                >
                   {(selectedPeripherals.mouse || []).length} selected
                 </Badge>
               </div>
-              <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.mouse.map((mouse: any) => (
                   <PeripheralCard
                     key={mouse.id}
@@ -2874,21 +2906,24 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
 
             {/* Monitors */}
             <TabsContent value="monitor" className="space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <div>
-                  <h3 className="text-2xl font-bold text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">
                     Gaming Monitors
                   </h3>
-                  <p className="text-gray-400 mt-1">
+                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
                     High-refresh displays for competitive gaming and immersive
                     visuals
                   </p>
                 </div>
-                <Badge variant="secondary" className="text-sm">
+                <Badge
+                  variant="secondary"
+                  className="text-sm self-start sm:self-auto"
+                >
                   {(selectedPeripherals.monitor || []).length} selected
                 </Badge>
               </div>
-              <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.monitor.map((monitor: any) => (
                   <PeripheralCard
                     key={monitor.id}
@@ -2906,20 +2941,23 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
 
             {/* Gamepads */}
             <TabsContent value="gamepad" className="space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <div>
-                  <h3 className="text-2xl font-bold text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">
                     Gaming Controllers
                   </h3>
-                  <p className="text-gray-400 mt-1">
+                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
                     Professional-grade controllers for console and PC gaming
                   </p>
                 </div>
-                <Badge variant="secondary" className="text-sm">
+                <Badge
+                  variant="secondary"
+                  className="text-sm self-start sm:self-auto"
+                >
                   {(selectedPeripherals.gamepad || []).length} selected
                 </Badge>
               </div>
-              <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.gamepad.map((gamepad: any) => (
                   <PeripheralCard
                     key={gamepad.id}
@@ -2937,20 +2975,23 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
 
             {/* Mousepads */}
             <TabsContent value="mousepad" className="space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <div>
-                  <h3 className="text-2xl font-bold text-white">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">
                     Gaming Mousepads
                   </h3>
-                  <p className="text-gray-400 mt-1">
+                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
                     Premium surfaces for optimal mouse tracking and comfort
                   </p>
                 </div>
-                <Badge variant="secondary" className="text-sm">
+                <Badge
+                  variant="secondary"
+                  className="text-sm self-start sm:self-auto"
+                >
                   {(selectedPeripherals.mousepad || []).length} selected
                 </Badge>
               </div>
-              <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.mousepad.map((mousepad: any) => (
                   <PeripheralCard
                     key={mousepad.id}

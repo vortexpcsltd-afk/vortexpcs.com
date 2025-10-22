@@ -26,7 +26,6 @@ export function Footer({ onNavigate }: FooterProps) {
   const productLinks = [
     { label: "PC Finder", view: "pc-finder" },
     { label: "Custom PC Builder", view: "pc-builder" },
-    { label: "Pre-Built Systems", view: "home" },
     { label: "Gaming PCs", view: "home" },
     { label: "Workstation PCs", view: "home" },
   ];

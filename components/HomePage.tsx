@@ -230,12 +230,12 @@ export function HomePage({ setCurrentView }: HomePageProps) {
         <div className="container mx-auto px-4 md:px-6 lg:px-8">
           <div className="text-center mb-16">
             <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-400 mb-4">
-              Featured Builds
+              Configuration Examples
             </Badge>
-            <h2 className="text-white mb-4">Popular Configurations</h2>
+            <h2 className="text-white mb-4">Custom Build Inspiration</h2>
             <p className="text-gray-400 max-w-2xl mx-auto">
-              Expertly curated systems designed for specific use cases. All
-              fully customisable to your requirements.
+              Expert-recommended specifications designed for specific use cases.
+              All built to order and fully customisable to your requirements.
             </p>
           </div>
 

@@ -1,9 +1,22 @@
-import React from 'react';
-import { Trash2, Plus, Minus, ShoppingCart, ArrowRight, Package } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { Button } from './ui/button';
-import { Card } from './ui/card';
-import { Separator } from './ui/separator';
+import React from "react";
+import {
+  Trash2,
+  Plus,
+  Minus,
+  ShoppingCart,
+  ArrowRight,
+  Package,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Separator } from "./ui/separator";
 
 interface CartItem {
   id: string;
@@ -23,23 +36,25 @@ interface ShoppingCartModalProps {
   onCheckout?: () => void;
 }
 
-export function ShoppingCartModal({ 
-  isOpen, 
+export function ShoppingCartModal({
+  isOpen,
   onClose,
   cartItems = [],
   onUpdateQuantity,
   onRemoveItem,
-  onCheckout
+  onCheckout,
 }: ShoppingCartModalProps) {
-  
   // Calculate totals
-  const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const vatRate = 0.20; // 20% UK VAT
+  const subtotal = cartItems.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+  const vatRate = 0.2; // 20% UK VAT
   const vat = subtotal * vatRate;
   const total = subtotal + vat;
 
   const handleUpdateQuantity = (id: string, delta: number) => {
-    const item = cartItems.find(i => i.id === id);
+    const item = cartItems.find((i) => i.id === id);
     if (item && onUpdateQuantity) {
       const newQuantity = Math.max(1, item.quantity + delta);
       onUpdateQuantity(id, newQuantity);
@@ -55,7 +70,9 @@ export function ShoppingCartModal({
             <div className="w-10 h-10 bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/30 rounded-lg flex items-center justify-center">
               <ShoppingCart className="w-5 h-5 text-sky-400" />
             </div>
-            <DialogTitle className="text-2xl text-white">Shopping Cart</DialogTitle>
+            <DialogTitle className="text-2xl text-white">
+              Shopping Cart
+            </DialogTitle>
           </div>
           <DialogDescription className="sr-only">
             Review and manage items in your shopping cart
@@ -72,7 +89,8 @@ export function ShoppingCartModal({
               </div>
               <h3 className="text-xl text-white mb-2">Your cart is empty</h3>
               <p className="text-gray-400 mb-6">
-                Start building your perfect PC or browse our pre-configured systems
+                Start building your perfect custom PC with our PC Builder or PC
+                Finder
               </p>
               <Button
                 onClick={onClose}
@@ -100,7 +118,9 @@ export function ShoppingCartModal({
                       <div className="flex items-start justify-between gap-4 mb-2">
                         <div>
                           <h4 className="text-white text-sm">{item.name}</h4>
-                          <p className="text-xs text-gray-400 mt-1">{item.category}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {item.category}
+                          </p>
                         </div>
                         <button
                           onClick={() => onRemoveItem?.(item.id)}
@@ -121,7 +141,9 @@ export function ShoppingCartModal({
                           >
                             <Minus className="w-3 h-3 text-gray-400" />
                           </button>
-                          <span className="text-white text-sm w-8 text-center">{item.quantity}</span>
+                          <span className="text-white text-sm w-8 text-center">
+                            {item.quantity}
+                          </span>
                           <button
                             onClick={() => handleUpdateQuantity(item.id, 1)}
                             className="w-7 h-7 bg-white/5 border border-white/10 rounded hover:bg-sky-500/10 hover:border-sky-500/30 transition-colors flex items-center justify-center"
@@ -135,7 +157,9 @@ export function ShoppingCartModal({
                             £{(item.price * item.quantity).toFixed(2)}
                           </p>
                           {item.quantity > 1 && (
-                            <p className="text-xs text-gray-400">£{item.price.toFixed(2)} each</p>
+                            <p className="text-xs text-gray-400">
+                              £{item.price.toFixed(2)} each
+                            </p>
                           )}
                         </div>
                       </div>
