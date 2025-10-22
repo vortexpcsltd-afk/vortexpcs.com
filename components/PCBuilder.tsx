@@ -2391,7 +2391,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
   const filteredCount = filteredComponents.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-blue-950 py-12">
+    <div className="min-h-screen py-20">
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-12">
@@ -2777,61 +2777,61 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
         </div>
 
         {/* Optional Peripherals Section */}
-        <div className="mt-16">
-          <div className="text-center mb-12">
+        <div className="mt-8 sm:mt-16 px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8 sm:mb-12">
             <div className="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 mb-4">
               <Plus className="w-4 h-4 text-green-400 mr-2" />
               <span className="text-sm text-green-300">Optional Extras</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 bg-gradient-to-r from-white via-green-100 to-emerald-200 bg-clip-text text-transparent px-4">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 bg-gradient-to-r from-white via-green-100 to-emerald-200 bg-clip-text text-transparent">
               Enhance Your Setup
             </h2>
-            <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto px-4">
+            <p className="text-base sm:text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto">
               Complete your gaming experience with premium peripherals
             </p>
           </div>
 
-          <Tabs defaultValue="keyboard" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-1 rounded-xl gap-1">
+          <Tabs defaultValue="keyboard" className="space-y-6 sm:space-y-8">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-2 rounded-xl gap-1">
               <TabsTrigger
                 value="keyboard"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
               >
-                <Keyboard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Keyboards</span>
-                <span className="sm:hidden">Keys</span>
+                <Keyboard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="hidden sm:inline truncate">Keyboards</span>
+                <span className="sm:hidden truncate">Keys</span>
               </TabsTrigger>
               <TabsTrigger
                 value="mouse"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
               >
-                <Mouse className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Mice</span>
-                <span className="sm:hidden">Mice</span>
+                <Mouse className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="hidden sm:inline truncate">Mice</span>
+                <span className="sm:hidden truncate">Mice</span>
               </TabsTrigger>
               <TabsTrigger
                 value="monitor"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
               >
-                <Monitor className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Monitors</span>
-                <span className="sm:hidden">Screens</span>
+                <Monitor className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="hidden sm:inline truncate">Monitors</span>
+                <span className="sm:hidden truncate">Screens</span>
               </TabsTrigger>
               <TabsTrigger
                 value="gamepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
               >
-                <Settings className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Gamepads</span>
-                <span className="sm:hidden">Pads</span>
+                <Settings className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="hidden sm:inline truncate">Gamepads</span>
+                <span className="sm:hidden truncate">Game</span>
               </TabsTrigger>
               <TabsTrigger
                 value="mousepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
               >
-                <Package className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Mousepads</span>
-                <span className="sm:hidden">Pads</span>
+                <Package className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="hidden sm:inline truncate">Mousepads</span>
+                <span className="sm:hidden truncate">Mats</span>
               </TabsTrigger>
             </TabsList>
 
@@ -2854,7 +2854,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.keyboard || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.keyboard.map((keyboard: any) => (
                   <PeripheralCard
                     key={keyboard.id}
@@ -2888,7 +2888,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.mouse || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.mouse.map((mouse: any) => (
                   <PeripheralCard
                     key={mouse.id}
@@ -2923,7 +2923,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.monitor || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.monitor.map((monitor: any) => (
                   <PeripheralCard
                     key={monitor.id}
@@ -2957,7 +2957,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.gamepad || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.gamepad.map((gamepad: any) => (
                   <PeripheralCard
                     key={gamepad.id}
@@ -2991,7 +2991,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.mousepad || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.mousepad.map((mousepad: any) => (
                   <PeripheralCard
                     key={mousepad.id}

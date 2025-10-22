@@ -34,7 +34,7 @@ export function Footer({ onNavigate }: FooterProps) {
     { label: "Repair Service", view: "repair" },
     { label: "Warranty Information", view: "home" },
     { label: "Technical Support", view: "home" },
-    { label: "FAQs", view: "home" },
+    { label: "FAQs", view: "faq" },
     { label: "Build Status", view: "member" },
   ];
 

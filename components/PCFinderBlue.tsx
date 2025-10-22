@@ -1685,7 +1685,7 @@ export function PCFinder({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-blue-950 py-12">
+    <div className="min-h-screen py-20">
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-8 md:mb-12">

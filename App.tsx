@@ -11,6 +11,7 @@ import { AdminPanel } from "./components/AdminPanel.tsx";
 import { RepairService } from "./components/RepairService.tsx";
 import { AboutUs } from "./components/AboutUs.tsx";
 import { Contact } from "./components/Contact.tsx";
+import { FAQPage } from "./components/FAQPage.tsx";
 import { Footer } from "./components/Footer.tsx";
 import { LoginDialog } from "./components/LoginDialog.tsx";
 import { ShoppingCartModal } from "./components/ShoppingCartModal.tsx";
@@ -111,6 +112,8 @@ export default function App() {
         return <RepairService />;
       case "about":
         return <AboutUs onNavigate={setCurrentView} />;
+      case "faq":
+        return <FAQPage onNavigate={setCurrentView} />;
       case "contact":
         return <Contact onNavigate={setCurrentView} />;
       case "member":
@@ -461,7 +464,11 @@ export default function App() {
           </header>
 
           {/* Main Content */}
-          <main className="min-h-screen pb-20 pt-24">
+          <main
+            className={`min-h-screen pt-24 ${
+              currentView === "faq" ? "pb-0" : "pb-20"
+            }`}
+          >
             {renderCurrentView()}
           </main>
 

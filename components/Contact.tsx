@@ -103,17 +103,9 @@ export function Contact({ onNavigate }: ContactProps = {}) {
   ];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen py-20">
       {/* Hero Section */}
       <div className="relative overflow-hidden">
-        {/* Background effects */}
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-950/30 via-black to-black"></div>
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-sky-500/20 rounded-full blur-[120px] animate-pulse"></div>
-        <div
-          className="absolute top-40 right-1/4 w-80 h-80 bg-blue-600/20 rounded-full blur-[120px] animate-pulse"
-          style={{ animationDelay: "2s" }}
-        ></div>
-
         <div className="relative z-10 container mx-auto px-6 py-24">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             {/* Badge */}
@@ -139,8 +131,6 @@ export function Contact({ onNavigate }: ContactProps = {}) {
 
       {/* Contact Methods */}
       <div className="relative py-16 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-black via-slate-950/50 to-black"></div>
-
         <div className="relative z-10 container mx-auto px-6">
           <div className="max-w-6xl mx-auto">
             <div className="grid md:grid-cols-2 gap-6 mb-16 max-w-4xl mx-auto">
@@ -180,9 +170,6 @@ export function Contact({ onNavigate }: ContactProps = {}) {
 
       {/* Main Contact Form Section */}
       <div className="relative py-16 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-black via-blue-950/20 to-black"></div>
-        <div className="absolute bottom-0 left-1/3 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px]"></div>
-
         <div className="relative z-10 container mx-auto px-6">
           <div className="max-w-6xl mx-auto">
             <div className="grid lg:grid-cols-3 gap-8">
@@ -377,11 +364,11 @@ export function Contact({ onNavigate }: ContactProps = {}) {
                       <h3 className="text-white">Opening Hours</h3>
                     </div>
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between py-2 border-b border-white/5">
+                      <div className="flex justify-between py-2">
                         <span className="text-gray-400">Monday - Friday</span>
                         <span className="text-white">9AM - 6PM</span>
                       </div>
-                      <div className="flex justify-between py-2 border-b border-white/5">
+                      <div className="flex justify-between py-2">
                         <span className="text-gray-400">Saturday</span>
                         <span className="text-white">10AM - 4PM</span>
                       </div>
@@ -443,9 +430,6 @@ export function Contact({ onNavigate }: ContactProps = {}) {
 
       {/* Bottom CTA */}
       <div className="relative py-24 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-black via-slate-950/50 to-black"></div>
-        <div className="absolute top-20 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[120px] animate-pulse"></div>
-
         <div className="relative z-10 container mx-auto px-6">
           <div className="max-w-4xl mx-auto">
             <Card className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl border-white/10 p-12 text-center">
