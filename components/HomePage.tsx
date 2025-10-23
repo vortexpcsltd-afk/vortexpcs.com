@@ -38,6 +38,33 @@ export function HomePage({ setCurrentView }: HomePageProps) {
   const heroBackground = "https://vortexpcs.com/gaming-keyboard.jpeg";
 
   useEffect(() => {
+    // TEMPORARY: Force hardcoded content for Vercel testing - EXIT EARLY
+    console.log("🚀 VERCEL TEST: Using hardcoded hero content");
+    setPageContent({
+      id: 1,
+      pageSlug: "home",
+      pageTitle: "Vortex PCs - Premium Custom PC Builds",
+      heroTitle: "PERFORMANCE THAT DOESN'T WAIT",
+      heroSubtitle: "Custom PCs built for speed, power, and precision.",
+      heroDescription: "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component.",
+    });
+    setLoading(false);
+    return; // EXIT EARLY - Skip all Strapi logic
+    
+    // UNREACHABLE CODE BELOW (will be removed later)
+    const loadContent = async () => {
+        id: 1,
+        pageSlug: "home",
+        pageTitle: "Vortex PCs - Premium Custom PC Builds",
+        heroTitle: "PERFORMANCE THAT DOESN'T WAIT",
+        heroSubtitle: "Custom PCs built for speed, power, and precision.",
+        heroDescription:
+          "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component.",
+      });
+      setLoading(false);
+      // Skip all Strapi logic for now - we'll re-enable this later
+    }, []);
+
     const loadContent = async () => {
       try {
         console.log("🚀 Loading Strapi CMS content...");
@@ -75,6 +102,20 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           console.log("✅ Strapi settings loaded:", strapiSettings.value);
         }
 
+        // TEMPORARY FIX: Always use hardcoded content to test Vercel deployment
+        console.log("🚀 VERCEL TEST: Always using hardcoded hero content");
+        setPageContent({
+          id: 1,
+          pageSlug: "home",
+          pageTitle: "Vortex PCs - Premium Custom PC Builds",
+          heroTitle: "PERFORMANCE THAT DOESN'T WAIT",
+          heroSubtitle: "Custom PCs built for speed, power, and precision.",
+          heroDescription:
+            "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component.",
+        });
+
+        // Original Strapi logic (commented out for testing)
+        /*
         if (
           strapiPageContent.status === "fulfilled" &&
           strapiPageContent.value
@@ -89,8 +130,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
             strapiPageContent.value.heroTitle
           );
         } else {
-          // TEMPORARY FIX: Hardcode the hero content to test the display path
-          console.log("⚠️ TEMP FIX: Using hardcoded hero content");
+          console.log("⚠️ FALLBACK: Using hardcoded hero content");
           setPageContent({
             id: 1,
             pageSlug: "home",
@@ -101,6 +141,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
               "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component.",
           });
         }
+        */
 
         if (
           strapiTestimonials.status === "fulfilled" &&
@@ -185,7 +226,6 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       }
     };
 
-    loadContent();
   }, []);
 
   // Show loading state while fetching data
