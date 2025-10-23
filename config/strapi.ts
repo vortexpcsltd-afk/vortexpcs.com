@@ -29,7 +29,7 @@ const env = import.meta.env as any;
 
 // Strapi API configuration
 export const strapiConfig = {
-  baseURL: env.VITE_STRAPI_URL || "http://localhost:1337",
+  baseURL: env.VITE_STRAPI_URL || "http://localhost:1338",
   apiToken: env.VITE_STRAPI_API_TOKEN || "YOUR_STRAPI_API_TOKEN",
 };
 
@@ -50,7 +50,17 @@ export const strapiEndpoints = {
   blogPosts: "/blog-posts",
   testimonials: "/testimonials",
   categories: "/categories",
-  settings: "/settings",
+  settings: "/site-setting",
+  pageContents: "/page-contents",
+  faqItems: "/faq-items",
+  serviceItems: "/service-items",
+  featureItems: "/feature-items",
+  teamMembers: "/team-members",
+  companyStats: "/company-stat",
+  navigationMenu: "/navigation-menu",
+  contactInformation: "/contact-information",
+  legalPages: "/legal-pages",
+  pricingTiers: "/pricing-tiers",
   featuredProducts: "/products?filters[featured][$eq]=true",
   orders: "/orders",
 };
@@ -78,13 +88,15 @@ export const formatStrapiResponse = (response: any) => {
   if (Array.isArray(response.data)) {
     return response.data.map((item: any) => ({
       id: item.id,
-      ...item.attributes,
+      // Strapi v5 format - data is directly accessible, no attributes wrapper
+      ...(item.attributes || item),
     }));
   }
 
   return {
     id: response.data.id,
-    ...response.data.attributes,
+    // Strapi v5 format - data is directly accessible, no attributes wrapper
+    ...(response.data.attributes || response.data),
   };
 };
 

@@ -571,6 +571,141 @@ function HomePage({
 }: {
   setCurrentView: (view: string) => void;
 }) {
+  // State for dynamic content
+  const [pageContent, setPageContent] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load content from Strapi with retry logic and caching
+  useEffect(() => {
+    const loadContent = async () => {
+      try {
+        console.log("🚀 Loading Strapi content for hero section...");
+
+        // Check if we have cached content from previous successful loads
+        const cachedContent = localStorage.getItem("vortex_strapi_cache");
+        if (cachedContent) {
+          const parsed = JSON.parse(cachedContent);
+          console.log("📦 Found cached Strapi content:", parsed);
+          setPageContent(parsed.pageContent);
+          setSettings(parsed.settings);
+        }
+
+        // Try to fetch fresh content from Strapi with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+        try {
+          const [pageRes, settingsRes] = await Promise.all([
+            fetch("http://localhost:1338/api/page-contents", {
+              signal: controller.signal,
+            })
+              .then((res) => res.json())
+              .catch(() => null),
+            fetch("http://localhost:1338/api/site-setting", {
+              signal: controller.signal,
+            })
+              .then((res) => res.json())
+              .catch(() => null),
+          ]);
+
+          clearTimeout(timeoutId);
+
+          if (pageRes?.data) {
+            console.log("🔍 Raw pageRes.data:", pageRes.data);
+            console.log("🔍 DETAILED INSPECTION:");
+
+            if (Array.isArray(pageRes.data)) {
+              console.log(`📊 Found ${pageRes.data.length} pages in Strapi:`);
+              pageRes.data.forEach((page: any, index: number) => {
+                console.log(`\n📄 Page ${index + 1}:`, {
+                  id: page.id,
+                  pageSlug: page.pageSlug,
+                  heroTitle: page.heroTitle,
+                  heroSubtitle: page.heroSubtitle,
+                  heroDescription: page.heroDescription,
+                  allFields: Object.keys(page),
+                });
+              });
+            } else {
+              console.log("📄 Single page object:", pageRes.data);
+              console.log("🔑 Available fields:", Object.keys(pageRes.data));
+            }
+
+            const homePage = Array.isArray(pageRes.data)
+              ? pageRes.data.find((page: any) => page.pageSlug === "home")
+              : pageRes.data;
+
+            if (homePage) {
+              setPageContent(homePage);
+              console.log("✅ Fresh content loaded from Strapi:", homePage);
+              console.log("📝 Hero Title:", homePage.heroTitle);
+              console.log("📝 Hero Subtitle:", homePage.heroSubtitle);
+              console.log("📝 Hero Description:", homePage.heroDescription);
+
+              // Cache successful content
+              localStorage.setItem(
+                "vortex_strapi_cache",
+                JSON.stringify({
+                  pageContent: homePage,
+                  settings: settingsRes?.data || null,
+                  timestamp: Date.now(),
+                })
+              );
+            } else {
+              console.log("⚠️ No home page found in page contents");
+              console.log(
+                "Available pages:",
+                pageRes.data.map((p: any) => ({ id: p.id, slug: p.pageSlug }))
+              );
+            }
+          } else {
+            console.log("❌ No pageRes.data received:", pageRes);
+          }
+
+          if (settingsRes?.data) {
+            setSettings(settingsRes.data);
+            console.log("✅ Settings loaded from Strapi:", settingsRes.data);
+          }
+        } catch (fetchError: any) {
+          clearTimeout(timeoutId);
+          console.log(
+            "🔌 Strapi connection failed (this is expected if Strapi is down):",
+            fetchError.message
+          );
+
+          // If no cached content exists, use hardcoded backup with your custom text
+          if (!cachedContent) {
+            console.log("💾 Using hardcoded backup content");
+            const backupContent = {
+              heroTitle: "Build Your Dream Gaming PC",
+              heroSubtitle: "Premium Custom PC Builds",
+              heroDescription:
+                "Experience unparalleled performance with our expertly crafted gaming PCs. Every component is hand-selected and rigorously tested to deliver the ultimate gaming experience.",
+            };
+            setPageContent(backupContent);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load content:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadContent();
+
+    // Set up retry mechanism - try to reconnect to Strapi every 30 seconds
+    const retryInterval = setInterval(() => {
+      if (!pageContent || pageContent.heroTitle?.includes("🔥")) {
+        console.log("🔄 Retrying Strapi connection...");
+        loadContent();
+      }
+    }, 30000);
+
+    return () => clearInterval(retryInterval);
+  }, []);
+
   const features = [
     {
       icon: Cpu,
@@ -626,6 +761,18 @@ function HomePage({
     },
   ];
 
+  // Show loading while fetching content
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-sky-500/30 border-t-sky-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading content...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-20">
       {/* Hero Section */}
@@ -648,21 +795,46 @@ function HomePage({
               <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 to-blue-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <Star className="w-5 h-5 text-yellow-400 mr-3 animate-pulse relative z-10" />
               <span className="text-sm font-medium bg-gradient-to-r from-sky-300 to-blue-300 bg-clip-text text-transparent relative z-10">
-                Premium Custom PC Builds
+                {pageContent?.heroSubtitle ||
+                  settings?.tagline ||
+                  "Premium Custom PC Builds"}
               </span>
             </div>
 
             {/* Main heading with enhanced gradient */}
             <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold mb-8 leading-tight">
               <span className="inline-block bg-gradient-to-r from-white via-sky-200 to-blue-300 bg-clip-text text-transparent animate-gradient">
-                Built to Perfection
+                {pageContent?.heroTitle || "Build Your Dream Gaming PC"}
               </span>
             </h1>
 
             <p className="text-lg sm:text-xl md:text-2xl text-gray-300/90 mb-12 max-w-3xl mx-auto leading-relaxed px-4">
-              Experience ultimate performance with our custom-built PCs. Premium
-              components, expert craftsmanship, and comprehensive warranty - all
-              delivered in just 5 days.
+              {(() => {
+                if (pageContent?.heroDescription) {
+                  // Handle if heroDescription is an array of rich text objects
+                  if (Array.isArray(pageContent.heroDescription)) {
+                    return pageContent.heroDescription
+                      .map((item: any) => {
+                        if (typeof item === "string") return item;
+                        if (item.children) {
+                          return item.children
+                            .map((child: any) =>
+                              typeof child === "string"
+                                ? child
+                                : child.text || ""
+                            )
+                            .join("");
+                        }
+                        return item.text || "";
+                      })
+                      .join(" ");
+                  }
+                  // Handle if it's already a string
+                  return pageContent.heroDescription;
+                }
+                // Fallback content
+                return "Experience unparalleled performance with our expertly crafted gaming PCs. Every component is hand-selected and rigorously tested to deliver the ultimate gaming experience.";
+              })()}
             </p>
 
             {/* Enhanced CTAs */}
@@ -828,6 +1000,55 @@ function HomePage({
                 </Card>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Company Stats */}
+      <section className="py-24 sm:py-32 relative bg-gradient-to-b from-white/5 to-transparent">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <div className="inline-block mb-4">
+              <span className="text-sm uppercase tracking-wider text-sky-400 font-medium">
+                Our Track Record
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent px-4">
+              Trusted by Thousands
+            </h2>
+            <p className="text-gray-400 text-lg sm:text-xl max-w-3xl mx-auto px-4">
+              Years of experience delivering premium custom PC builds and
+              exceptional customer service.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
+            <div className="text-center">
+              <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                9+
+              </div>
+              <div className="text-sky-400 font-medium">
+                Years Experience [CUSTOM]
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                150+
+              </div>
+              <div className="text-sky-400 font-medium">Happy Customers</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                300+
+              </div>
+              <div className="text-sky-400 font-medium">PCs Built</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                98%
+              </div>
+              <div className="text-sky-400 font-medium">Satisfaction Rate</div>
+            </div>
           </div>
         </div>
       </section>

@@ -1,0 +1,604 @@
+{
+  "site-settings": {
+    "kind": "singleType",
+    "collectionName": "site_setting",
+    "info": {
+      "singularName": "site-setting",
+      "pluralName": "site-settings",
+      "displayName": "Site Settings",
+      "description": "Global website settings and configuration"
+    },
+    "options": {
+      "draftAndPublish": false
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "siteName": {
+        "type": "string",
+        "required": true,
+        "default": "Vortex PCs"
+      },
+      "logoUrl": {
+        "type": "string"
+      },
+      "tagline": {
+        "type": "string",
+        "default": "Premium Custom PC Builds"
+      },
+      "metaDescription": {
+        "type": "text",
+        "default": "Premium custom PC builds and components. Expert assembly, quality guarantee, fast delivery."
+      },
+      "socialLinks": {
+        "type": "json",
+        "default": {
+          "facebook": "",
+          "twitter": "",
+          "instagram": "",
+          "youtube": "",
+          "linkedin": ""
+        }
+      },
+      "businessHours": {
+        "type": "richtext"
+      },
+      "enableMaintenance": {
+        "type": "boolean",
+        "default": false
+      },
+      "maintenanceMessage": {
+        "type": "richtext"
+      },
+      "announcementBar": {
+        "type": "richtext"
+      },
+      "enableAnnouncementBar": {
+        "type": "boolean",
+        "default": false
+      },
+      "contactEmail": {
+        "type": "email",
+        "default": "info@vortexpcs.co.uk"
+      },
+      "contactPhone": {
+        "type": "string",
+        "default": "+44 123 456 7890"
+      },
+      "whatsappNumber": {
+        "type": "string"
+      }
+    }
+  },
+
+  "page-contents": {
+    "kind": "collectionType",
+    "collectionName": "page_contents",
+    "info": {
+      "singularName": "page-content",
+      "pluralName": "page-contents",
+      "displayName": "Page Content",
+      "description": "Content for individual pages"
+    },
+    "options": {
+      "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "pageSlug": {
+        "type": "string",
+        "required": true,
+        "unique": true
+      },
+      "pageTitle": {
+        "type": "string",
+        "required": true
+      },
+      "metaDescription": {
+        "type": "text"
+      },
+      "heroTitle": {
+        "type": "string"
+      },
+      "heroSubtitle": {
+        "type": "string"
+      },
+      "heroDescription": {
+        "type": "richtext"
+      },
+      "heroBackgroundImage": {
+        "type": "media",
+        "multiple": false,
+        "required": false,
+        "allowedTypes": ["images"]
+      },
+      "heroButtons": {
+        "type": "json",
+        "default": []
+      },
+      "sections": {
+        "type": "json",
+        "default": []
+      },
+      "seo": {
+        "type": "json",
+        "default": {}
+      },
+      "lastUpdated": {
+        "type": "datetime"
+      }
+    }
+  },
+
+  "faq-items": {
+    "kind": "collectionType",
+    "collectionName": "faq_items",
+    "info": {
+      "singularName": "faq-item",
+      "pluralName": "faq-items",
+      "displayName": "FAQ Items",
+      "description": "Frequently Asked Questions"
+    },
+    "options": {
+      "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "question": {
+        "type": "string",
+        "required": true
+      },
+      "answer": {
+        "type": "richtext",
+        "required": true
+      },
+      "category": {
+        "type": "enumeration",
+        "enum": [
+          "General",
+          "Building Process",
+          "Components",
+          "Warranty",
+          "Shipping",
+          "Payment",
+          "Support",
+          "Customization"
+        ],
+        "required": true,
+        "default": "General"
+      },
+      "order": {
+        "type": "integer",
+        "default": 0
+      },
+      "featured": {
+        "type": "boolean",
+        "default": false
+      },
+      "keywords": {
+        "type": "text"
+      },
+      "lastUpdated": {
+        "type": "datetime"
+      }
+    }
+  },
+
+  "service-items": {
+    "kind": "collectionType",
+    "collectionName": "service_items",
+    "info": {
+      "singularName": "service-item",
+      "pluralName": "service-items",
+      "displayName": "Service Items",
+      "description": "Repair and services offered"
+    },
+    "options": {
+      "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "serviceName": {
+        "type": "string",
+        "required": true
+      },
+      "description": {
+        "type": "richtext",
+        "required": true
+      },
+      "price": {
+        "type": "decimal"
+      },
+      "priceText": {
+        "type": "string"
+      },
+      "duration": {
+        "type": "string"
+      },
+      "category": {
+        "type": "enumeration",
+        "enum": [
+          "Diagnostic",
+          "Hardware Repair",
+          "Software Repair",
+          "Upgrade",
+          "Maintenance",
+          "Custom Build"
+        ],
+        "required": true
+      },
+      "features": {
+        "type": "json",
+        "default": []
+      },
+      "icon": {
+        "type": "string",
+        "default": "Wrench"
+      },
+      "popular": {
+        "type": "boolean",
+        "default": false
+      },
+      "available": {
+        "type": "boolean",
+        "default": true
+      },
+      "order": {
+        "type": "integer",
+        "default": 0
+      }
+    }
+  },
+
+  "feature-items": {
+    "kind": "collectionType",
+    "collectionName": "feature_items",
+    "info": {
+      "singularName": "feature-item",
+      "pluralName": "feature-items",
+      "displayName": "Feature Items",
+      "description": "Company features and benefits"
+    },
+    "options": {
+      "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "title": {
+        "type": "string",
+        "required": true
+      },
+      "description": {
+        "type": "richtext",
+        "required": true
+      },
+      "icon": {
+        "type": "string",
+        "default": "Star"
+      },
+      "category": {
+        "type": "enumeration",
+        "enum": [
+          "Quality",
+          "Service",
+          "Performance",
+          "Support",
+          "Warranty",
+          "Delivery"
+        ],
+        "default": "Quality"
+      },
+      "order": {
+        "type": "integer",
+        "default": 0
+      },
+      "highlighted": {
+        "type": "boolean",
+        "default": false
+      },
+      "link": {
+        "type": "string"
+      },
+      "showOnHomepage": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  },
+
+  "team-members": {
+    "kind": "collectionType",
+    "collectionName": "team_members",
+    "info": {
+      "singularName": "team-member",
+      "pluralName": "team-members",
+      "displayName": "Team Members",
+      "description": "Team and staff information"
+    },
+    "options": {
+      "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "name": {
+        "type": "string",
+        "required": true
+      },
+      "position": {
+        "type": "string",
+        "required": true
+      },
+      "bio": {
+        "type": "richtext"
+      },
+      "image": {
+        "type": "media",
+        "multiple": false,
+        "required": false,
+        "allowedTypes": ["images"]
+      },
+      "email": {
+        "type": "email"
+      },
+      "specialties": {
+        "type": "json",
+        "default": []
+      },
+      "order": {
+        "type": "integer",
+        "default": 0
+      },
+      "featured": {
+        "type": "boolean",
+        "default": false
+      },
+      "yearsExperience": {
+        "type": "integer"
+      },
+      "certifications": {
+        "type": "json",
+        "default": []
+      }
+    }
+  },
+
+  "company-stats": {
+    "kind": "singleType",
+    "collectionName": "company_stat",
+    "info": {
+      "singularName": "company-stat",
+      "pluralName": "company-stats",
+      "displayName": "Company Stats",
+      "description": "Homepage statistics section"
+    },
+    "options": {
+      "draftAndPublish": false
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "yearsExperience": {
+        "type": "integer",
+        "required": true,
+        "default": 10
+      },
+      "customersServed": {
+        "type": "integer",
+        "required": true,
+        "default": 2500
+      },
+      "pcBuildsCompleted": {
+        "type": "integer",
+        "required": true,
+        "default": 5000
+      },
+      "warrantyYears": {
+        "type": "integer",
+        "default": 1
+      },
+      "supportResponseTime": {
+        "type": "string",
+        "default": "24 hours"
+      },
+      "satisfactionRate": {
+        "type": "integer",
+        "default": 98
+      },
+      "partsInStock": {
+        "type": "integer",
+        "default": 1000
+      }
+    }
+  },
+
+  "navigation-menu": {
+    "kind": "singleType",
+    "collectionName": "navigation_menu",
+    "info": {
+      "singularName": "navigation-menu",
+      "pluralName": "navigation-menus",
+      "displayName": "Navigation Menu",
+      "description": "Website navigation structure"
+    },
+    "options": {
+      "draftAndPublish": false
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "primaryMenu": {
+        "type": "json",
+        "default": []
+      },
+      "footerMenu": {
+        "type": "json",
+        "default": []
+      },
+      "mobileMenu": {
+        "type": "json",
+        "default": []
+      },
+      "ctaButton": {
+        "type": "json",
+        "default": {
+          "text": "Build Your PC",
+          "link": "/pc-builder",
+          "style": "primary"
+        }
+      }
+    }
+  },
+
+  "contact-information": {
+    "kind": "singleType",
+    "collectionName": "contact_information",
+    "info": {
+      "singularName": "contact-information",
+      "pluralName": "contact-informations",
+      "displayName": "Contact Information",
+      "description": "Contact details and locations"
+    },
+    "options": {
+      "draftAndPublish": false
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "companyName": {
+        "type": "string",
+        "required": true,
+        "default": "Vortex PCs Ltd"
+      },
+      "email": {
+        "type": "email",
+        "required": true
+      },
+      "phone": {
+        "type": "string",
+        "required": true
+      },
+      "whatsapp": {
+        "type": "string"
+      },
+      "address": {
+        "type": "richtext"
+      },
+      "mapEmbedUrl": {
+        "type": "text"
+      },
+      "businessHours": {
+        "type": "json",
+        "default": {
+          "monday": "9:00 AM - 6:00 PM",
+          "tuesday": "9:00 AM - 6:00 PM",
+          "wednesday": "9:00 AM - 6:00 PM",
+          "thursday": "9:00 AM - 6:00 PM",
+          "friday": "9:00 AM - 6:00 PM",
+          "saturday": "10:00 AM - 4:00 PM",
+          "sunday": "Closed"
+        }
+      },
+      "emergencyContact": {
+        "type": "string"
+      },
+      "supportEmail": {
+        "type": "email"
+      }
+    }
+  },
+
+  "legal-pages": {
+    "kind": "collectionType",
+    "collectionName": "legal_pages",
+    "info": {
+      "singularName": "legal-page",
+      "pluralName": "legal-pages",
+      "displayName": "Legal Pages",
+      "description": "Terms, Privacy, Cookie Policy content"
+    },
+    "options": {
+      "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "pageType": {
+        "type": "enumeration",
+        "enum": ["terms", "privacy", "cookies"],
+        "required": true,
+        "unique": true
+      },
+      "title": {
+        "type": "string",
+        "required": true
+      },
+      "content": {
+        "type": "richtext",
+        "required": true
+      },
+      "lastUpdated": {
+        "type": "datetime",
+        "required": true
+      },
+      "effectiveDate": {
+        "type": "date",
+        "required": true
+      },
+      "version": {
+        "type": "string",
+        "default": "1.0"
+      }
+    }
+  },
+
+  "pricing-tiers": {
+    "kind": "collectionType",
+    "collectionName": "pricing_tiers",
+    "info": {
+      "singularName": "pricing-tier",
+      "pluralName": "pricing-tiers",
+      "displayName": "Pricing Tiers",
+      "description": "Service pricing structure"
+    },
+    "options": {
+      "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "tierName": {
+        "type": "string",
+        "required": true
+      },
+      "price": {
+        "type": "decimal",
+        "required": true
+      },
+      "currency": {
+        "type": "string",
+        "default": "GBP"
+      },
+      "interval": {
+        "type": "enumeration",
+        "enum": ["one-time", "monthly", "yearly"],
+        "default": "one-time"
+      },
+      "features": {
+        "type": "json",
+        "default": []
+      },
+      "popular": {
+        "type": "boolean",
+        "default": false
+      },
+      "order": {
+        "type": "integer",
+        "default": 0
+      },
+      "ctaText": {
+        "type": "string",
+        "default": "Get Started"
+      },
+      "description": {
+        "type": "richtext"
+      },
+      "category": {
+        "type": "string"
+      }
+    }
+  }
+}

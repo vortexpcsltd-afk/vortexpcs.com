@@ -14,12 +14,12 @@ import {
   Search,
 } from "lucide-react";
 import {
-  fetchSettings,
-  fetchTestimonials,
-  fetchPCBuilds,
   type Settings,
   type Testimonial,
   type PCBuild,
+  type FeatureItem,
+  type CompanyStats,
+  type PageContent,
 } from "../services/cms";
 
 interface HomePageProps {
@@ -28,8 +28,11 @@ interface HomePageProps {
 
 export function HomePage({ setCurrentView }: HomePageProps) {
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [pageContent, setPageContent] = useState<PageContent | null>(null);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [featuredBuilds, setFeaturedBuilds] = useState<PCBuild[]>([]);
+  const [heroFeatures, setHeroFeatures] = useState<FeatureItem[]>([]);
+  const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const heroBackground = "https://vortexpcs.com/gaming-keyboard.jpeg";
@@ -37,17 +40,41 @@ export function HomePage({ setCurrentView }: HomePageProps) {
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const [settingsData, testimonialsData, buildsData] = await Promise.all([
-          fetchSettings(),
-          fetchTestimonials(),
-          fetchPCBuilds({ featured: true }),
-        ]);
+        console.log("Loading custom Strapi data - BUILD VERSION 2...");
 
-        setSettings(settingsData);
-        setTestimonials(testimonialsData);
-        setFeaturedBuilds(buildsData);
+        // Set your custom Strapi data directly
+        setSettings({
+          id: 1,
+          siteName: "Vortex PCs Ltd",
+          tagline: "Custom PCs Built to Order",
+          metaDescription:
+            "Premium custom PC builds for any use delivered within 5 days",
+          contactEmail: "info@vortexpcs.com",
+          contactPhone: "01603 975440",
+          enableMaintenance: false,
+          enableAnnouncementBar: false,
+        });
+
+        setCompanyStats({
+          id: 1,
+          yearsExperience: 9,
+          customersServed: 150,
+          pcBuildsCompleted: 300,
+          warrantyYears: 1,
+          supportResponseTime: "24 hours",
+          satisfactionRate: 98,
+          partsInStock: 1000,
+        });
+
+        // Set empty arrays for other content
+        setPageContent(null);
+        setTestimonials([]);
+        setFeaturedBuilds([]);
+        setHeroFeatures([]);
+
+        console.log("Custom data loaded successfully");
       } catch (error) {
-        console.error("Failed to load homepage content:", error);
+        console.error("Failed to load content:", error);
       } finally {
         setLoading(false);
       }
@@ -68,36 +95,59 @@ export function HomePage({ setCurrentView }: HomePageProps) {
     );
   }
 
-  const features = [
-    {
-      icon: Zap,
-      title: "5-Day Build Time",
-      description:
-        "Express service with your custom PC built and tested within 5 working days.",
-      color: "from-yellow-500 to-orange-500",
-    },
-    {
-      icon: Shield,
-      title: "3-Year Warranty",
-      description:
-        "Industry-leading coverage on all components with comprehensive support.",
-      color: "from-sky-500 to-blue-500",
-    },
-    {
-      icon: Users,
-      title: "Expert Consultation",
-      description:
-        "Work directly with experienced PC builders to design your perfect system.",
-      color: "from-purple-500 to-pink-500",
-    },
-    {
-      icon: CheckCircle,
-      title: "Quality Assurance",
-      description:
-        "Rigorous testing and burn-in process ensures reliability and performance.",
-      color: "from-green-500 to-emerald-500",
-    },
-  ];
+  // Map icon names to actual icon components
+  const iconMap: Record<string, any> = {
+    Zap,
+    Shield,
+    Users,
+    CheckCircle,
+    Settings: SettingsIcon,
+    Wrench,
+    Star,
+    ArrowRight,
+  };
+
+  // Get features with fallback to hardcoded data
+  const displayFeatures =
+    heroFeatures.length > 0
+      ? heroFeatures.map((feature) => ({
+          icon: iconMap[feature.icon] || Star,
+          title: feature.title,
+          description: feature.description,
+          color: feature.highlighted
+            ? "from-sky-500 to-blue-500"
+            : "from-gray-500 to-gray-600",
+        }))
+      : [
+          {
+            icon: Zap,
+            title: "5-Day Build Time",
+            description:
+              "Express service with your custom PC built and tested within 5 working days.",
+            color: "from-yellow-500 to-orange-500",
+          },
+          {
+            icon: Shield,
+            title: "3-Year Warranty",
+            description:
+              "Industry-leading coverage on all components with comprehensive support.",
+            color: "from-sky-500 to-blue-500",
+          },
+          {
+            icon: Users,
+            title: "Expert Consultation",
+            description:
+              "Work directly with experienced PC builders to design your perfect system.",
+            color: "from-purple-500 to-pink-500",
+          },
+          {
+            icon: CheckCircle,
+            title: "Quality Assurance",
+            description:
+              "Rigorous testing and burn-in process ensures reliability and performance.",
+            color: "from-green-500 to-emerald-500",
+          },
+        ];
 
   const services = [
     {
@@ -151,15 +201,17 @@ export function HomePage({ setCurrentView }: HomePageProps) {
         <div className="relative z-20 container mx-auto px-4 md:px-6 lg:px-8 text-center">
           <div className="max-w-5xl mx-auto space-y-8">
             <div className="space-y-4">
-              <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-400 mb-4">
-                {settings?.heroSubtitle || "Premium Custom PC Builds"}
-              </Badge>
-              <h1 className="text-white">
-                {settings?.heroTitle || "Build Your Dream PC with Vortex"}
+              <p className="text-lg sm:text-xl text-gray-300 font-light leading-relaxed">
+                {pageContent?.heroSubtitle ||
+                  settings?.tagline ||
+                  "Premium Custom PC Builds"}
+              </p>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
+                {pageContent?.heroTitle || "Build Your Dream PC with Vortex"}
               </h1>
-              <p className="text-gray-300 max-w-3xl mx-auto">
-                {settings?.heroDescription ||
-                  "Experience uncompromising performance with custom-built PCs engineered for perfection. 5-day builds, premium components, and industry-leading 3-year warranties."}
+              <p className="text-base sm:text-lg text-gray-300 max-w-2xl leading-relaxed mb-8">
+                {pageContent?.heroDescription ||
+                  "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we've got you covered."}
               </p>
             </div>
 
@@ -313,7 +365,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature, index) => (
+            {displayFeatures.map((feature, index) => (
               <Card
                 key={index}
                 className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 group p-8 text-center"
@@ -329,6 +381,51 @@ export function HomePage({ setCurrentView }: HomePageProps) {
                 </div>
               </Card>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Company Stats */}
+      <section className="py-24 relative bg-gradient-to-b from-white/5 to-transparent">
+        <div className="container mx-auto px-4 md:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-400 mb-4">
+              Our Track Record
+            </Badge>
+            <h2 className="text-white mb-4">Trusted by Thousands</h2>
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              Years of experience delivering premium custom PC builds and
+              exceptional customer service.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
+            <div className="text-center">
+              <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                {companyStats?.yearsExperience || 9}+
+              </div>
+              <div className="text-sky-400 font-medium">
+                Years Experience [CUSTOM]
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                {companyStats?.customersServed || 150}+
+              </div>
+              <div className="text-sky-400 font-medium">Happy Customers</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                {companyStats?.pcBuildsCompleted || 300}+
+              </div>
+              <div className="text-sky-400 font-medium">PCs Built</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                {companyStats?.satisfactionRate || 98}%
+              </div>
+              <div className="text-sky-400 font-medium">Satisfaction Rate</div>
+            </div>
           </div>
         </div>
       </section>

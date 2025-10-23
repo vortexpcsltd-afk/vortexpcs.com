@@ -1,0 +1,36 @@
+{
+  "kind": "singleType",
+  "collectionName": "site_settings",
+  "info": {
+    "singularName": "site-setting",
+    "pluralName": "site-settings",
+    "displayName": "Site Settings"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "siteName": {
+      "type": "string",
+      "default": "Vortex PCs Ltd",
+      "required": true
+    },
+    "tagline": {
+      "type": "string",
+      "default": "Custom PCs Built to Order"
+    },
+    "metaDescription": {
+      "type": "text",
+      "default": "Premium custom PC builds for any use"
+    },
+    "contactEmail": {
+      "type": "email",
+      "default": "info@vortexpcs.com"
+    },
+    "contactPhone": {
+      "type": "string",
+      "default": "01603 975440"
+    }
+  }
+}

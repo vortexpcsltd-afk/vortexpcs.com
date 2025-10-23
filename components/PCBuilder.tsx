@@ -2854,7 +2854,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.keyboard || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.keyboard.map((keyboard: any) => (
                   <PeripheralCard
                     key={keyboard.id}
@@ -2888,7 +2888,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.mouse || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.mouse.map((mouse: any) => (
                   <PeripheralCard
                     key={mouse.id}
@@ -2923,7 +2923,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.monitor || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.monitor.map((monitor: any) => (
                   <PeripheralCard
                     key={monitor.id}
@@ -2957,7 +2957,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.gamepad || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.gamepad.map((gamepad: any) => (
                   <PeripheralCard
                     key={gamepad.id}
@@ -2991,7 +2991,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
                   {(selectedPeripherals.mousepad || []).length} selected
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
                 {peripheralsData.mousepad.map((mousepad: any) => (
                   <PeripheralCard
                     key={mousepad.id}
