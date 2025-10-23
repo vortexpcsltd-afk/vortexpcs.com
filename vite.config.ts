@@ -6,7 +6,7 @@ import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: process.env.NODE_ENV === "production" ? "/vortexpcs.com/" : "/",
+  base: process.env.NODE_ENV === "production" ? "./" : "/",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
