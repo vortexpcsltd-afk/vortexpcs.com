@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Button } from "./components/ui/button";
 import { Card } from "./components/ui/card";
@@ -1558,6 +1559,7 @@ function CookiePolicyPage() {
           </section>
         </div>
       </div>
+      <Analytics />
     </div>
   );
 }
