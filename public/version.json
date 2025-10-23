@@ -1,11 +1,11 @@
 {
-  "version": "2025-10-21-01",
-  "timestamp": "2025-10-21T21:50:00Z",
-  "build": "navigation-responsiveness-fixes",
-  "description": "Complete navigation responsiveness overhaul - Fixed logo navigation, mobile menu, and desktop UX",
+  "version": "2025-10-23-01",
+  "timestamp": "2025-10-23T11:30:00Z",
+  "build": "strapi-cms-integration-complete",
+  "description": "Complete Strapi CMS integration with dynamic hero content, smart caching, and CORS fixes",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
-    "HomePage": "clean-no-rgb-v2-custom-bg",
+    "HomePage": "strapi-cms-integration-v1",
     "Footer": "glassmorphism-updated-v2-custom-logo",
     "Navigation": "responsive-redesign-v1",
     "MobileMenu": "dark-background-v1",
@@ -13,7 +13,8 @@
     "RepairService": "uk-service-v2",
     "TermsPage": "separate-component-v2",
     "PrivacyPage": "separate-component-v2",
-    "CookiePolicyPage": "separate-component-v2"
+    "CookiePolicyPage": "separate-component-v2",
+    "CMS": "strapi-v5-28-0-enterprise"
   },
   "theme": {
     "primary": "#0ea5e9",
@@ -27,17 +28,29 @@
     "heroBackground": "https://vortexpcs.com/gaming-keyboard.jpeg",
     "favicon": "https://www.vortexpcs.com/vortexpcs-logo.png"
   },
+  "cms": {
+    "platform": "Strapi v5.28.0 Enterprise",
+    "database": "SQLite",
+    "contentTypes": ["Page Contents", "Site Settings", "Company Stats"],
+    "features": [
+      "Smart Caching",
+      "Auto Retry",
+      "Rich Text Support",
+      "CORS Configured"
+    ]
+  },
   "changes": [
-    "NAVIGATION OVERHAUL: Complete responsive design improvements",
-    "Fixed logo click navigation - works properly on desktop and mobile",
-    "Removed hamburger menu from desktop - added Login/Signup buttons",
-    "Enhanced mobile menu with dark background for readability",
-    "Added Home link to mobile navigation menu",
-    "Fixed logo sizing - proper responsive scaling (not oversized on desktop)",
-    "Cleaned up all TypeScript errors across components",
-    "Optimized PC Finder mobile responsiveness - especially Kevin's Insight section",
-    "Simplified event handling - removed complex propagation issues",
-    "Professional desktop navigation with traditional UX patterns",
-    "Mobile-first responsive design with glassmorphism consistency"
+    "🎉 STRAPI CMS INTEGRATION: Complete dynamic content management system",
+    "✅ Custom hero content now loading from Strapi CMS",
+    "✅ Hero title: 'PERFORMANCE THAT DOESN'T WAIT'",
+    "✅ Hero subtitle: 'Custom PCs built for speed, power, and precision.'",
+    "✅ Rich text description rendering with proper formatting",
+    "🔧 Fixed CORS configuration - added all localhost ports (8000-9009)",
+    "🔧 Smart caching system - content cached in localStorage when Strapi available",
+    "🔧 Auto-retry logic - reconnects every 30 seconds when Strapi down",
+    "🔧 Robust error handling - graceful fallbacks when CMS unavailable",
+    "📊 Enhanced debugging - detailed console logging for development",
+    "🚀 Production-ready CMS integration with fault tolerance",
+    "Previous navigation and responsiveness improvements maintained"
   ]
 }
