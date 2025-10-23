@@ -17,6 +17,9 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+
+# Security: Never commit production secrets
 
 # IDE and editor files
 .vscode/
