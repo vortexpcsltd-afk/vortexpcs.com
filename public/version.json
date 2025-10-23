@@ -1,8 +1,8 @@
 {
-  "version": "2025-10-23-02",
-  "timestamp": "2025-10-23T12:00:00Z",
-  "build": "github-pages-deployment-fix",
-  "description": "Complete Strapi CMS integration with dynamic hero content, smart caching, and CORS fixes",
+  "version": "2025-10-23-03",
+  "timestamp": "2025-10-23T15:00:00Z",
+  "build": "production-custom-domain-deployment",
+  "description": "Complete production deployment with Strapi CMS on custom domain vortexpcs.com",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
     "HomePage": "strapi-cms-integration-v1",
@@ -36,10 +36,24 @@
       "Smart Caching",
       "Auto Retry",
       "Rich Text Support",
-      "CORS Configured"
+      "CORS Configured",
+      "Production Environment Variables"
     ]
   },
+  "deployment": {
+    "platform": "GitHub Pages",
+    "domain": "vortexpcs.com",
+    "customDomain": true,
+    "https": true,
+    "cicd": "GitHub Actions",
+    "environmentVariables": ["VITE_STRAPI_URL", "VITE_STRAPI_API_TOKEN"]
+  },
   "changes": [
+    "🌐 PRODUCTION DEPLOYMENT: Custom domain vortexpcs.com configured",
+    "✅ Added CNAME file for GitHub Pages custom domain",
+    "✅ Configured GitHub Actions secrets for Strapi environment variables",
+    "✅ Production build now includes Strapi CMS integration",
+    "🔧 DNS configuration ready for vortexpcs.com → GitHub Pages",
     "🔧 GITHUB PAGES FIX: Resolved asset loading and MIME type errors",
     "✅ Fixed JavaScript module loading with relative base path",
     "✅ Corrected CSS and asset references for GitHub Pages",
