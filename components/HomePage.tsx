@@ -88,6 +88,18 @@ export function HomePage({ setCurrentView }: HomePageProps) {
             "🎉 Hero title from Strapi:",
             strapiPageContent.value.heroTitle
           );
+        } else {
+          // TEMPORARY FIX: Hardcode the hero content to test the display path
+          console.log("⚠️ TEMP FIX: Using hardcoded hero content");
+          setPageContent({
+            id: 1,
+            pageSlug: "home",
+            pageTitle: "Vortex PCs - Premium Custom PC Builds",
+            heroTitle: "PERFORMANCE THAT DOESN'T WAIT",
+            heroSubtitle: "Custom PCs built for speed, power, and precision.",
+            heroDescription:
+              "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component.",
+          });
         }
 
         if (

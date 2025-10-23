@@ -366,11 +366,16 @@ export const fetchPageContent = async (
   pageSlug: string
 ): Promise<PageContent | null> => {
   try {
+    console.log(`🔍 Fetching page content for slug: ${pageSlug}`);
     const response = await strapiClient.get(
       `${strapiEndpoints.pageContents}?filters[pageSlug][$eq]=${pageSlug}&populate=*`
     );
+    console.log("📄 Raw Strapi response:", response.data);
     const pages = formatStrapiResponse(response.data);
-    return pages && pages.length > 0 ? pages[0] : null;
+    console.log("📄 Formatted pages:", pages);
+    const result = pages && pages.length > 0 ? pages[0] : null;
+    console.log("📄 Final page content result:", result);
+    return result;
   } catch (error: any) {
     console.error("Fetch page content error:", error);
     return null;
