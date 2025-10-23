@@ -38,142 +38,19 @@ export function HomePage({ setCurrentView }: HomePageProps) {
   const heroBackground = "https://vortexpcs.com/gaming-keyboard.jpeg";
 
   useEffect(() => {
-    const loadContent = async () => {
-      try {
-        console.log("🚀 Loading Strapi CMS content...");
-
-        // Import Strapi services dynamically
-        const {
-          fetchSettings,
-          fetchPageContent,
-          fetchTestimonials,
-          fetchPCBuilds,
-          fetchFeatureItems,
-          fetchCompanyStats,
-        } = await import("../services/cms");
-
-        // Load all content from Strapi CMS
-        const [
-          strapiSettings,
-          strapiPageContent,
-          strapiTestimonials,
-          strapiFeaturedBuilds,
-          strapiHeroFeatures,
-          strapiCompanyStats,
-        ] = await Promise.allSettled([
-          fetchSettings(),
-          fetchPageContent("home"),
-          fetchTestimonials(),
-          fetchPCBuilds({ featured: true }),
-          fetchFeatureItems({ showOnHomepage: true }),
-          fetchCompanyStats(),
-        ]);
-
-        console.log("📊 Strapi API Results:", {
-          settings: strapiSettings.status,
-          pageContent: strapiPageContent.status,
-          testimonials: strapiTestimonials.status,
-          builds: strapiFeaturedBuilds.status,
-          features: strapiHeroFeatures.status,
-          stats: strapiCompanyStats.status,
-        });
-
-        if (strapiSettings.status === "fulfilled" && strapiSettings.value) {
-          setSettings(strapiSettings.value);
-          console.log("✅ Strapi settings loaded:", strapiSettings.value);
-        }
-
-        if (
-          strapiPageContent.status === "fulfilled" &&
-          strapiPageContent.value
-        ) {
-          setPageContent(strapiPageContent.value);
-          console.log(
-            "✅ Strapi page content loaded:",
-            strapiPageContent.value
-          );
-          console.log(
-            "🎉 Hero title from Strapi:",
-            strapiPageContent.value.heroTitle
-          );
-        } else {
-          console.log("⚠️ FALLBACK: Using hardcoded hero content");
-          setPageContent({
-            id: 1,
-            pageSlug: "home",
-            pageTitle: "Vortex PCs - Premium Custom PC Builds",
-            heroTitle: "PERFORMANCE THAT DOESN'T WAIT",
-            heroSubtitle: "Custom PCs built for speed, power, and precision.",
-            heroDescription:
-              "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component.",
-          });
-        }
-
-        if (
-          strapiTestimonials.status === "fulfilled" &&
-          strapiTestimonials.value
-        ) {
-          setTestimonials(strapiTestimonials.value);
-          console.log(
-            "✅ Strapi testimonials loaded:",
-            strapiTestimonials.value
-          );
-        }
-
-        if (
-          strapiFeaturedBuilds.status === "fulfilled" &&
-          strapiFeaturedBuilds.value
-        ) {
-          setFeaturedBuilds(strapiFeaturedBuilds.value);
-          console.log(
-            "✅ Strapi featured builds loaded:",
-            strapiFeaturedBuilds.value
-          );
-        }
-
-        if (
-          strapiHeroFeatures.status === "fulfilled" &&
-          strapiHeroFeatures.value
-        ) {
-          setHeroFeatures(strapiHeroFeatures.value);
-          console.log(
-            "✅ Strapi hero features loaded:",
-            strapiHeroFeatures.value
-          );
-        }
-
-        if (
-          strapiCompanyStats.status === "fulfilled" &&
-          strapiCompanyStats.value
-        ) {
-          setCompanyStats(strapiCompanyStats.value);
-          console.log(
-            "✅ Strapi company stats loaded:",
-            strapiCompanyStats.value
-          );
-        }
-
-        console.log("🎉 All Strapi content loaded successfully!");
-      } catch (error) {
-        console.error("❌ Failed to load Strapi content:", error);
-        console.log("🔄 Using fallback content...");
-
-        // Fallback data when Strapi is unavailable
-        setPageContent({
-          id: 1,
-          pageSlug: "home",
-          pageTitle: "Vortex PCs - Premium Custom PC Builds",
-          heroTitle: "PERFORMANCE THAT DOESN'T WAIT",
-          heroSubtitle: "Custom PCs built for speed, power, and precision.",
-          heroDescription:
-            "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component.",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadContent();
+    // TEMPORARY: Force hardcoded content for Vercel testing
+    console.log("🚀 VERCEL TEST: Using hardcoded hero content");
+    setPageContent({
+      id: 1,
+      pageSlug: "home",
+      pageTitle: "Vortex PCs - Premium Custom PC Builds",
+      heroTitle: "PERFORMANCE THAT DOESN'T WAIT",
+      heroSubtitle: "Custom PCs built for speed, power, and precision.",
+      heroDescription:
+        "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component.",
+    });
+    setLoading(false);
+    // Note: All Strapi CMS logic temporarily disabled for Vercel testing
   }, []);
 
   // Show loading state while fetching data

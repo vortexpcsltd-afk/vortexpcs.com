@@ -81,23 +81,43 @@ export const getStrapiImageUrl = (imageData: any) => {
   return imageUrl;
 };
 
-// Helper function to format Strapi response
+// Helper function to format Strapi response for v5
 export const formatStrapiResponse = (response: any) => {
-  if (!response?.data) return null;
+  console.log(
+    "🔍 formatStrapiResponse - Raw response:",
+    JSON.stringify(response, null, 2)
+  );
 
-  if (Array.isArray(response.data)) {
-    return response.data.map((item: any) => ({
-      id: item.id,
-      // Strapi v5 format - data is directly accessible, no attributes wrapper
-      ...(item.attributes || item),
-    }));
+  if (!response?.data) {
+    console.log("❌ No data in response");
+    return null;
   }
 
-  return {
+  if (Array.isArray(response.data)) {
+    console.log(
+      "📋 Processing array response with",
+      response.data.length,
+      "items"
+    );
+    return response.data.map((item: any) => {
+      // Strapi v5 format - attributes are at the top level of the item
+      const formatted = {
+        id: item.id,
+        ...item.attributes, // Strapi v5 still uses attributes for content
+      };
+      console.log("✅ Formatted array item:", formatted);
+      return formatted;
+    });
+  }
+
+  // Single item response
+  console.log("📄 Processing single item response");
+  const formatted = {
     id: response.data.id,
-    // Strapi v5 format - data is directly accessible, no attributes wrapper
-    ...(response.data.attributes || response.data),
+    ...response.data.attributes, // Strapi v5 still uses attributes for content
   };
+  console.log("✅ Formatted single item:", formatted);
+  return formatted;
 };
 
 export default strapiClient;
