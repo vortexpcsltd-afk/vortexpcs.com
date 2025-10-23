@@ -1,7 +1,7 @@
 {
-  "version": "2025-10-23-01",
-  "timestamp": "2025-10-23T11:30:00Z",
-  "build": "strapi-cms-integration-complete",
+  "version": "2025-10-23-02",
+  "timestamp": "2025-10-23T12:00:00Z",
+  "build": "github-pages-deployment-fix",
   "description": "Complete Strapi CMS integration with dynamic hero content, smart caching, and CORS fixes",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
@@ -40,6 +40,10 @@
     ]
   },
   "changes": [
+    "🔧 GITHUB PAGES FIX: Resolved asset loading and MIME type errors",
+    "✅ Fixed JavaScript module loading with relative base path",
+    "✅ Corrected CSS and asset references for GitHub Pages",
+    "✅ Added production environment variables to build process",
     "🎉 STRAPI CMS INTEGRATION: Complete dynamic content management system",
     "✅ Custom hero content now loading from Strapi CMS",
     "✅ Hero title: 'PERFORMANCE THAT DOESN'T WAIT'",
