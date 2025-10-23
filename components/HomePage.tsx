@@ -40,9 +40,106 @@ export function HomePage({ setCurrentView }: HomePageProps) {
   useEffect(() => {
     const loadContent = async () => {
       try {
-        console.log("Loading custom Strapi data - BUILD VERSION 2...");
+        console.log("🚀 Loading Strapi CMS content...");
 
-        // Set your custom Strapi data directly
+        // Import Strapi services dynamically
+        const {
+          fetchSettings,
+          fetchPageContent,
+          fetchTestimonials,
+          fetchPCBuilds,
+          fetchFeatureItems,
+          fetchCompanyStats,
+        } = await import("../services/cms");
+
+        // Load all content from Strapi CMS
+        const [
+          strapiSettings,
+          strapiPageContent,
+          strapiTestimonials,
+          strapiFeaturedBuilds,
+          strapiHeroFeatures,
+          strapiCompanyStats,
+        ] = await Promise.allSettled([
+          fetchSettings(),
+          fetchPageContent("home"),
+          fetchTestimonials(),
+          fetchPCBuilds({ featured: true }),
+          fetchFeatureItems({ showOnHomepage: true }),
+          fetchCompanyStats(),
+        ]);
+
+        // Set data with proper fallbacks
+        if (strapiSettings.status === "fulfilled" && strapiSettings.value) {
+          setSettings(strapiSettings.value);
+          console.log("✅ Strapi settings loaded:", strapiSettings.value);
+        }
+
+        if (
+          strapiPageContent.status === "fulfilled" &&
+          strapiPageContent.value
+        ) {
+          setPageContent(strapiPageContent.value);
+          console.log(
+            "✅ Strapi page content loaded:",
+            strapiPageContent.value
+          );
+          console.log(
+            "🎉 Hero title from Strapi:",
+            strapiPageContent.value.heroTitle
+          );
+        }
+
+        if (
+          strapiTestimonials.status === "fulfilled" &&
+          strapiTestimonials.value
+        ) {
+          setTestimonials(strapiTestimonials.value);
+          console.log(
+            "✅ Strapi testimonials loaded:",
+            strapiTestimonials.value
+          );
+        }
+
+        if (
+          strapiFeaturedBuilds.status === "fulfilled" &&
+          strapiFeaturedBuilds.value
+        ) {
+          setFeaturedBuilds(strapiFeaturedBuilds.value);
+          console.log(
+            "✅ Strapi featured builds loaded:",
+            strapiFeaturedBuilds.value
+          );
+        }
+
+        if (
+          strapiHeroFeatures.status === "fulfilled" &&
+          strapiHeroFeatures.value
+        ) {
+          setHeroFeatures(strapiHeroFeatures.value);
+          console.log(
+            "✅ Strapi hero features loaded:",
+            strapiHeroFeatures.value
+          );
+        }
+
+        if (
+          strapiCompanyStats.status === "fulfilled" &&
+          strapiCompanyStats.value
+        ) {
+          setCompanyStats(strapiCompanyStats.value);
+          console.log(
+            "✅ Strapi company stats loaded:",
+            strapiCompanyStats.value
+          );
+        }
+
+        console.log("🎉 All Strapi content loaded successfully!");
+      } catch (error) {
+        console.error("❌ Failed to load Strapi content:", error);
+        console.log("🔄 Using fallback content...");
+
+        // Fallback data when Strapi is unavailable
         setSettings({
           id: 1,
           siteName: "Vortex PCs Ltd",
@@ -71,10 +168,6 @@ export function HomePage({ setCurrentView }: HomePageProps) {
         setTestimonials([]);
         setFeaturedBuilds([]);
         setHeroFeatures([]);
-
-        console.log("Custom data loaded successfully");
-      } catch (error) {
-        console.error("Failed to load content:", error);
       } finally {
         setLoading(false);
       }
