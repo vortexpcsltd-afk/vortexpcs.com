@@ -1,110 +1,230 @@
-import React, { useState } from 'react';
-import { Card } from './ui/card';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { AlertTriangle, Package, Users, DollarSign, TrendingUp, Eye, Edit, Trash2, Plus, Search, Filter, Download, BarChart3, Settings, Shield } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Card } from "./ui/card";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
+import {
+  AlertTriangle,
+  Package,
+  Users,
+  DollarSign,
+  TrendingUp,
+  Eye,
+  Edit,
+  Trash2,
+  Plus,
+  Search,
+  Filter,
+  Download,
+  BarChart3,
+  Settings,
+  Shield,
+  Loader2,
+} from "lucide-react";
+import {
+  getAllOrders,
+  getAllUsers,
+  getDashboardStats,
+  updateOrderStatus,
+  updateOrder,
+} from "../services/database";
+import type { Order } from "../services/database";
 
 export function AdminPanel() {
-  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [customersLoading, setCustomersLoading] = useState(false);
 
-  // Mock data
-  const dashboardStats = {
-    orders: { total: 156, change: '+12%', trend: 'up' },
-    revenue: { total: 287450, change: '+8.2%', trend: 'up' },
-    customers: { total: 1234, change: '+5.7%', trend: 'up' },
-    builds: { total: 89, change: '+23%', trend: 'up' }
-  };
+  // Real data states
+  const [dashboardStats, setDashboardStats] = useState({
+    orders: { total: 0, change: "+0%", trend: "up" as const },
+    revenue: { total: 0, change: "+0%", trend: "up" as const },
+    customers: { total: 0, change: "+0%", trend: "up" as const },
+    builds: { total: 0, change: "+0%", trend: "up" as const },
+  });
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
 
-  const recentOrders = [
-    {
-      id: 'VX-2024-156',
-      customer: 'John Smith',
-      email: 'john@example.com',
-      product: 'Vortex Gaming Pro',
-      status: 'building',
-      total: 1899,
-      date: '2024-01-20',
-      progress: 65
-    },
-    {
-      id: 'VX-2024-155',
-      customer: 'Sarah Wilson',
-      email: 'sarah@example.com',
-      product: 'Vortex Workstation',
-      status: 'shipped',
-      total: 2599,
-      date: '2024-01-19',
-      progress: 100
-    },
-    {
-      id: 'VX-2024-154',
-      customer: 'Mike Johnson',
-      email: 'mike@example.com',
-      product: 'Vortex Essential',
-      status: 'completed',
-      total: 1299,
-      date: '2024-01-18',
-      progress: 100
-    }
-  ];
+  // Load admin data on component mount
+  useEffect(() => {
+    const loadAdminData = async () => {
+      try {
+        setLoading(true);
+        console.log("📊 Admin Panel - Loading dashboard data...");
+
+        // Load dashboard statistics
+        const stats = await getDashboardStats();
+        setDashboardStats(stats);
+        console.log("📊 Dashboard stats loaded:", stats);
+
+        // Load all orders
+        const orders = await getAllOrders(100);
+        setAllOrders(orders);
+        setRecentOrders(orders.slice(0, 5)); // Show top 5 for dashboard
+        console.log("📦 Admin Panel - Orders loaded:", orders.length);
+
+        // Load all users
+        const users = await getAllUsers();
+
+        // Calculate customer stats from users and orders
+        const customersWithStats = users.map((user) => {
+          const userOrders = orders.filter((order) => order.userId === user.id);
+          const totalSpent = userOrders.reduce(
+            (sum, order) => sum + order.total,
+            0
+          );
+
+          return {
+            id: user.id,
+            name: user.displayName || "Unknown",
+            email: user.email,
+            orders: userOrders.length,
+            spent: totalSpent,
+            joined: user.createdAt?.toLocaleDateString() || "N/A",
+          };
+        });
+
+        setCustomers(customersWithStats);
+        console.log(
+          "👥 Admin Panel - Customers loaded:",
+          customersWithStats.length
+        );
+      } catch (error: any) {
+        console.error("❌ Admin Panel - Error loading data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAdminData();
+  }, []);
 
   const productInventory = [
-    { id: 'cpu-1', name: 'AMD Ryzen 9 5950X', category: 'CPU', stock: 15, price: 549, status: 'in-stock' },
-    { id: 'gpu-1', name: 'NVIDIA RTX 4090', category: 'GPU', stock: 3, price: 1599, status: 'low-stock' },
-    { id: 'ram-1', name: 'G.Skill Trident Z RGB 32GB', category: 'RAM', stock: 0, price: 159, status: 'out-of-stock' },
-    { id: 'mb-1', name: 'ASUS ROG Strix X570-E', category: 'Motherboard', stock: 8, price: 329, status: 'in-stock' }
+    {
+      id: "cpu-1",
+      name: "AMD Ryzen 9 5950X",
+      category: "CPU",
+      stock: 15,
+      price: 549,
+      status: "in-stock",
+    },
+    {
+      id: "gpu-1",
+      name: "NVIDIA RTX 4090",
+      category: "GPU",
+      stock: 3,
+      price: 1599,
+      status: "low-stock",
+    },
+    {
+      id: "ram-1",
+      name: "G.Skill Trident Z RGB 32GB",
+      category: "RAM",
+      stock: 0,
+      price: 159,
+      status: "out-of-stock",
+    },
+    {
+      id: "mb-1",
+      name: "ASUS ROG Strix X570-E",
+      category: "Motherboard",
+      stock: 8,
+      price: 329,
+      status: "in-stock",
+    },
   ];
 
-  const customers = [
-    { id: 1, name: 'John Smith', email: 'john@example.com', orders: 3, spent: 4567, joined: '2023-12-15' },
-    { id: 2, name: 'Sarah Wilson', email: 'sarah@example.com', orders: 2, spent: 3899, joined: '2023-11-22' },
-    { id: 3, name: 'Mike Johnson', email: 'mike@example.com', orders: 1, spent: 1299, joined: '2024-01-10' }
-  ];
-
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'building':
-        return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'shipped':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'completed':
-        return 'bg-green-500/20 text-green-300 border-green-500/30';
-      case 'in-stock':
-        return 'bg-green-500/20 text-green-300 border-green-500/30';
-      case 'low-stock':
-        return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'out-of-stock':
-        return 'bg-red-500/20 text-red-300 border-red-500/30';
+      case "building":
+      case "testing":
+        return "bg-yellow-500/20 text-yellow-300 border-yellow-500/30";
+      case "shipped":
+        return "bg-blue-500/20 text-blue-300 border-blue-500/30";
+      case "completed":
+      case "delivered":
+        return "bg-green-500/20 text-green-300 border-green-500/30";
+      case "pending":
+        return "bg-orange-500/20 text-orange-300 border-orange-500/30";
+      case "in-stock":
+        return "bg-green-500/20 text-green-300 border-green-500/30";
+      case "low-stock":
+        return "bg-yellow-500/20 text-yellow-300 border-yellow-500/30";
+      case "out-of-stock":
+        return "bg-red-500/20 text-red-300 border-red-500/30";
       default:
-        return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
+        return "bg-gray-500/20 text-gray-300 border-gray-500/30";
     }
   };
 
-  const StatCard = ({ title, value, change, trend, icon: Icon, color }) => (
+  const StatCard = ({
+    title,
+    value,
+    change,
+    trend,
+    icon: Icon,
+    color,
+  }: {
+    title: string;
+    value: number;
+    change: string;
+    trend: "up" | "down";
+    icon: any;
+    color: string;
+  }) => (
     <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-gray-400 text-sm">{title}</p>
           <div className="flex items-center space-x-2">
             <span className="text-2xl font-bold text-white">
-              {typeof value === 'number' && title.toLowerCase().includes('revenue') 
-                ? `£${value.toLocaleString()}` 
+              {typeof value === "number" &&
+              title.toLowerCase().includes("revenue")
+                ? `£${value.toLocaleString()}`
                 : value.toLocaleString()}
             </span>
-            <Badge className={`${trend === 'up' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'} border-0`}>
+            <Badge
+              className={`${
+                trend === "up"
+                  ? "bg-green-500/20 text-green-300"
+                  : "bg-red-500/20 text-red-300"
+              } border-0`}
+            >
               {change}
             </Badge>
           </div>
         </div>
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${color} flex items-center justify-center`}>
+        <div
+          className={`w-12 h-12 rounded-xl bg-gradient-to-r ${color} flex items-center justify-center`}
+        >
           <Icon className="w-6 h-6 text-white" />
         </div>
       </div>
@@ -122,8 +242,12 @@ export function AdminPanel() {
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-                <p className="text-gray-400">Manage your Vortex PCs operations</p>
+                <h1 className="text-3xl font-bold text-white">
+                  Admin Dashboard
+                </h1>
+                <p className="text-gray-400">
+                  Manage your Vortex PCs operations
+                </p>
               </div>
             </div>
             <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
@@ -134,19 +258,34 @@ export function AdminPanel() {
 
           <Tabs defaultValue="dashboard" className="space-y-6">
             <TabsList className="grid w-full grid-cols-5 bg-white/5 border-white/10">
-              <TabsTrigger value="dashboard" className="data-[state=active]:bg-white/10 text-white">
+              <TabsTrigger
+                value="dashboard"
+                className="data-[state=active]:bg-white/10 text-white"
+              >
                 Dashboard
               </TabsTrigger>
-              <TabsTrigger value="orders" className="data-[state=active]:bg-white/10 text-white">
+              <TabsTrigger
+                value="orders"
+                className="data-[state=active]:bg-white/10 text-white"
+              >
                 Orders
               </TabsTrigger>
-              <TabsTrigger value="inventory" className="data-[state=active]:bg-white/10 text-white">
+              <TabsTrigger
+                value="inventory"
+                className="data-[state=active]:bg-white/10 text-white"
+              >
                 Inventory
               </TabsTrigger>
-              <TabsTrigger value="customers" className="data-[state=active]:bg-white/10 text-white">
+              <TabsTrigger
+                value="customers"
+                className="data-[state=active]:bg-white/10 text-white"
+              >
                 Customers
               </TabsTrigger>
-              <TabsTrigger value="content" className="data-[state=active]:bg-white/10 text-white">
+              <TabsTrigger
+                value="content"
+                className="data-[state=active]:bg-white/10 text-white"
+              >
                 Content
               </TabsTrigger>
             </TabsList>
@@ -192,58 +331,107 @@ export function AdminPanel() {
               {/* Recent Orders */}
               <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-white">Recent Orders</h3>
-                  <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                  <h3 className="text-xl font-bold text-white">
+                    Recent Orders
+                  </h3>
+                  <Button
+                    variant="outline"
+                    className="border-white/20 text-white hover:bg-white/10"
+                  >
                     View All Orders
                   </Button>
                 </div>
 
-                <div className="space-y-4">
-                  {recentOrders.map((order) => (
-                    <div key={order.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
-                      <div className="flex items-center space-x-4">
-                        <div>
-                          <div className="font-medium text-white">{order.customer}</div>
-                          <div className="text-sm text-gray-400">{order.id}</div>
+                {loading ? (
+                  <div className="text-center py-12">
+                    <Loader2 className="w-12 h-12 text-sky-400 animate-spin mx-auto mb-4" />
+                    <p className="text-gray-400">Loading orders...</p>
+                  </div>
+                ) : recentOrders.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      No Orders Yet
+                    </h3>
+                    <p className="text-gray-400">
+                      Orders will appear here once customers start purchasing.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {recentOrders.map((order) => (
+                      <div
+                        key={order.id}
+                        className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div>
+                            <div className="font-medium text-white">
+                              {order.customerName}
+                            </div>
+                            <div className="text-sm text-gray-400">
+                              {order.orderId}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-white">
+                              {order.items?.[0]?.productName || "Custom Build"}
+                            </div>
+                            <div className="text-sm text-gray-400">
+                              {order.orderDate?.toLocaleDateString() || "N/A"}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-white">{order.product}</div>
-                          <div className="text-sm text-gray-400">{order.date}</div>
+                        <div className="flex items-center space-x-4">
+                          <Badge
+                            className={`${getStatusColor(order.status)} border`}
+                          >
+                            {order.status}
+                          </Badge>
+                          <div className="text-right">
+                            <div className="font-bold text-green-400">
+                              £{order.total.toLocaleString()}
+                            </div>
+                            {(order.status === "building" ||
+                              order.status === "testing") && (
+                              <div className="text-sm text-gray-400">
+                                {order.progress}% complete
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-white/20 text-white hover:bg-white/10"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-4">
-                        <Badge className={`${getStatusColor(order.status)} border`}>
-                          {order.status}
-                        </Badge>
-                        <div className="text-right">
-                          <div className="font-bold text-green-400">£{order.total.toLocaleString()}</div>
-                          {order.status === 'building' && (
-                            <div className="text-sm text-gray-400">{order.progress}% complete</div>
-                          )}
-                        </div>
-                        <Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </Card>
             </TabsContent>
 
             {/* Orders Tab */}
             <TabsContent value="orders" className="space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-white">Order Management</h3>
+                <h3 className="text-2xl font-bold text-white">
+                  Order Management
+                </h3>
                 <div className="flex space-x-3">
                   <div className="flex items-center space-x-2">
                     <Search className="w-4 h-4 text-gray-400" />
-                    <Input 
-                      placeholder="Search orders..." 
+                    <Input
+                      placeholder="Search orders..."
                       className="bg-white/5 border-white/10 text-white w-64"
                     />
                   </div>
-                  <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                  <Button
+                    variant="outline"
+                    className="border-white/20 text-white hover:bg-white/10"
+                  >
                     <Filter className="w-4 h-4" />
                   </Button>
                 </div>
@@ -262,28 +450,48 @@ export function AdminPanel() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentOrders.map((order) => (
+                    {allOrders.slice(0, 20).map((order) => (
                       <TableRow key={order.id} className="border-white/10">
-                        <TableCell className="text-white font-medium">{order.id}</TableCell>
+                        <TableCell className="text-white font-medium">
+                          {order.orderId}
+                        </TableCell>
                         <TableCell>
                           <div>
-                            <div className="text-white">{order.customer}</div>
-                            <div className="text-sm text-gray-400">{order.email}</div>
+                            <div className="text-white">
+                              {order.customerName}
+                            </div>
+                            <div className="text-sm text-gray-400">
+                              {order.customerEmail}
+                            </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-white">{order.product}</TableCell>
+                        <TableCell className="text-white">
+                          {order.items?.[0]?.productName || "Custom Build"}
+                        </TableCell>
                         <TableCell>
-                          <Badge className={`${getStatusColor(order.status)} border`}>
+                          <Badge
+                            className={`${getStatusColor(order.status)} border`}
+                          >
                             {order.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-green-400 font-bold">£{order.total.toLocaleString()}</TableCell>
+                        <TableCell className="text-green-400 font-bold">
+                          £{order.total.toLocaleString()}
+                        </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-white/20 text-white hover:bg-white/10"
+                            >
                               <Eye className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-white/20 text-white hover:bg-white/10"
+                            >
                               <Edit className="w-4 h-4" />
                             </Button>
                           </div>
@@ -298,8 +506,10 @@ export function AdminPanel() {
             {/* Inventory Tab */}
             <TabsContent value="inventory" className="space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-white">Inventory Management</h3>
-                <Button 
+                <h3 className="text-2xl font-bold text-white">
+                  Inventory Management
+                </h3>
+                <Button
                   onClick={() => setShowAddProduct(true)}
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                 >
@@ -323,21 +533,41 @@ export function AdminPanel() {
                   <TableBody>
                     {productInventory.map((product) => (
                       <TableRow key={product.id} className="border-white/10">
-                        <TableCell className="text-white font-medium">{product.name}</TableCell>
-                        <TableCell className="text-white">{product.category}</TableCell>
-                        <TableCell className="text-white">{product.stock}</TableCell>
-                        <TableCell className="text-green-400 font-bold">£{product.price}</TableCell>
+                        <TableCell className="text-white font-medium">
+                          {product.name}
+                        </TableCell>
+                        <TableCell className="text-white">
+                          {product.category}
+                        </TableCell>
+                        <TableCell className="text-white">
+                          {product.stock}
+                        </TableCell>
+                        <TableCell className="text-green-400 font-bold">
+                          £{product.price}
+                        </TableCell>
                         <TableCell>
-                          <Badge className={`${getStatusColor(product.status)} border`}>
-                            {product.status.replace('-', ' ')}
+                          <Badge
+                            className={`${getStatusColor(
+                              product.status
+                            )} border`}
+                          >
+                            {product.status.replace("-", " ")}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-white/20 text-white hover:bg-white/10"
+                            >
                               <Edit className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 hover:bg-red-500/10">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                            >
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
@@ -352,13 +582,18 @@ export function AdminPanel() {
             {/* Customers Tab */}
             <TabsContent value="customers" className="space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-white">Customer Management</h3>
+                <h3 className="text-2xl font-bold text-white">
+                  Customer Management
+                </h3>
                 <div className="flex space-x-3">
-                  <Input 
-                    placeholder="Search customers..." 
+                  <Input
+                    placeholder="Search customers..."
                     className="bg-white/5 border-white/10 text-white w-64"
                   />
-                  <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                  <Button
+                    variant="outline"
+                    className="border-white/20 text-white hover:bg-white/10"
+                  >
                     <Download className="w-4 h-4" />
                   </Button>
                 </div>
@@ -379,17 +614,35 @@ export function AdminPanel() {
                   <TableBody>
                     {customers.map((customer) => (
                       <TableRow key={customer.id} className="border-white/10">
-                        <TableCell className="text-white font-medium">{customer.name}</TableCell>
-                        <TableCell className="text-white">{customer.email}</TableCell>
-                        <TableCell className="text-white">{customer.orders}</TableCell>
-                        <TableCell className="text-green-400 font-bold">£{customer.spent.toLocaleString()}</TableCell>
-                        <TableCell className="text-white">{new Date(customer.joined).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-white font-medium">
+                          {customer.name}
+                        </TableCell>
+                        <TableCell className="text-white">
+                          {customer.email}
+                        </TableCell>
+                        <TableCell className="text-white">
+                          {customer.orders}
+                        </TableCell>
+                        <TableCell className="text-green-400 font-bold">
+                          £{customer.spent.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-white">
+                          {new Date(customer.joined).toLocaleDateString()}
+                        </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-white/20 text-white hover:bg-white/10"
+                            >
                               <Eye className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-white/20 text-white hover:bg-white/10"
+                            >
                               <Edit className="w-4 h-4" />
                             </Button>
                           </div>
@@ -403,11 +656,15 @@ export function AdminPanel() {
 
             {/* Content Management Tab */}
             <TabsContent value="content" className="space-y-6">
-              <h3 className="text-2xl font-bold text-white">Content Management System</h3>
-              
+              <h3 className="text-2xl font-bold text-white">
+                Content Management System
+              </h3>
+
               <div className="grid md:grid-cols-2 gap-6">
                 <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
-                  <h4 className="text-xl font-bold text-white mb-4">Website Content</h4>
+                  <h4 className="text-xl font-bold text-white mb-4">
+                    Website Content
+                  </h4>
                   <div className="space-y-3">
                     <Button className="w-full justify-start bg-blue-600 hover:bg-blue-700">
                       <Edit className="w-4 h-4 mr-3" />
@@ -425,7 +682,9 @@ export function AdminPanel() {
                 </Card>
 
                 <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
-                  <h4 className="text-xl font-bold text-white mb-4">System Settings</h4>
+                  <h4 className="text-xl font-bold text-white mb-4">
+                    System Settings
+                  </h4>
                   <div className="space-y-3">
                     <Button className="w-full justify-start bg-yellow-600 hover:bg-yellow-700">
                       <AlertTriangle className="w-4 h-4 mr-3" />
@@ -454,11 +713,18 @@ export function AdminPanel() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="productName" className="text-white">Product Name</Label>
-                    <Input id="productName" className="bg-white/5 border-white/10 text-white" />
+                    <Label htmlFor="productName" className="text-white">
+                      Product Name
+                    </Label>
+                    <Input
+                      id="productName"
+                      className="bg-white/5 border-white/10 text-white"
+                    />
                   </div>
                   <div>
-                    <Label htmlFor="category" className="text-white">Category</Label>
+                    <Label htmlFor="category" className="text-white">
+                      Category
+                    </Label>
                     <Select>
                       <SelectTrigger className="bg-white/5 border-white/10 text-white">
                         <SelectValue placeholder="Select category" />
@@ -474,20 +740,42 @@ export function AdminPanel() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="price" className="text-white">Price (£)</Label>
-                    <Input id="price" type="number" className="bg-white/5 border-white/10 text-white" />
+                    <Label htmlFor="price" className="text-white">
+                      Price (£)
+                    </Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      className="bg-white/5 border-white/10 text-white"
+                    />
                   </div>
                   <div>
-                    <Label htmlFor="stock" className="text-white">Stock Quantity</Label>
-                    <Input id="stock" type="number" className="bg-white/5 border-white/10 text-white" />
+                    <Label htmlFor="stock" className="text-white">
+                      Stock Quantity
+                    </Label>
+                    <Input
+                      id="stock"
+                      type="number"
+                      className="bg-white/5 border-white/10 text-white"
+                    />
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="description" className="text-white">Description</Label>
-                  <Textarea id="description" className="bg-white/5 border-white/10 text-white" rows={3} />
+                  <Label htmlFor="description" className="text-white">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="description"
+                    className="bg-white/5 border-white/10 text-white"
+                    rows={3}
+                  />
                 </div>
                 <div className="flex justify-end space-x-3">
-                  <Button variant="outline" onClick={() => setShowAddProduct(false)} className="border-white/20 text-white hover:bg-white/10">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddProduct(false)}
+                    className="border-white/20 text-white hover:bg-white/10"
+                  >
                     Cancel
                   </Button>
                   <Button className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
