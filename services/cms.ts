@@ -369,7 +369,7 @@ export const fetchProducts = async (params?: {
 /**
  * Fetch single product by ID
  */
-export const fetchProduct = async (id: number): Promise<Product | null> => {
+export const fetchProduct = async (_id: number): Promise<Product | null> => {
   if (!isContentfulEnabled) {
     return null;
   }

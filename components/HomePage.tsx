@@ -9,7 +9,6 @@ import {
   Settings as SettingsIcon,
   Wrench,
   Star,
-  CheckCircle,
   Search,
 } from "lucide-react";
 import {
@@ -305,7 +304,11 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       Wrench,
     };
     const IconComponent = iconMap[iconName] || Zap;
-    return <IconComponent className="h-8 w-8 mb-4 text-sky-400" />;
+    return (
+      <div className="flex items-center justify-center mb-4">
+        <IconComponent className="h-8 w-8 text-sky-400" />
+      </div>
+    );
   };
 
   return (

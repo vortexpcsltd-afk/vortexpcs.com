@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
-import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Button } from "./components/ui/button";
-import { Card } from "./components/ui/card";
-import { Avatar, AvatarFallback } from "./components/ui/avatar";
 import { PCFinder } from "./components/PCFinderBlue.tsx";
 import { PCBuilder } from "./components/PCBuilder.tsx";
 import { AIAssistant } from "./components/AIAssistant.tsx";
@@ -21,15 +18,10 @@ import { TermsPage } from "./components/TermsPage.tsx";
 import { PrivacyPage } from "./components/PrivacyPage.tsx";
 import { CookiePolicyPage } from "./components/CookiePolicyPage.tsx";
 import {
-  Cpu,
   Shield,
-  Clock,
-  Users,
   Settings,
   MessageCircle,
   Wrench,
-  Star,
-  ArrowRight,
   Menu,
   X,
   User,
@@ -43,7 +35,6 @@ import {
   Phone,
 } from "lucide-react";
 const vortexLogo = "/vortexpcs-logo.png";
-const heroBackground = "/gaming-keyboard.jpeg";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("home");
