@@ -20,7 +20,12 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
-import { loginUser, registerUser, resetPassword } from "../services/auth";
+import {
+  loginUser,
+  registerUser,
+  resetPassword,
+  getUserProfile,
+} from "../services/auth";
 
 interface LoginDialogProps {
   isOpen: boolean;
@@ -62,9 +67,20 @@ export function LoginDialog({
 
     try {
       const user = await loginUser(email, password);
+
+      // Fetch user profile from Firestore to get the role
+      const userProfile = await getUserProfile(user.uid);
+
+      // Combine Firebase user with Firestore profile data
+      const userWithRole = {
+        ...user,
+        role: userProfile?.role || "user",
+        displayName: user.displayName || userProfile?.displayName || email,
+      };
+
       setSuccess("Login successful!");
       setTimeout(() => {
-        onLogin(user);
+        onLogin(userWithRole);
         onClose();
         // Reset form
         setEmail("");
@@ -88,9 +104,20 @@ export function LoginDialog({
 
     try {
       const user = await registerUser(email, password, name);
+
+      // Fetch user profile from Firestore to get the role
+      const userProfile = await getUserProfile(user.uid);
+
+      // Combine Firebase user with Firestore profile data
+      const userWithRole = {
+        ...user,
+        role: userProfile?.role || "user",
+        displayName: user.displayName || userProfile?.displayName || name,
+      };
+
       setSuccess("Account created successfully!");
       setTimeout(() => {
-        onLogin(user);
+        onLogin(userWithRole);
         onClose();
         // Reset form
         setEmail("");
