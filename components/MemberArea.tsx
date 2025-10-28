@@ -36,9 +36,14 @@ import type { Order, SavedConfiguration } from "../services/database";
 interface MemberAreaProps {
   isLoggedIn: boolean;
   setIsLoggedIn: (value: boolean) => void;
+  onNavigate?: (view: string) => void;
 }
 
-export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
+export function MemberArea({
+  isLoggedIn,
+  setIsLoggedIn,
+  onNavigate,
+}: MemberAreaProps) {
   const [editingProfile, setEditingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -324,8 +329,11 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                     <p className="text-gray-400 mb-6">
                       Start building your dream PC!
                     </p>
-                    <Button className="bg-gradient-to-r from-sky-600 to-blue-600">
-                      Browse PC Builder
+                    <Button
+                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                      onClick={() => onNavigate?.("finder")}
+                    >
+                      Open PC Finder
                     </Button>
                   </div>
                 </Card>
@@ -463,7 +471,10 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                     <p className="text-gray-400 mb-6">
                       Save your custom PC configurations in the PC Builder!
                     </p>
-                    <Button className="bg-gradient-to-r from-sky-600 to-blue-600">
+                    <Button
+                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                      onClick={() => onNavigate?.("builder")}
+                    >
                       Open PC Builder
                     </Button>
                   </div>

@@ -115,7 +115,11 @@ export default function App() {
         return <Contact onNavigate={setCurrentView} />;
       case "member":
         return (
-          <MemberArea isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
+          <MemberArea
+            isLoggedIn={isLoggedIn}
+            setIsLoggedIn={setIsLoggedIn}
+            onNavigate={setCurrentView}
+          />
         );
       case "admin":
         return isAdmin ? <AdminPanel /> : <div>Access Denied</div>;
