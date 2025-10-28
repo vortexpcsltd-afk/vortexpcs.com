@@ -10,12 +10,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Mail, Lock, User, LogIn, UserPlus } from "lucide-react";
+import { Alert, AlertDescription } from "./ui/alert";
+import {
+  Mail,
+  Lock,
+  User,
+  LogIn,
+  UserPlus,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
+import { loginUser, registerUser, resetPassword } from "../services/auth";
 
 interface LoginDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (isAdmin?: boolean) => void;
+  onLogin: (user: any) => void;
   activeTab?: string;
 }
 
@@ -29,19 +39,89 @@ export function LoginDialog({
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [currentTab, setCurrentTab] = useState(activeTab);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   React.useEffect(() => {
     setCurrentTab(activeTab);
   }, [activeTab]);
 
-  const handleLogin = (e: React.FormEvent, isAdmin = false) => {
+  React.useEffect(() => {
+    if (isOpen) {
+      setError(null);
+      setSuccess(null);
+    }
+  }, [isOpen]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin(isAdmin);
-    onClose();
-    // Reset form
-    setEmail("");
-    setPassword("");
-    setName("");
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const user = await loginUser(email, password);
+      setSuccess("Login successful!");
+      setTimeout(() => {
+        onLogin(user);
+        onClose();
+        // Reset form
+        setEmail("");
+        setPassword("");
+        setName("");
+      }, 1000);
+    } catch (err: any) {
+      setError(
+        err.message || "Failed to login. Please check your credentials."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const user = await registerUser(email, password, name);
+      setSuccess("Account created successfully!");
+      setTimeout(() => {
+        onLogin(user);
+        onClose();
+        // Reset form
+        setEmail("");
+        setPassword("");
+        setName("");
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message || "Failed to create account. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Please enter your email address first.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await resetPassword(email);
+      setSuccess("Password reset email sent! Check your inbox.");
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset email.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -78,7 +158,20 @@ export function LoginDialog({
           </TabsList>
 
           <TabsContent value="login" className="space-y-4 mt-6">
-            <form onSubmit={(e) => handleLogin(e, false)} className="space-y-4">
+            {error && (
+              <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {success && (
+              <Alert className="bg-green-500/10 border-green-500/30 text-green-400">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label
                   htmlFor="login-email"
@@ -95,6 +188,7 @@ export function LoginDialog({
                   placeholder="you@example.com"
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -114,6 +208,7 @@ export function LoginDialog({
                   placeholder="••••••••"
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -122,29 +217,46 @@ export function LoginDialog({
                   <input
                     type="checkbox"
                     className="mr-2 rounded border-white/10 bg-white/5"
+                    disabled={loading}
                   />
                   Remember me
                 </label>
-                <a
-                  href="#"
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
                   className="text-sky-400 hover:text-sky-300 transition-colors"
+                  disabled={loading}
                 >
                   Forgot password?
-                </a>
+                </button>
               </div>
 
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white py-6 shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300"
+                disabled={loading}
               >
                 <LogIn className="w-4 h-4 mr-2" />
-                Login to Your Account
+                {loading ? "Logging in..." : "Login to Your Account"}
               </Button>
             </form>
           </TabsContent>
 
           <TabsContent value="register" className="space-y-4 mt-6">
-            <form onSubmit={(e) => handleLogin(e, false)} className="space-y-4">
+            {error && (
+              <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {success && (
+              <Alert className="bg-green-500/10 border-green-500/30 text-green-400">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+
+            <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
                 <Label
                   htmlFor="register-name"
@@ -161,6 +273,7 @@ export function LoginDialog({
                   placeholder="John Doe"
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -180,6 +293,7 @@ export function LoginDialog({
                   placeholder="you@example.com"
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -199,6 +313,8 @@ export function LoginDialog({
                   placeholder="••••••••"
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
+                  disabled={loading}
+                  minLength={6}
                 />
               </div>
 
@@ -207,6 +323,7 @@ export function LoginDialog({
                   type="checkbox"
                   className="mr-2 mt-1 rounded border-white/10 bg-white/5"
                   required
+                  disabled={loading}
                 />
                 <label className="text-gray-400">
                   I agree to the{" "}
@@ -229,9 +346,10 @@ export function LoginDialog({
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white py-6 shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300"
+                disabled={loading}
               >
                 <UserPlus className="w-4 h-4 mr-2" />
-                Create Account
+                {loading ? "Creating Account..." : "Create Account"}
               </Button>
             </form>
 
@@ -240,6 +358,7 @@ export function LoginDialog({
               <button
                 onClick={() => setCurrentTab("login")}
                 className="text-sky-400 hover:text-sky-300 transition-colors font-medium"
+                disabled={loading}
               >
                 Login here
               </button>

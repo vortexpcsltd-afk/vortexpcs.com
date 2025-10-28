@@ -41,6 +41,7 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [showCookieConsent, setShowCookieConsent] = useState(false);
   const [recommendedBuild, setRecommendedBuild] = useState(null);
@@ -127,31 +128,6 @@ export default function App() {
       default:
         return <HomePage setCurrentView={setCurrentView} />;
     }
-  };
-
-  const mockLogin = () => {
-    const userData = {
-      id: 1,
-      name: "John Doe",
-      email: "john@example.com",
-      role: "user",
-    };
-    localStorage.setItem("vortex_user", JSON.stringify(userData));
-    setIsLoggedIn(true);
-    setCurrentView("member");
-  };
-
-  const mockAdminLogin = () => {
-    const userData = {
-      id: 1,
-      name: "Admin User",
-      email: "admin@vortexpcs.com",
-      role: "admin",
-    };
-    localStorage.setItem("vortex_user", JSON.stringify(userData));
-    setIsLoggedIn(true);
-    setIsAdmin(true);
-    setCurrentView("admin");
   };
 
   return (
@@ -498,13 +474,21 @@ export default function App() {
           <LoginDialog
             isOpen={showLoginDialog}
             onClose={() => setShowLoginDialog(false)}
-            onLogin={(isAdmin) => {
-              if (isAdmin) {
-                mockAdminLogin();
-              } else {
-                mockLogin();
-              }
-              setCurrentView("member");
+            onLogin={(firebaseUser) => {
+              // Save user data to state and localStorage
+              const userData = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                role: firebaseUser.role || "user",
+              };
+              localStorage.setItem("vortex_user", JSON.stringify(userData));
+              setUser(firebaseUser);
+              setIsLoggedIn(true);
+              setIsAdmin(firebaseUser.role === "admin");
+              setCurrentView(
+                firebaseUser.role === "admin" ? "admin" : "member"
+              );
             }}
             activeTab={loginTab}
           />
