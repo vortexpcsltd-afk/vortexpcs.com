@@ -2900,59 +2900,61 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
         {/* Optional Peripherals Section */}
         <div className="mt-8 sm:mt-16 px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8 sm:mb-12">
-            <div className="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 mb-4">
-              <Plus className="w-4 h-4 text-green-400 mr-2" />
-              <span className="text-sm text-green-300">Optional Extras</span>
+            <div className="inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 mb-3 sm:mb-4">
+              <Plus className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 mr-1.5 sm:mr-2" />
+              <span className="text-xs sm:text-sm text-green-300">
+                Optional Extras
+              </span>
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 bg-gradient-to-r from-white via-green-100 to-emerald-200 bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-white via-green-100 to-emerald-200 bg-clip-text text-transparent px-4">
               Enhance Your Setup
             </h2>
-            <p className="text-base sm:text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto">
+            <p className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto px-4">
               Complete your gaming experience with premium peripherals
             </p>
           </div>
 
           <Tabs defaultValue="keyboard" className="space-y-6 sm:space-y-8">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-2 rounded-xl gap-1">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-1.5 sm:p-2 rounded-xl gap-1">
               <TabsTrigger
                 value="keyboard"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-2.5 sm:px-4 sm:py-3 flex items-center justify-center rounded-lg"
               >
                 <Keyboard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-                <span className="hidden sm:inline truncate">Keyboards</span>
-                <span className="sm:hidden truncate">Keys</span>
+                <span className="hidden sm:inline">Keyboards</span>
+                <span className="sm:hidden">Keys</span>
               </TabsTrigger>
               <TabsTrigger
                 value="mouse"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-2.5 sm:px-4 sm:py-3 flex items-center justify-center rounded-lg"
               >
                 <Mouse className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-                <span className="hidden sm:inline truncate">Mice</span>
-                <span className="sm:hidden truncate">Mice</span>
+                <span className="hidden sm:inline">Mice</span>
+                <span className="sm:hidden">Mice</span>
               </TabsTrigger>
               <TabsTrigger
                 value="monitor"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-2.5 sm:px-4 sm:py-3 flex items-center justify-center rounded-lg"
               >
                 <Monitor className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-                <span className="hidden sm:inline truncate">Monitors</span>
-                <span className="sm:hidden truncate">Screens</span>
+                <span className="hidden sm:inline">Monitors</span>
+                <span className="sm:hidden">Mon</span>
               </TabsTrigger>
               <TabsTrigger
                 value="gamepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-2.5 sm:px-4 sm:py-3 flex items-center justify-center rounded-lg"
               >
                 <Settings className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-                <span className="hidden sm:inline truncate">Gamepads</span>
-                <span className="sm:hidden truncate">Game</span>
+                <span className="hidden sm:inline">Gamepads</span>
+                <span className="sm:hidden">Pad</span>
               </TabsTrigger>
               <TabsTrigger
                 value="mousepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-3 sm:px-4 sm:py-3"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-2 py-2.5 sm:px-4 sm:py-3 flex items-center justify-center rounded-lg"
               >
                 <Package className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-                <span className="hidden sm:inline truncate">Mousepads</span>
-                <span className="sm:hidden truncate">Mats</span>
+                <span className="hidden sm:inline">Mousepads</span>
+                <span className="sm:hidden">Mat</span>
               </TabsTrigger>
             </TabsList>
 
