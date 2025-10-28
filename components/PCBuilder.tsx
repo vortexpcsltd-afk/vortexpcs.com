@@ -2035,11 +2035,11 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
 
     // CPU & GPU pairing insights
     if (cpu && gpu) {
-      if (gpu.vram >= 16 && cpu.cores >= 8) {
+      if ((gpu.vram ?? 0) >= 16 && (cpu.cores ?? 0) >= 8) {
         comments.push(
           "Excellent pairing - your high-core-count CPU won't bottleneck the GPU in demanding workloads like 4K gaming or 3D rendering. This combination ensures both components work at peak efficiency."
         );
-      } else if (gpu.vram >= 12 && cpu.cores >= 6) {
+      } else if ((gpu.vram ?? 0) >= 12 && (cpu.cores ?? 0) >= 6) {
         comments.push(
           "Well-balanced configuration. The CPU and GPU are perfectly matched for 1440p gaming and content creation, ensuring smooth performance without unnecessary overspending on either component."
         );
@@ -2048,15 +2048,15 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
 
     // RAM capacity insights
     if (ram) {
-      if (ram.capacity >= 64) {
+      if ((ram.capacity ?? 0) >= 64) {
         comments.push(
           "With 64GB of RAM, you'll handle professional workflows effortlessly – from 4K video editing with multiple layers to running Docker containers and virtual machines simultaneously. This capacity future-proofs your system for years to come."
         );
-      } else if (ram.capacity === 32) {
+      } else if ((ram.capacity ?? 0) === 32) {
         comments.push(
           "32GB strikes the perfect balance for gaming and creative work. You'll comfortably edit 4K footage, run multiple Chrome tabs, Discord, and demanding games simultaneously without performance degradation."
         );
-      } else if (ram.capacity === 16) {
+      } else if ((ram.capacity ?? 0) === 16) {
         comments.push(
           "16GB is ideal for gaming and general use. Modern games perform excellently at this capacity, and you'll have headroom for background applications and browser tabs."
         );
@@ -2075,7 +2075,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
         );
       }
 
-      if (storage.capacity >= 2000) {
+      if ((storage.capacity ?? 0) >= 2000) {
         comments.push(
           "2TB+ capacity ensures you won't need to juggle game installations. Modern AAA titles often exceed 150GB – with this capacity, you can maintain a substantial library whilst preserving space for creative projects."
         );
@@ -2190,7 +2190,12 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
         const pcCase = activeComponentData.case.find(
           (c: any) => c.id === currentComponents.case
         );
-        if (pcCase && component.length > pcCase.maxGpuLength) {
+        if (
+          pcCase &&
+          component.length &&
+          pcCase.maxGpuLength &&
+          component.length > pcCase.maxGpuLength
+        ) {
           return false;
         }
       }
@@ -2199,7 +2204,12 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
         const gpu = activeComponentData.gpu.find(
           (g: any) => g.id === currentComponents.gpu
         );
-        if (gpu && gpu.length > component.maxGpuLength) {
+        if (
+          gpu &&
+          component.maxGpuLength &&
+          gpu.length &&
+          gpu.length > component.maxGpuLength
+        ) {
           return false;
         }
       }
