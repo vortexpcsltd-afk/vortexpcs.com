@@ -67,9 +67,12 @@ export function LoginDialog({
 
     try {
       const user = await loginUser(email, password);
+      console.log("✅ Login - Firebase Auth User:", user.uid, user.email);
 
       // Fetch user profile from Firestore to get the role
       const userProfile = await getUserProfile(user.uid);
+      console.log("📄 Login - Firestore Profile:", userProfile);
+      console.log("👤 Login - User Role from Firestore:", userProfile?.role);
 
       // Combine Firebase user with Firestore profile data
       const userWithRole = {
@@ -77,6 +80,9 @@ export function LoginDialog({
         role: userProfile?.role || "user",
         displayName: user.displayName || userProfile?.displayName || email,
       };
+
+      console.log("🎯 Login - Final User Object:", userWithRole);
+      console.log("🎯 Login - Final Role:", userWithRole.role);
 
       setSuccess("Login successful!");
       setTimeout(() => {
@@ -88,6 +94,7 @@ export function LoginDialog({
         setName("");
       }, 1000);
     } catch (err: any) {
+      console.error("❌ Login Error:", err);
       setError(
         err.message || "Failed to login. Please check your credentials."
       );

@@ -475,6 +475,13 @@ export default function App() {
             isOpen={showLoginDialog}
             onClose={() => setShowLoginDialog(false)}
             onLogin={(firebaseUser) => {
+              console.log("🔐 Login - Firebase User:", firebaseUser);
+              console.log("🔐 Login - User Role:", firebaseUser.role);
+
+              // Case-insensitive admin check
+              const isAdminUser = firebaseUser.role?.toLowerCase() === "admin";
+              console.log("🔐 Login - Is Admin?:", isAdminUser);
+
               // Save user data to state and localStorage
               const userData = {
                 uid: firebaseUser.uid,
@@ -485,10 +492,11 @@ export default function App() {
               localStorage.setItem("vortex_user", JSON.stringify(userData));
               setUser(firebaseUser);
               setIsLoggedIn(true);
-              setIsAdmin(firebaseUser.role === "admin");
-              setCurrentView(
-                firebaseUser.role === "admin" ? "admin" : "member"
-              );
+              setIsAdmin(isAdminUser);
+
+              const targetView = isAdminUser ? "admin" : "member";
+              console.log("🔐 Login - Redirecting to:", targetView);
+              setCurrentView(targetView);
             }}
             activeTab={loginTab}
           />
