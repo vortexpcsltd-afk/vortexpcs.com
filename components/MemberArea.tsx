@@ -111,6 +111,35 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
     }
   }, [isLoggedIn, setIsLoggedIn]);
 
+  // Helper function to get user initials
+  const getInitials = (name: string) => {
+    if (!name) return "U";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Calculate member since date
+  const getMemberSince = () => {
+    if (currentUser?.metadata?.creationTime) {
+      return new Date(currentUser.metadata.creationTime).toLocaleDateString(
+        "en-US",
+        {
+          month: "long",
+          year: "numeric",
+        }
+      );
+    }
+    return "N/A";
+  };
+
+  // Calculate total spent from orders
+  const getTotalSpent = () => {
+    return orders.reduce((sum, order) => sum + order.total, 0);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("vortex_user");
     setIsLoggedIn(false);
@@ -223,14 +252,20 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
             <div className="flex items-center space-x-4">
               <Avatar className="w-16 h-16">
                 <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xl">
-                  JD
+                  {getInitials(
+                    profileData.name ||
+                      currentUser?.displayName ||
+                      currentUser?.email ||
+                      "User"
+                  )}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <h1 className="text-3xl font-bold text-white">
-                  Welcome back, {profileData.name}!
+                  Welcome back,{" "}
+                  {profileData.name || currentUser?.displayName || "Member"}!
                 </h1>
-                <p className="text-gray-400">Member since November 2023</p>
+                <p className="text-gray-400">Member since {getMemberSince()}</p>
               </div>
             </div>
             <Button
@@ -499,9 +534,9 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
 
             {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-6">
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-white">
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-8">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-2xl font-bold text-white">
                     Profile Information
                   </h3>
                   <Button
@@ -511,7 +546,7 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                         ? handleSaveProfile()
                         : setEditingProfile(true)
                     }
-                    className="border-white/20 text-white hover:bg-white/10"
+                    className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10 hover:border-sky-500/50"
                   >
                     {editingProfile ? (
                       <>
@@ -527,10 +562,13 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                   </Button>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-6">
                     <div>
-                      <Label htmlFor="name" className="text-white">
+                      <Label
+                        htmlFor="name"
+                        className="text-white text-sm font-semibold mb-2 block"
+                      >
                         Full Name
                       </Label>
                       <Input
@@ -543,12 +581,20 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                           }))
                         }
                         disabled={!editingProfile}
-                        className="bg-white/5 border-white/10 text-white"
+                        className={`bg-white/5 border-white/10 text-white h-12 ${
+                          editingProfile
+                            ? "focus:border-sky-500/50 focus:ring-sky-500/20"
+                            : "opacity-75"
+                        }`}
+                        placeholder="Enter your full name"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="email" className="text-white">
+                      <Label
+                        htmlFor="email"
+                        className="text-white text-sm font-semibold mb-2 block"
+                      >
                         Email Address
                       </Label>
                       <Input
@@ -562,12 +608,20 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                           }))
                         }
                         disabled={!editingProfile}
-                        className="bg-white/5 border-white/10 text-white"
+                        className={`bg-white/5 border-white/10 text-white h-12 ${
+                          editingProfile
+                            ? "focus:border-sky-500/50 focus:ring-sky-500/20"
+                            : "opacity-75"
+                        }`}
+                        placeholder="your.email@example.com"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="phone" className="text-white">
+                      <Label
+                        htmlFor="phone"
+                        className="text-white text-sm font-semibold mb-2 block"
+                      >
                         Phone Number
                       </Label>
                       <Input
@@ -580,12 +634,20 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                           }))
                         }
                         disabled={!editingProfile}
-                        className="bg-white/5 border-white/10 text-white"
+                        className={`bg-white/5 border-white/10 text-white h-12 ${
+                          editingProfile
+                            ? "focus:border-sky-500/50 focus:ring-sky-500/20"
+                            : "opacity-75"
+                        }`}
+                        placeholder="+44 7XXX XXXXXX"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="address" className="text-white">
+                      <Label
+                        htmlFor="address"
+                        className="text-white text-sm font-semibold mb-2 block"
+                      >
                         Address
                       </Label>
                       <Input
@@ -598,7 +660,12 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                           }))
                         }
                         disabled={!editingProfile}
-                        className="bg-white/5 border-white/10 text-white"
+                        className={`bg-white/5 border-white/10 text-white h-12 ${
+                          editingProfile
+                            ? "focus:border-sky-500/50 focus:ring-sky-500/20"
+                            : "opacity-75"
+                        }`}
+                        placeholder="Your delivery address"
                       />
                     </div>
                   </div>
@@ -607,7 +674,12 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                     <div className="text-center">
                       <Avatar className="w-32 h-32 mx-auto mb-4">
                         <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-4xl">
-                          JD
+                          {getInitials(
+                            profileData.name ||
+                              currentUser?.displayName ||
+                              currentUser?.email ||
+                              "User"
+                          )}
                         </AvatarFallback>
                       </Avatar>
                       {editingProfile && (
@@ -622,22 +694,34 @@ export function MemberArea({ isLoggedIn, setIsLoggedIn }: MemberAreaProps) {
                       )}
                     </div>
 
-                    <Card className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border-blue-500/20 p-4">
-                      <h4 className="font-bold text-white mb-2">
+                    <Card className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-500/30 backdrop-blur-sm p-6">
+                      <h4 className="font-bold text-white mb-4 text-lg">
                         Account Status
                       </h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Member Since:</span>
-                          <span className="text-white">November 2023</span>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center py-2 border-b border-white/10">
+                          <span className="text-gray-300 font-medium">
+                            Member Since:
+                          </span>
+                          <span className="text-white font-semibold">
+                            {getMemberSince()}
+                          </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Total Orders:</span>
-                          <span className="text-white">3</span>
+                        <div className="flex justify-between items-center py-2 border-b border-white/10">
+                          <span className="text-gray-300 font-medium">
+                            Total Orders:
+                          </span>
+                          <span className="text-sky-400 font-bold">
+                            {orders.length}
+                          </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Total Spent:</span>
-                          <span className="text-green-400">£5,797</span>
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-gray-300 font-medium">
+                            Total Spent:
+                          </span>
+                          <span className="text-green-400 font-bold text-lg">
+                            £{getTotalSpent().toLocaleString()}
+                          </span>
                         </div>
                       </div>
                     </Card>
