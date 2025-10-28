@@ -81,7 +81,48 @@ service cloud.firestore {
 
 ## Step 6: Configure Environment Variables
 
-1. Create `.env` file in project root:
+### 🔒 Security Note: Are API Keys Safe to Expose?
+
+**Short answer: Yes, Firebase web API keys are safe to include in your frontend code.**
+
+**Why?**
+
+- Firebase web API keys are **NOT secret keys** - they're public identifiers
+- They simply identify your Firebase project, not authenticate it
+- Real security comes from Firebase Security Rules (Step 4) and Authentication
+- Firebase automatically validates requests against your configured rules
+- Think of them like your website's domain name - public but protected
+
+**What protects your data:**
+
+1. ✅ **Firestore Security Rules** - Controls who can read/write data
+2. ✅ **Firebase Authentication** - Verifies user identity
+3. ✅ **Domain restrictions** - Set in Firebase Console (optional)
+4. ✅ **API quotas & monitoring** - Firebase tracks usage
+
+**What you should NEVER expose:**
+
+- ❌ Firebase Admin SDK private keys (serviceAccountKey.json)
+- ❌ Database passwords
+- ❌ Third-party API secret keys
+- ❌ Stripe secret keys (only use publishable keys on frontend)
+
+**Additional Protection (Optional):**
+In Firebase Console → Project Settings → General → Public-facing name:
+
+- Scroll to "Public settings for client-side code"
+- Under "App Check" you can add domain restrictions
+- This prevents unauthorized domains from using your Firebase project
+
+**Read more:** https://firebase.google.com/docs/projects/api-keys
+
+---
+
+### 6A. Local Development (.env file)
+
+1. In your project root directory (`c:\Users\Gamer\Desktop\Vortex PCs Latest 191025\`), create a new file named `.env`
+
+2. Copy and paste the following template, then replace with your actual Firebase values from Step 5:
 
 ```env
 VITE_FIREBASE_API_KEY=your_api_key_here
@@ -92,11 +133,89 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
 ```
 
-2. In Vercel Dashboard:
-   - Go to project settings → Environment Variables
-   - Add each VITE*FIREBASE*\* variable
-   - Apply to Production, Preview, and Development
-   - Redeploy
+3. Save the file
+4. Restart your dev server if it's running: `npm run dev`
+
+### 6B. Production Deployment (Vercel)
+
+1. **Open Vercel Dashboard:**
+
+   - Go to https://vercel.com/dashboard
+   - Click on your "vortexpcs" project
+
+2. **Navigate to Settings:**
+
+   - Click the "Settings" tab at the top
+   - In the left sidebar, click "Environment Variables"
+
+3. **Add Each Firebase Variable (repeat 6 times):**
+
+   For **VITE_FIREBASE_API_KEY**:
+
+   - Click "Add New" button (or "+ Add Another" if you have existing variables)
+   - In "Key" field, enter: `VITE_FIREBASE_API_KEY`
+   - In "Value" field, paste your Firebase API key
+   - Under "Environment", select all three checkboxes:
+     - ✅ Production
+     - ✅ Preview
+     - ✅ Development
+   - Click "Save"
+
+   For **VITE_FIREBASE_AUTH_DOMAIN**:
+
+   - Click "+ Add Another"
+   - In "Key" field, enter: `VITE_FIREBASE_AUTH_DOMAIN`
+   - In "Value" field, paste your Firebase auth domain (e.g., `your-project.firebaseapp.com`)
+   - Select all three environments: Production, Preview, Development
+   - Click "Save"
+
+   For **VITE_FIREBASE_PROJECT_ID**:
+
+   - Click "+ Add Another"
+   - In "Key" field, enter: `VITE_FIREBASE_PROJECT_ID`
+   - In "Value" field, paste your Firebase project ID
+   - Select all three environments
+   - Click "Save"
+
+   For **VITE_FIREBASE_STORAGE_BUCKET**:
+
+   - Click "+ Add Another"
+   - In "Key" field, enter: `VITE_FIREBASE_STORAGE_BUCKET`
+   - In "Value" field, paste your Firebase storage bucket (e.g., `your-project.appspot.com`)
+   - Select all three environments
+   - Click "Save"
+
+   For **VITE_FIREBASE_MESSAGING_SENDER_ID**:
+
+   - Click "+ Add Another"
+   - In "Key" field, enter: `VITE_FIREBASE_MESSAGING_SENDER_ID`
+   - In "Value" field, paste your Firebase messaging sender ID
+   - Select all three environments
+   - Click "Save"
+
+   For **VITE_FIREBASE_APP_ID**:
+
+   - Click "+ Add Another"
+   - In "Key" field, enter: `VITE_FIREBASE_APP_ID`
+   - In "Value" field, paste your Firebase app ID
+   - Select all three environments
+   - Click "Save"
+
+4. **Trigger Redeploy:**
+
+   - Go back to your project's main page (click "vortexpcs" at the top)
+   - Click the "Deployments" tab
+   - Find the most recent deployment
+   - Click the three dots menu (⋯) on the right side
+   - Click "Redeploy"
+   - In the popup, **UNCHECK** "Use existing Build Cache"
+   - Click "Redeploy" button
+   - Wait 2-3 minutes for deployment to complete
+
+5. **Verify Environment Variables:**
+   - After deployment completes, go back to Settings → Environment Variables
+   - You should see all 6 variables listed
+   - Each should show "Production, Preview, Development" under the Environment column
 
 ## Step 7: Create Admin Account
 
