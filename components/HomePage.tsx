@@ -417,8 +417,10 @@ export function HomePage({ setCurrentView }: HomePageProps) {
                 key={index}
                 className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 transform hover:-translate-y-2 group"
               >
-                <div className="p-6">
-                  {getIconComponent(feature.icon)}
+                <div className="p-6 text-center">
+                  <div className="flex justify-center mb-4">
+                    {getIconComponent(feature.icon)}
+                  </div>
                   <h3 className="text-xl font-semibold mb-3 text-white group-hover:text-sky-400 transition-colors">
                     {feature.title}
                   </h3>
