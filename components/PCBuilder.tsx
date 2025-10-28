@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { fetchPCComponents, PCComponent } from "../services/cms";
 import {
   Select,
   SelectContent,
@@ -1600,31 +1601,33 @@ const PeripheralCard = ({
 };
 
 // Enhanced compatibility checking system
-const checkCompatibility = (selectedComponents: any) => {
+const checkCompatibility = (selectedComponents: any, componentData: any) => {
   const issues = [];
 
   const cpu = selectedComponents.cpu
-    ? componentData.cpu.find((c) => c.id === selectedComponents.cpu)
+    ? componentData.cpu.find((c: any) => c.id === selectedComponents.cpu)
     : null;
   const motherboard = selectedComponents.motherboard
     ? componentData.motherboard.find(
-        (c) => c.id === selectedComponents.motherboard
+        (c: any) => c.id === selectedComponents.motherboard
       )
     : null;
   const gpu = selectedComponents.gpu
-    ? componentData.gpu.find((c) => c.id === selectedComponents.gpu)
+    ? componentData.gpu.find((c: any) => c.id === selectedComponents.gpu)
     : null;
   const ram = selectedComponents.ram
-    ? componentData.ram.find((c) => c.id === selectedComponents.ram)
+    ? componentData.ram.find((c: any) => c.id === selectedComponents.ram)
     : null;
   const pcCase = selectedComponents.case
-    ? componentData.case.find((c) => c.id === selectedComponents.case)
+    ? componentData.case.find((c: any) => c.id === selectedComponents.case)
     : null;
   const psu = selectedComponents.psu
-    ? componentData.psu.find((c) => c.id === selectedComponents.psu)
+    ? componentData.psu.find((c: any) => c.id === selectedComponents.psu)
     : null;
   const cooling = selectedComponents.cooling
-    ? componentData.cooling.find((c) => c.id === selectedComponents.cooling)
+    ? componentData.cooling.find(
+        (c: any) => c.id === selectedComponents.cooling
+      )
     : null;
 
   // CPU & Motherboard Socket Compatibility
@@ -1770,6 +1773,81 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
   const [showIncompatibilityModal, setShowIncompatibilityModal] =
     useState(false);
 
+  // CMS Integration
+  const [cmsComponents, setCmsComponents] = useState<{
+    case: PCComponent[];
+    motherboard: PCComponent[];
+    cpu: PCComponent[];
+    gpu: PCComponent[];
+    ram: PCComponent[];
+    storage: PCComponent[];
+    psu: PCComponent[];
+    cooling: PCComponent[];
+  }>({
+    case: [],
+    motherboard: [],
+    cpu: [],
+    gpu: [],
+    ram: [],
+    storage: [],
+    psu: [],
+    cooling: [],
+  });
+  const [isLoadingCms, setIsLoadingCms] = useState(true);
+  const [useCmsData, setUseCmsData] = useState(false);
+
+  // Fetch components from CMS on mount
+  useEffect(() => {
+    const loadCmsComponents = async () => {
+      try {
+        console.log("🔄 Loading PC components from CMS...");
+        setIsLoadingCms(true);
+
+        const categories = [
+          "case",
+          "motherboard",
+          "cpu",
+          "gpu",
+          "ram",
+          "storage",
+          "psu",
+          "cooling",
+        ];
+
+        const results: any = {};
+
+        for (const category of categories) {
+          const components = await fetchPCComponents({ category });
+          results[category] = components;
+          console.log(
+            `✅ Loaded ${components.length} ${category} components from CMS`
+          );
+        }
+
+        setCmsComponents(results);
+
+        // Use CMS data if any components were loaded
+        const hasComponents = Object.values(results).some(
+          (arr: any) => arr.length > 0
+        );
+        setUseCmsData(hasComponents);
+
+        if (hasComponents) {
+          console.log("✅ Using CMS data for PC Builder");
+        } else {
+          console.log("ℹ️ No CMS data found, using fallback hardcoded data");
+        }
+      } catch (error) {
+        console.error("❌ Error loading CMS components:", error);
+        setUseCmsData(false);
+      } finally {
+        setIsLoadingCms(false);
+      }
+    };
+
+    loadCmsComponents();
+  }, []);
+
   // Import recommended build on mount or when it changes
   useEffect(() => {
     if (recommendedBuild) {
@@ -1809,60 +1887,63 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     }
   }, [recommendedBuild]);
 
+  // Merge CMS data with fallback componentData
+  const activeComponentData = useCmsData ? cmsComponents : componentData;
+
   // Check compatibility whenever components change
   useEffect(() => {
-    const issues = checkCompatibility(selectedComponents);
+    const issues = checkCompatibility(selectedComponents, activeComponentData);
     setCompatibilityIssues(issues);
-  }, [selectedComponents]);
+  }, [selectedComponents, activeComponentData]);
 
   const categories = [
     {
       id: "case",
       label: "Case",
       icon: Package,
-      count: componentData.case?.length || 0,
+      count: activeComponentData.case?.length || 0,
     },
     {
       id: "motherboard",
       label: "Motherboard",
       icon: Server,
-      count: componentData.motherboard?.length || 0,
+      count: activeComponentData.motherboard?.length || 0,
     },
     {
       id: "cpu",
       label: "CPU",
       icon: Cpu,
-      count: componentData.cpu?.length || 0,
+      count: activeComponentData.cpu?.length || 0,
     },
     {
       id: "gpu",
       label: "Graphics Card",
       icon: Monitor,
-      count: componentData.gpu?.length || 0,
+      count: activeComponentData.gpu?.length || 0,
     },
     {
       id: "ram",
       label: "RAM",
       icon: HardDrive,
-      count: componentData.ram?.length || 0,
+      count: activeComponentData.ram?.length || 0,
     },
     {
       id: "storage",
       label: "Storage",
       icon: HardDrive,
-      count: componentData.storage?.length || 0,
+      count: activeComponentData.storage?.length || 0,
     },
     {
       id: "psu",
       label: "PSU",
       icon: Zap,
-      count: componentData.psu?.length || 0,
+      count: activeComponentData.psu?.length || 0,
     },
     {
       id: "cooling",
       label: "Cooling",
       icon: Fan,
-      count: componentData.cooling?.length || 0,
+      count: activeComponentData.cooling?.length || 0,
     },
   ];
 
@@ -1876,7 +1957,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
   const getTotalPrice = () => {
     const componentsTotal = Object.entries(selectedComponents).reduce(
       (total, [category, componentId]) => {
-        const component = (componentData as any)[category]?.find(
+        const component = (activeComponentData as any)[category]?.find(
           (c: any) => c.id === componentId
         );
         return total + (component ? component.price : 0);
@@ -1933,16 +2014,24 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
   // Generate intelligent, personalized expert comments based on selected components
   const generateBuildComments = () => {
     const comments = [];
-    const cpu = componentData.cpu?.find((c) => c.id === selectedComponents.cpu);
-    const gpu = componentData.gpu?.find((c) => c.id === selectedComponents.gpu);
-    const ram = componentData.ram?.find((c) => c.id === selectedComponents.ram);
-    const storage = componentData.storage?.find(
+    const cpu = activeComponentData.cpu?.find(
+      (c) => c.id === selectedComponents.cpu
+    );
+    const gpu = activeComponentData.gpu?.find(
+      (c) => c.id === selectedComponents.gpu
+    );
+    const ram = activeComponentData.ram?.find(
+      (c) => c.id === selectedComponents.ram
+    );
+    const storage = activeComponentData.storage?.find(
       (c) => c.id === selectedComponents.storage
     );
-    const cooling = componentData.cooling?.find(
+    const cooling = activeComponentData.cooling?.find(
       (c) => c.id === selectedComponents.cooling
     );
-    const psu = componentData.psu?.find((c) => c.id === selectedComponents.psu);
+    const psu = activeComponentData.psu?.find(
+      (c) => c.id === selectedComponents.psu
+    );
 
     // CPU & GPU pairing insights
     if (cpu && gpu) {
@@ -2045,7 +2134,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
   };
 
   const handleCheckoutWithCompatibility = () => {
-    const issues = checkCompatibility(selectedComponents);
+    const issues = checkCompatibility(selectedComponents, activeComponentData);
     if (issues.length > 0) {
       setShowCompatibilityDialog(true);
     } else {
@@ -2069,7 +2158,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     category: string,
     currentComponents: any
   ) => {
-    const allComponents = (componentData as any)[category] || [];
+    const allComponents = (activeComponentData as any)[category] || [];
 
     // If no components selected yet, show all
     if (Object.keys(currentComponents).length === 0) {
@@ -2079,7 +2168,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     return allComponents.filter((component: any) => {
       // CPU-Motherboard Socket Compatibility
       if (category === "cpu" && currentComponents.motherboard) {
-        const motherboard = componentData.motherboard.find(
+        const motherboard = activeComponentData.motherboard.find(
           (mb: any) => mb.id === currentComponents.motherboard
         );
         if (motherboard && component.socket !== motherboard.socket) {
@@ -2088,7 +2177,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
       }
 
       if (category === "motherboard" && currentComponents.cpu) {
-        const cpu = componentData.cpu.find(
+        const cpu = activeComponentData.cpu.find(
           (c: any) => c.id === currentComponents.cpu
         );
         if (cpu && component.socket !== cpu.socket) {
@@ -2098,7 +2187,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
 
       // GPU-Case Clearance
       if (category === "gpu" && currentComponents.case) {
-        const pcCase = componentData.case.find(
+        const pcCase = activeComponentData.case.find(
           (c: any) => c.id === currentComponents.case
         );
         if (pcCase && component.length > pcCase.maxGpuLength) {
@@ -2107,7 +2196,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
       }
 
       if (category === "case" && currentComponents.gpu) {
-        const gpu = componentData.gpu.find(
+        const gpu = activeComponentData.gpu.find(
           (g: any) => g.id === currentComponents.gpu
         );
         if (gpu && gpu.length > component.maxGpuLength) {
@@ -2386,7 +2475,7 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     selectedComponents
   );
   const totalComponentsInCategory = (
-    (componentData as any)[activeCategory] || []
+    (activeComponentData as any)[activeCategory] || []
   ).length;
   const filteredCount = filteredComponents.length;
 
@@ -2405,6 +2494,28 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
           <p className="text-xl text-gray-300 max-w-2xl mx-auto">
             Configure every component to create the perfect PC for your needs
           </p>
+
+          {/* Loading CMS Data */}
+          {isLoadingCms && (
+            <div className="mt-6 p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20 max-w-2xl mx-auto">
+              <div className="flex items-center justify-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-400"></div>
+                <p className="text-sky-300">Loading components from CMS...</p>
+              </div>
+            </div>
+          )}
+
+          {/* CMS Data Source Indicator */}
+          {!isLoadingCms && useCmsData && (
+            <div className="mt-6 p-3 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 max-w-2xl mx-auto">
+              <div className="flex items-center justify-center gap-2">
+                <Sparkles className="w-4 h-4 text-green-400" />
+                <p className="text-sm text-green-300">
+                  Components loaded from Contentful CMS
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Import notification */}
           {recommendedBuild && (

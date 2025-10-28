@@ -1,14 +1,19 @@
 /**
- * Strapi CMS Service
+ * Contentful CMS Service
  * Handles all CMS data fetching for products, builds, blog posts, etc.
  */
 
-import strapiClient, {
-  formatStrapiResponse,
-  getStrapiImageUrl,
-  strapiEndpoints,
-} from "../config/strapi";
+import { contentfulClient, isContentfulEnabled } from "../config/contentful";
 
+// Debug logging
+console.log("🔧 CMS Service initialized");
+console.log("🔧 Contentful enabled:", isContentfulEnabled);
+console.log(
+  "🔧 Contentful client:",
+  contentfulClient ? "✅ Created" : "❌ Not created"
+);
+
+// Re-export all interfaces from original cms.ts
 export interface Product {
   id: number;
   name: string;
@@ -83,6 +88,12 @@ export interface PageContent {
   heroTitle?: string;
   heroSubtitle?: string;
   heroDescription?: string;
+  heroBadgeText?: string;
+  featuresTitle?: string;
+  featuresDescription?: string;
+  ctaBadgeText?: string;
+  ctaTitle?: string;
+  ctaDescription?: string;
   heroBackgroundImage?: any;
   heroButtons?: Array<{
     text: string;
@@ -192,6 +203,80 @@ export interface ContactInformation {
   supportEmail?: string;
 }
 
+// PC Builder Component Interface
+export interface PCComponent {
+  id: string;
+  name: string;
+  price: number;
+  category: string; // case, motherboard, cpu, gpu, ram, storage, psu, cooling
+  rating?: number;
+  description?: string;
+  images?: string[];
+  inStock?: boolean;
+  featured?: boolean;
+
+  // Case specific
+  formFactor?: string;
+  gpuClearance?: string;
+  coolingSupport?: string;
+  style?: string;
+  compatibility?: string[];
+  maxGpuLength?: number;
+  maxCpuCoolerHeight?: number;
+  maxPsuLength?: number;
+
+  // Motherboard specific
+  socket?: string;
+  chipset?: string;
+  ramSupport?: string;
+  maxRam?: number;
+  ramSlots?: number;
+  pciSlots?: number;
+  m2Slots?: number;
+
+  // CPU specific
+  cores?: number;
+  threads?: number;
+  tdp?: number;
+  generation?: string;
+  platform?: string;
+
+  // GPU specific
+  vram?: number;
+  power?: number;
+  length?: number;
+  height?: number;
+  slots?: number;
+  performance?: string;
+
+  // RAM specific
+  capacity?: number;
+  speed?: string;
+  modules?: number;
+  latency?: string;
+  type?: string;
+
+  // Storage specific
+  storageCapacity?: string;
+  interface?: string;
+  readSpeed?: string;
+  writeSpeed?: string;
+  nand?: string;
+
+  // PSU specific
+  wattage?: number;
+  efficiency?: string;
+  modular?: string;
+  cables?: string;
+
+  // Cooling specific
+  coolerType?: string;
+  fanSize?: string;
+  tdpSupport?: number;
+  radiatorSize?: string;
+  rgbLighting?: boolean;
+}
+
 export interface LegalPage {
   id: number;
   pageType: "terms" | "privacy" | "cookies";
@@ -226,6 +311,13 @@ export interface Testimonial {
 }
 
 /**
+ * Helper: Convert Contentful ID to numeric ID
+ */
+const getNumericId = (contentfulId: string): number => {
+  return parseInt(contentfulId.slice(0, 8), 16);
+};
+
+/**
  * Fetch all products
  */
 export const fetchProducts = async (params?: {
@@ -233,30 +325,43 @@ export const fetchProducts = async (params?: {
   featured?: boolean;
   limit?: number;
 }): Promise<Product[]> => {
-  try {
-    let url = strapiEndpoints.products;
+  if (!isContentfulEnabled) {
+    return getMockProducts();
+  }
 
-    // Build query parameters
-    const queryParams: string[] = [];
-    if (params?.category) {
-      queryParams.push(`filters[category][$eq]=${params.category}`);
-    }
+  try {
+    const query: any = {
+      content_type: "product",
+    };
+
     if (params?.featured) {
-      queryParams.push(`filters[featured][$eq]=true`);
+      query["fields.featured"] = true;
+    }
+    if (params?.category) {
+      query["fields.category"] = params.category;
     }
     if (params?.limit) {
-      queryParams.push(`pagination[limit]=${params.limit}`);
+      query.limit = params.limit;
     }
 
-    if (queryParams.length > 0) {
-      url += "?" + queryParams.join("&");
-    }
+    const response = await contentfulClient!.getEntries(query);
 
-    const response = await strapiClient.get(url + "&populate=*");
-    return formatStrapiResponse(response.data) || [];
+    return response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        name: fields.name,
+        description: fields.description,
+        price: fields.price,
+        category: fields.category,
+        stock: fields.stock || 0,
+        featured: fields.featured,
+        specs: fields.specs,
+        images: fields.images,
+      };
+    });
   } catch (error: any) {
     console.error("Fetch products error:", error);
-    // Return mock data for development
     return getMockProducts();
   }
 };
@@ -265,11 +370,34 @@ export const fetchProducts = async (params?: {
  * Fetch single product by ID
  */
 export const fetchProduct = async (id: number): Promise<Product | null> => {
+  if (!isContentfulEnabled) {
+    return null;
+  }
+
   try {
-    const response = await strapiClient.get(
-      `${strapiEndpoints.products}/${id}?populate=*`
-    );
-    return formatStrapiResponse(response.data);
+    const response = await contentfulClient!.getEntries({
+      content_type: "product",
+      limit: 1,
+    });
+
+    if (response.items.length === 0) {
+      return null;
+    }
+
+    const entry = response.items[0];
+    const fields = entry.fields as any;
+
+    return {
+      id: getNumericId(entry.sys.id),
+      name: fields.name,
+      description: fields.description,
+      price: fields.price,
+      category: fields.category,
+      stock: fields.stock || 0,
+      featured: fields.featured,
+      specs: fields.specs,
+      images: fields.images,
+    };
   } catch (error: any) {
     console.error("Fetch product error:", error);
     return null;
@@ -283,26 +411,39 @@ export const fetchPCBuilds = async (params?: {
   category?: string;
   featured?: boolean;
 }): Promise<PCBuild[]> => {
+  if (!isContentfulEnabled) {
+    return getMockPCBuilds();
+  }
+
   try {
-    let url = strapiEndpoints.pcBuilds;
+    const query: any = {
+      content_type: "pcBuild",
+    };
 
-    const queryParams: string[] = [];
-    if (params?.category) {
-      queryParams.push(`filters[category][$eq]=${params.category}`);
-    }
     if (params?.featured) {
-      queryParams.push(`filters[featured][$eq]=true`);
+      query["fields.featured"] = true;
+    }
+    if (params?.category) {
+      query["fields.category"] = params.category;
     }
 
-    if (queryParams.length > 0) {
-      url += "?" + queryParams.join("&");
-    }
+    const response = await contentfulClient!.getEntries(query);
 
-    const response = await strapiClient.get(url + "&populate=*");
-    return formatStrapiResponse(response.data) || [];
+    return response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        name: fields.name,
+        description: fields.description,
+        price: fields.price,
+        category: fields.category,
+        featured: fields.featured,
+        components: fields.components || {},
+        images: fields.images,
+      };
+    });
   } catch (error: any) {
     console.error("Fetch PC builds error:", error);
-    // Return mock data for development
     return getMockPCBuilds();
   }
 };
@@ -311,17 +452,33 @@ export const fetchPCBuilds = async (params?: {
  * Fetch components by type
  */
 export const fetchComponents = async (type?: string): Promise<Component[]> => {
+  if (!isContentfulEnabled) {
+    return getMockComponents(type);
+  }
+
   try {
-    let url = strapiEndpoints.components;
+    const query: any = {
+      content_type: "component",
+    };
 
     if (type) {
-      url += `?filters[type][$eq]=${type}&populate=*`;
-    } else {
-      url += "?populate=*";
+      query["fields.type"] = type;
     }
 
-    const response = await strapiClient.get(url);
-    return formatStrapiResponse(response.data) || [];
+    const response = await contentfulClient!.getEntries(query);
+
+    return response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        name: fields.name,
+        type: fields.type,
+        manufacturer: fields.manufacturer,
+        price: fields.price,
+        stock: fields.stock || 0,
+        specs: fields.specs,
+      };
+    });
   } catch (error: any) {
     console.error("Fetch components error:", error);
     return getMockComponents(type);
@@ -332,14 +489,29 @@ export const fetchComponents = async (type?: string): Promise<Component[]> => {
  * Fetch all categories
  */
 export const fetchCategories = async (): Promise<Category[]> => {
+  if (!isContentfulEnabled) {
+    return getMockCategories();
+  }
+
   try {
-    const response = await strapiClient.get(strapiEndpoints.categories);
-    const categories = formatStrapiResponse(response.data) || [];
-    console.log("✅ Strapi categories fetched:", categories);
+    const response = await contentfulClient!.getEntries({
+      content_type: "category",
+    });
+
+    const categories = response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        name: fields.name,
+        description: fields.description,
+        slug: fields.slug,
+      };
+    });
+
+    console.log("✅ Contentful categories fetched:", categories);
     return categories;
   } catch (error: any) {
     console.error("Fetch categories error:", error);
-    // Return mock categories for development
     return getMockCategories();
   }
 };
@@ -348,10 +520,41 @@ export const fetchCategories = async (): Promise<Category[]> => {
  * Fetch site settings
  */
 export const fetchSettings = async (): Promise<Settings | null> => {
+  if (!isContentfulEnabled) {
+    return getMockSettings();
+  }
+
   try {
-    const response = await strapiClient.get(strapiEndpoints.settings);
-    const settings = formatStrapiResponse(response.data);
-    console.log("✅ Strapi settings fetched:", settings);
+    const response = await contentfulClient!.getEntries({
+      content_type: "siteSettings",
+      limit: 1,
+    });
+
+    if (response.items.length === 0) {
+      return getMockSettings();
+    }
+
+    const entry = response.items[0];
+    const fields = entry.fields as any;
+
+    const settings = {
+      id: getNumericId(entry.sys.id),
+      siteName: fields.siteName || "Vortex PCs",
+      logoUrl: fields.logoUrl,
+      tagline: fields.tagline || "",
+      metaDescription: fields.metaDescription || "",
+      socialLinks: fields.socialLinks,
+      businessHours: fields.businessHours,
+      enableMaintenance: fields.enableMaintenance || false,
+      maintenanceMessage: fields.maintenanceMessage,
+      announcementBar: fields.announcementBar,
+      enableAnnouncementBar: fields.enableAnnouncementBar || false,
+      contactEmail: fields.contactEmail || "",
+      contactPhone: fields.contactPhone || "",
+      whatsappNumber: fields.whatsappNumber,
+    };
+
+    console.log("✅ Contentful settings fetched:", settings);
     return settings;
   } catch (error: any) {
     console.error("Fetch settings error:", error);
@@ -365,16 +568,49 @@ export const fetchSettings = async (): Promise<Settings | null> => {
 export const fetchPageContent = async (
   pageSlug: string
 ): Promise<PageContent | null> => {
+  if (!isContentfulEnabled) {
+    console.log("⚠️ Contentful disabled, using fallback data");
+    return null;
+  }
+
   try {
     console.log(`🔍 Fetching page content for slug: ${pageSlug}`);
-    const response = await strapiClient.get(
-      `${strapiEndpoints.pageContents}?filters[pageSlug][$eq]=${pageSlug}&populate=*`
-    );
-    console.log("📄 Raw Strapi response:", response.data);
-    const pages = formatStrapiResponse(response.data);
-    console.log("📄 Formatted pages:", pages);
-    const result = pages && pages.length > 0 ? pages[0] : null;
-    console.log("📄 Final page content result:", result);
+    const response = await contentfulClient!.getEntries({
+      content_type: "pageContent",
+      "fields.pageSlug": pageSlug,
+      limit: 1,
+    });
+
+    if (response.items.length === 0) {
+      console.log("📄 No page content found");
+      return null;
+    }
+
+    const entry = response.items[0];
+    const fields = entry.fields as any;
+
+    const result: PageContent = {
+      id: getNumericId(entry.sys.id),
+      pageSlug: fields.pageSlug,
+      pageTitle: fields.pageTitle,
+      metaDescription: fields.metaDescription,
+      heroTitle: fields.heroTitle,
+      heroSubtitle: fields.heroSubtitle,
+      heroDescription: fields.heroDescription,
+      heroBadgeText: fields.heroBadgeText,
+      featuresTitle: fields.featuresTitle,
+      featuresDescription: fields.featuresDescription,
+      ctaBadgeText: fields.ctaBadgeText,
+      ctaTitle: fields.ctaTitle,
+      ctaDescription: fields.ctaDescription,
+      heroBackgroundImage: fields.heroBackgroundImage,
+      heroButtons: fields.heroButtons,
+      sections: fields.sections,
+      seo: fields.seo,
+      lastUpdated: entry.sys.updatedAt,
+    };
+
+    console.log("📄 Page content result:", result);
     return result;
   } catch (error: any) {
     console.error("Fetch page content error:", error);
@@ -389,23 +625,38 @@ export const fetchFAQItems = async (params?: {
   category?: string;
   featured?: boolean;
 }): Promise<FAQItem[]> => {
+  if (!isContentfulEnabled) {
+    return getMockFAQItems();
+  }
+
   try {
-    let url = strapiEndpoints.faqItems;
+    const query: any = {
+      content_type: "faqItem",
+      order: ["fields.order"],
+    };
 
-    const queryParams: string[] = [];
-    if (params?.category) {
-      queryParams.push(`filters[category][$eq]=${params.category}`);
-    }
     if (params?.featured) {
-      queryParams.push(`filters[featured][$eq]=true`);
+      query["fields.featured"] = true;
+    }
+    if (params?.category) {
+      query["fields.category"] = params.category;
     }
 
-    if (queryParams.length > 0) {
-      url += "?" + queryParams.join("&");
-    }
+    const response = await contentfulClient!.getEntries(query);
 
-    const response = await strapiClient.get(url + "&sort=order:asc");
-    return formatStrapiResponse(response.data) || [];
+    return response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        question: fields.question,
+        answer: fields.answer,
+        category: fields.category,
+        order: fields.order || 0,
+        featured: fields.featured || false,
+        keywords: fields.keywords,
+        lastUpdated: entry.sys.updatedAt,
+      };
+    });
   } catch (error: any) {
     console.error("Fetch FAQ items error:", error);
     return getMockFAQItems();
@@ -419,23 +670,42 @@ export const fetchServiceItems = async (params?: {
   category?: string;
   available?: boolean;
 }): Promise<ServiceItem[]> => {
+  if (!isContentfulEnabled) {
+    return getMockServiceItems();
+  }
+
   try {
-    let url = strapiEndpoints.serviceItems;
+    const query: any = {
+      content_type: "serviceItem",
+      order: ["fields.order"],
+    };
 
-    const queryParams: string[] = [];
-    if (params?.category) {
-      queryParams.push(`filters[category][$eq]=${params.category}`);
-    }
     if (params?.available !== undefined) {
-      queryParams.push(`filters[available][$eq]=${params.available}`);
+      query["fields.available"] = params.available;
+    }
+    if (params?.category) {
+      query["fields.category"] = params.category;
     }
 
-    if (queryParams.length > 0) {
-      url += "?" + queryParams.join("&");
-    }
+    const response = await contentfulClient!.getEntries(query);
 
-    const response = await strapiClient.get(url + "&sort=order:asc");
-    return formatStrapiResponse(response.data) || [];
+    return response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        serviceName: fields.serviceName,
+        description: fields.description,
+        price: fields.price,
+        priceText: fields.priceText,
+        duration: fields.duration,
+        category: fields.category,
+        features: fields.features || [],
+        icon: fields.icon,
+        popular: fields.popular || false,
+        available: fields.available !== false,
+        order: fields.order || 0,
+      };
+    });
   } catch (error: any) {
     console.error("Fetch service items error:", error);
     return getMockServiceItems();
@@ -449,23 +719,39 @@ export const fetchFeatureItems = async (params?: {
   category?: string;
   showOnHomepage?: boolean;
 }): Promise<FeatureItem[]> => {
+  if (!isContentfulEnabled) {
+    return getMockFeatureItems();
+  }
+
   try {
-    let url = strapiEndpoints.featureItems;
+    const query: any = {
+      content_type: "featureItem",
+      order: ["fields.order"],
+    };
 
-    const queryParams: string[] = [];
-    if (params?.category) {
-      queryParams.push(`filters[category][$eq]=${params.category}`);
-    }
     if (params?.showOnHomepage !== undefined) {
-      queryParams.push(`filters[showOnHomepage][$eq]=${params.showOnHomepage}`);
+      query["fields.showOnHomepage"] = params.showOnHomepage;
+    }
+    if (params?.category) {
+      query["fields.category"] = params.category;
     }
 
-    if (queryParams.length > 0) {
-      url += "?" + queryParams.join("&");
-    }
+    const response = await contentfulClient!.getEntries(query);
 
-    const response = await strapiClient.get(url + "&sort=order:asc");
-    return formatStrapiResponse(response.data) || [];
+    return response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        title: fields.title,
+        description: fields.description,
+        icon: fields.icon,
+        category: fields.category,
+        order: fields.order || 0,
+        highlighted: fields.highlighted || false,
+        link: fields.link,
+        showOnHomepage: fields.showOnHomepage || false,
+      };
+    });
   } catch (error: any) {
     console.error("Fetch feature items error:", error);
     return getMockFeatureItems();
@@ -478,15 +764,38 @@ export const fetchFeatureItems = async (params?: {
 export const fetchTeamMembers = async (params?: {
   featured?: boolean;
 }): Promise<TeamMember[]> => {
+  if (!isContentfulEnabled) {
+    return getMockTeamMembers();
+  }
+
   try {
-    let url = strapiEndpoints.teamMembers;
+    const query: any = {
+      content_type: "teamMember",
+      order: ["fields.order"],
+    };
 
     if (params?.featured) {
-      url += "?filters[featured][$eq]=true";
+      query["fields.featured"] = true;
     }
 
-    const response = await strapiClient.get(url + "&sort=order:asc&populate=*");
-    return formatStrapiResponse(response.data) || [];
+    const response = await contentfulClient!.getEntries(query);
+
+    return response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        name: fields.name,
+        position: fields.position,
+        bio: fields.bio,
+        image: fields.image,
+        email: fields.email,
+        specialties: fields.specialties || [],
+        order: fields.order || 0,
+        featured: fields.featured || false,
+        yearsExperience: fields.yearsExperience,
+        certifications: fields.certifications || [],
+      };
+    });
   } catch (error: any) {
     console.error("Fetch team members error:", error);
     return getMockTeamMembers();
@@ -497,9 +806,33 @@ export const fetchTeamMembers = async (params?: {
  * Fetch company stats
  */
 export const fetchCompanyStats = async (): Promise<CompanyStats | null> => {
+  if (!isContentfulEnabled) {
+    return getMockCompanyStats();
+  }
+
   try {
-    const response = await strapiClient.get(strapiEndpoints.companyStats);
-    return formatStrapiResponse(response.data);
+    const response = await contentfulClient!.getEntries({
+      content_type: "companyStats",
+      limit: 1,
+    });
+
+    if (response.items.length === 0) {
+      return getMockCompanyStats();
+    }
+
+    const entry = response.items[0];
+    const fields = entry.fields as any;
+
+    return {
+      id: getNumericId(entry.sys.id),
+      yearsExperience: fields.yearsExperience || 0,
+      customersServed: fields.customersServed || 0,
+      pcBuildsCompleted: fields.pcBuildsCompleted || 0,
+      warrantyYears: fields.warrantyYears || 0,
+      supportResponseTime: fields.supportResponseTime || "24 hours",
+      satisfactionRate: fields.satisfactionRate || 0,
+      partsInStock: fields.partsInStock || 0,
+    };
   } catch (error: any) {
     console.error("Fetch company stats error:", error);
     return getMockCompanyStats();
@@ -510,9 +843,30 @@ export const fetchCompanyStats = async (): Promise<CompanyStats | null> => {
  * Fetch navigation menu
  */
 export const fetchNavigationMenu = async (): Promise<NavigationMenu | null> => {
+  if (!isContentfulEnabled) {
+    return getMockNavigationMenu();
+  }
+
   try {
-    const response = await strapiClient.get(strapiEndpoints.navigationMenu);
-    return formatStrapiResponse(response.data);
+    const response = await contentfulClient!.getEntries({
+      content_type: "navigationMenu",
+      limit: 1,
+    });
+
+    if (response.items.length === 0) {
+      return getMockNavigationMenu();
+    }
+
+    const entry = response.items[0];
+    const fields = entry.fields as any;
+
+    return {
+      id: getNumericId(entry.sys.id),
+      primaryMenu: fields.primaryMenu || [],
+      footerMenu: fields.footerMenu || [],
+      mobileMenu: fields.mobileMenu || [],
+      ctaButton: fields.ctaButton || { text: "", link: "", style: "" },
+    };
   } catch (error: any) {
     console.error("Fetch navigation menu error:", error);
     return getMockNavigationMenu();
@@ -524,11 +878,35 @@ export const fetchNavigationMenu = async (): Promise<NavigationMenu | null> => {
  */
 export const fetchContactInformation =
   async (): Promise<ContactInformation | null> => {
+    if (!isContentfulEnabled) {
+      return getMockContactInformation();
+    }
+
     try {
-      const response = await strapiClient.get(
-        strapiEndpoints.contactInformation
-      );
-      return formatStrapiResponse(response.data);
+      const response = await contentfulClient!.getEntries({
+        content_type: "contactInformation",
+        limit: 1,
+      });
+
+      if (response.items.length === 0) {
+        return getMockContactInformation();
+      }
+
+      const entry = response.items[0];
+      const fields = entry.fields as any;
+
+      return {
+        id: getNumericId(entry.sys.id),
+        companyName: fields.companyName,
+        email: fields.email,
+        phone: fields.phone,
+        whatsapp: fields.whatsapp,
+        address: fields.address,
+        mapEmbedUrl: fields.mapEmbedUrl,
+        businessHours: fields.businessHours,
+        emergencyContact: fields.emergencyContact,
+        supportEmail: fields.supportEmail,
+      };
     } catch (error: any) {
       console.error("Fetch contact information error:", error);
       return getMockContactInformation();
@@ -541,12 +919,33 @@ export const fetchContactInformation =
 export const fetchLegalPage = async (
   pageType: "terms" | "privacy" | "cookies"
 ): Promise<LegalPage | null> => {
+  if (!isContentfulEnabled) {
+    return getMockLegalPage(pageType);
+  }
+
   try {
-    const response = await strapiClient.get(
-      `${strapiEndpoints.legalPages}?filters[pageType][$eq]=${pageType}`
-    );
-    const pages = formatStrapiResponse(response.data);
-    return pages && pages.length > 0 ? pages[0] : null;
+    const response = await contentfulClient!.getEntries({
+      content_type: "legalPage",
+      "fields.pageType": pageType,
+      limit: 1,
+    });
+
+    if (response.items.length === 0) {
+      return getMockLegalPage(pageType);
+    }
+
+    const entry = response.items[0];
+    const fields = entry.fields as any;
+
+    return {
+      id: getNumericId(entry.sys.id),
+      pageType: fields.pageType,
+      title: fields.title,
+      content: fields.content,
+      lastUpdated: entry.sys.updatedAt,
+      effectiveDate: fields.effectiveDate,
+      version: fields.version,
+    };
   } catch (error: any) {
     console.error("Fetch legal page error:", error);
     return getMockLegalPage(pageType);
@@ -559,15 +958,38 @@ export const fetchLegalPage = async (
 export const fetchPricingTiers = async (params?: {
   category?: string;
 }): Promise<PricingTier[]> => {
+  if (!isContentfulEnabled) {
+    return getMockPricingTiers();
+  }
+
   try {
-    let url = strapiEndpoints.pricingTiers;
+    const query: any = {
+      content_type: "pricingTier",
+      order: ["fields.order"],
+    };
 
     if (params?.category) {
-      url += `?filters[category][$eq]=${params.category}`;
+      query["fields.category"] = params.category;
     }
 
-    const response = await strapiClient.get(url + "&sort=order:asc");
-    return formatStrapiResponse(response.data) || [];
+    const response = await contentfulClient!.getEntries(query);
+
+    return response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        tierName: fields.tierName,
+        price: fields.price,
+        currency: fields.currency || "GBP",
+        interval: fields.interval,
+        features: fields.features || [],
+        popular: fields.popular || false,
+        order: fields.order || 0,
+        ctaText: fields.ctaText,
+        description: fields.description,
+        category: fields.category,
+      };
+    });
   } catch (error: any) {
     console.error("Fetch pricing tiers error:", error);
     return getMockPricingTiers();
@@ -578,10 +1000,29 @@ export const fetchPricingTiers = async (params?: {
  * Fetch testimonials
  */
 export const fetchTestimonials = async (): Promise<Testimonial[]> => {
+  if (!isContentfulEnabled) {
+    return getMockTestimonials();
+  }
+
   try {
-    const response = await strapiClient.get(strapiEndpoints.testimonials);
-    const testimonials = formatStrapiResponse(response.data) || [];
-    console.log("✅ Strapi testimonials fetched:", testimonials);
+    const response = await contentfulClient!.getEntries({
+      content_type: "testimonial",
+      order: ["-sys.createdAt"],
+    });
+
+    const testimonials = response.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        customerName: fields.customerName,
+        rating: fields.rating || 5,
+        review: fields.review,
+        productName: fields.productName,
+        customerImage: fields.customerImage,
+      };
+    });
+
+    console.log("✅ Contentful testimonials fetched:", testimonials);
     return testimonials;
   } catch (error: any) {
     console.error("Fetch testimonials error:", error);
@@ -598,20 +1039,52 @@ export const searchContent = async (
   products: Product[];
   builds: PCBuild[];
 }> => {
+  if (!isContentfulEnabled) {
+    return { products: [], builds: [] };
+  }
+
   try {
     const [productsRes, buildsRes] = await Promise.all([
-      strapiClient.get(
-        `${strapiEndpoints.products}?filters[name][$contains]=${query}&populate=*`
-      ),
-      strapiClient.get(
-        `${strapiEndpoints.pcBuilds}?filters[name][$contains]=${query}&populate=*`
-      ),
+      contentfulClient!.getEntries({
+        content_type: "product",
+        query: query,
+      }),
+      contentfulClient!.getEntries({
+        content_type: "pcBuild",
+        query: query,
+      }),
     ]);
 
-    return {
-      products: formatStrapiResponse(productsRes.data) || [],
-      builds: formatStrapiResponse(buildsRes.data) || [],
-    };
+    const products = productsRes.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        name: fields.name,
+        description: fields.description,
+        price: fields.price,
+        category: fields.category,
+        stock: fields.stock || 0,
+        featured: fields.featured,
+        specs: fields.specs,
+        images: fields.images,
+      };
+    });
+
+    const builds = buildsRes.items.map((entry) => {
+      const fields = entry.fields as any;
+      return {
+        id: getNumericId(entry.sys.id),
+        name: fields.name,
+        description: fields.description,
+        price: fields.price,
+        category: fields.category,
+        featured: fields.featured,
+        components: fields.components || {},
+        images: fields.images,
+      };
+    });
+
+    return { products, builds };
   } catch (error: any) {
     console.error("Search content error:", error);
     return { products: [], builds: [] };
@@ -619,7 +1092,7 @@ export const searchContent = async (
 };
 
 /**
- * Mock data for development (when Strapi is not connected)
+ * Mock data for development (when Contentful is not connected)
  */
 
 function getMockProducts(): Product[] {
@@ -1123,4 +1596,175 @@ function getMockTestimonials(): Testimonial[] {
   ];
 }
 
-export { getStrapiImageUrl };
+/**
+ * Fetch PC Components from Contentful
+ * Updated to use separate content types for each component category
+ */
+export const fetchPCComponents = async (params?: {
+  category?: string;
+  limit?: number;
+  featured?: boolean;
+}): Promise<PCComponent[]> => {
+  if (!isContentfulEnabled || !contentfulClient) {
+    console.log("📦 Contentful not enabled, returning empty components array");
+    return [];
+  }
+
+  try {
+    console.log("🔍 Fetching PC components from Contentful...", params);
+
+    // Map category to content type ID
+    const contentTypeMap: Record<string, string> = {
+      case: "pcCase",
+      motherboard: "pcMotherboard",
+      cpu: "pcCpu",
+      gpu: "pcGpu",
+      ram: "pcRam",
+      storage: "pcStorage",
+      psu: "pcPsu",
+      cooling: "pcCooling",
+    };
+
+    const query: any = {
+      limit: params?.limit || 100,
+    };
+
+    // If category specified, use specific content type, otherwise fetch all types
+    if (params?.category) {
+      const contentType = contentTypeMap[params.category];
+      if (!contentType) {
+        console.warn(`Unknown category: ${params.category}`);
+        return [];
+      }
+      query.content_type = contentType;
+    }
+
+    if (params?.featured !== undefined) {
+      query["fields.featured"] = params.featured;
+    }
+
+    let allComponents: PCComponent[] = [];
+
+    if (params?.category) {
+      // Fetch single category
+      const response = await contentfulClient.getEntries(query);
+      console.log(
+        `📦 Found ${response.items.length} ${params.category} components`
+      );
+      allComponents = response.items.map((item: any) =>
+        mapContentfulToComponent(item, params.category!)
+      );
+    } else {
+      // Fetch all categories
+      for (const [category, contentType] of Object.entries(contentTypeMap)) {
+        try {
+          const categoryQuery = { ...query, content_type: contentType };
+          const response = await contentfulClient.getEntries(categoryQuery);
+          console.log(
+            `📦 Found ${response.items.length} ${category} components`
+          );
+          const components = response.items.map((item: any) =>
+            mapContentfulToComponent(item, category)
+          );
+          allComponents = [...allComponents, ...components];
+        } catch (error) {
+          console.log(`ℹ️ No ${category} content type found, skipping...`);
+        }
+      }
+    }
+
+    return allComponents;
+  } catch (error: any) {
+    console.error("Fetch PC components error:", error);
+    console.error("Error details:", error.message);
+    return [];
+  }
+};
+
+/**
+ * Helper function to map Contentful entry to PCComponent
+ */
+function mapContentfulToComponent(item: any, category: string): PCComponent {
+  const fields = item.fields;
+
+  // Process images
+  const images =
+    fields.images
+      ?.map((img: any) =>
+        img.fields?.file?.url ? `https:${img.fields.file.url}` : null
+      )
+      .filter(Boolean) || [];
+
+  return {
+    id: fields.componentId || item.sys.id,
+    name: fields.name,
+    price: fields.price || 0,
+    category: category,
+    rating: fields.rating,
+    description: fields.description,
+    images: images,
+    inStock: fields.inStock !== false,
+    featured: fields.featured || false,
+
+    // Case fields
+    formFactor: fields.formFactor,
+    gpuClearance: fields.gpuClearance,
+    coolingSupport: fields.coolingSupport,
+    style: fields.style,
+    compatibility: fields.compatibility,
+    maxGpuLength: fields.maxGpuLength,
+    maxCpuCoolerHeight: fields.maxCpuCoolerHeight,
+    maxPsuLength: fields.maxPsuLength,
+
+    // Motherboard fields
+    socket: fields.socket,
+    chipset: fields.chipset,
+    ramSupport: fields.ramSupport,
+    maxRam: fields.maxRam,
+    ramSlots: fields.ramSlots,
+    pciSlots: fields.pciSlots,
+    m2Slots: fields.m2Slots,
+
+    // CPU fields
+    cores: fields.cores,
+    threads: fields.threads,
+    tdp: fields.tdp,
+    generation: fields.generation,
+    platform: fields.platform,
+
+    // GPU fields
+    vram: fields.vram,
+    power: fields.power,
+    length: fields.length,
+    height: fields.height,
+    slots: fields.slots,
+    performance: fields.performance,
+
+    // RAM fields
+    capacity: fields.capacity,
+    speed: fields.speed,
+    modules: fields.modules,
+    latency: fields.latency,
+    type: fields.type,
+
+    // Storage fields
+    storageCapacity: fields.storageCapacity,
+    interface: fields.interface,
+    readSpeed: fields.readSpeed,
+    writeSpeed: fields.writeSpeed,
+    nand: fields.nand,
+
+    // PSU fields
+    wattage: fields.wattage,
+    efficiency: fields.efficiency,
+    modular: fields.modular,
+    cables: fields.cables,
+
+    // Cooling fields
+    coolerType: fields.coolerType,
+    fanSize: fields.fanSize,
+    tdpSupport: fields.tdpSupport,
+    radiatorSize: fields.radiatorSize,
+    rgbLighting: fields.rgbLighting,
+  };
+}

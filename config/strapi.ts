@@ -34,13 +34,57 @@ export const strapiConfig = {
 };
 
 // Create axios instance for Strapi API
+// Build headers conditionally so public endpoints work without a token
+const defaultHeaders: Record<string, string> = {
+  "Content-Type": "application/json",
+};
+if (
+  strapiConfig.apiToken &&
+  strapiConfig.apiToken !== "YOUR_STRAPI_API_TOKEN"
+) {
+  defaultHeaders.Authorization = `Bearer ${strapiConfig.apiToken}`;
+}
+
 export const strapiClient = axios.create({
   baseURL: `${strapiConfig.baseURL}/api`,
-  headers: {
-    Authorization: `Bearer ${strapiConfig.apiToken}`,
-    "Content-Type": "application/json",
-  },
+  headers: defaultHeaders,
 });
+
+// Optional fallback: if a request fails with 401/403 using an Authorization header,
+// retry once without the Authorization header to leverage public permissions (dev-friendly)
+strapiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const status = error?.response?.status;
+    const originalConfig = error?.config || {};
+
+    const hasAuthHeader = !!originalConfig?.headers?.Authorization;
+    const alreadyRetried = (originalConfig as any)._retriedWithoutAuth === true;
+
+    if (
+      (status === 401 || status === 403) &&
+      hasAuthHeader &&
+      !alreadyRetried
+    ) {
+      try {
+        const retryConfig = {
+          ...originalConfig,
+          headers: { ...(originalConfig.headers || {}) },
+        };
+        delete (retryConfig.headers as any).Authorization;
+        (retryConfig as any)._retriedWithoutAuth = true;
+        console.warn(
+          "Strapi request unauthorized with token; retrying without Authorization header for public access"
+        );
+        return await strapiClient.request(retryConfig);
+      } catch (retryErr) {
+        throw retryErr;
+      }
+    }
+
+    throw error;
+  }
+);
 
 // API endpoints
 export const strapiEndpoints = {

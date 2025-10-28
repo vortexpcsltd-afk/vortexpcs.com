@@ -10,13 +10,11 @@ import {
   Wrench,
   Star,
   CheckCircle,
-  ArrowRight,
   Search,
 } from "lucide-react";
 import {
   type Settings,
   type Testimonial,
-  type PCBuild,
   type FeatureItem,
   type CompanyStats,
   type PageContent,
@@ -27,18 +25,41 @@ interface HomePageProps {
 }
 
 export function HomePage({ setCurrentView }: HomePageProps) {
-  const [settings, setSettings] = useState<Settings | null>(null);
+  console.log("🏠 HomePage component rendered");
+
+  const cmsDisabled = (import.meta.env as any)?.VITE_CMS_DISABLED === "true";
+  const [, setSettings] = useState<Settings | null>(null);
   const [pageContent, setPageContent] = useState<PageContent | null>(null);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
-  const [featuredBuilds, setFeaturedBuilds] = useState<PCBuild[]>([]);
   const [heroFeatures, setHeroFeatures] = useState<FeatureItem[]>([]);
+  const [mainFeatures, setMainFeatures] = useState<FeatureItem[]>([]);
   const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const heroBackground = "https://vortexpcs.com/gaming-keyboard.jpeg";
 
   useEffect(() => {
+    console.log("🔄 HomePage useEffect running, cmsDisabled:", cmsDisabled);
+
     const loadContent = async () => {
+      // Optional dev escape hatch: force fallback content to preview local hero edits
+      if (cmsDisabled) {
+        console.warn(
+          "CMS disabled via VITE_CMS_DISABLED, using fallback content"
+        );
+        setPageContent({
+          id: 1,
+          pageSlug: "home",
+          pageTitle: "Vortex PCs - Premium Custom PC Builds",
+          heroTitle: "PERFORMANCE THAT DOESN'T WAIT",
+          heroSubtitle: "Custom PCs built for speed, power, and precision.",
+          heroDescription:
+            "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component.",
+        });
+        setLoading(false);
+        return;
+      }
+
       try {
         console.log("🚀 Loading Strapi CMS content...");
 
@@ -47,7 +68,6 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           fetchSettings,
           fetchPageContent,
           fetchTestimonials,
-          fetchPCBuilds,
           fetchFeatureItems,
           fetchCompanyStats,
         } = await import("../services/cms");
@@ -57,15 +77,15 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           strapiSettings,
           strapiPageContent,
           strapiTestimonials,
-          strapiFeaturedBuilds,
           strapiHeroFeatures,
+          strapiMainFeatures,
           strapiCompanyStats,
         ] = await Promise.allSettled([
           fetchSettings(),
           fetchPageContent("home"),
           fetchTestimonials(),
-          fetchPCBuilds({ featured: true }),
           fetchFeatureItems({ showOnHomepage: true }),
+          fetchFeatureItems({ category: "why-choose-us" }),
           fetchCompanyStats(),
         ]);
 
@@ -73,8 +93,8 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           settings: strapiSettings.status,
           pageContent: strapiPageContent.status,
           testimonials: strapiTestimonials.status,
-          builds: strapiFeaturedBuilds.status,
-          features: strapiHeroFeatures.status,
+          heroFeatures: strapiHeroFeatures.status,
+          mainFeatures: strapiMainFeatures.status,
           stats: strapiCompanyStats.status,
         });
 
@@ -121,17 +141,6 @@ export function HomePage({ setCurrentView }: HomePageProps) {
         }
 
         if (
-          strapiFeaturedBuilds.status === "fulfilled" &&
-          strapiFeaturedBuilds.value
-        ) {
-          setFeaturedBuilds(strapiFeaturedBuilds.value);
-          console.log(
-            "✅ Strapi featured builds loaded:",
-            strapiFeaturedBuilds.value
-          );
-        }
-
-        if (
           strapiHeroFeatures.status === "fulfilled" &&
           strapiHeroFeatures.value
         ) {
@@ -139,6 +148,17 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           console.log(
             "✅ Strapi hero features loaded:",
             strapiHeroFeatures.value
+          );
+        }
+
+        if (
+          strapiMainFeatures.status === "fulfilled" &&
+          strapiMainFeatures.value
+        ) {
+          setMainFeatures(strapiMainFeatures.value);
+          console.log(
+            "✅ Strapi main features loaded:",
+            strapiMainFeatures.value
           );
         }
 
@@ -208,58 +228,73 @@ export function HomePage({ setCurrentView }: HomePageProps) {
 
   const defaultTestimonials = [
     {
-      name: "Alex Thompson",
+      customerName: "Alex Thompson",
       review:
         "Absolutely incredible build quality! My gaming performance has never been better.",
       rating: 5,
-      location: "London, UK",
+      productName: "London, UK",
     },
     {
-      name: "Sarah Mitchell",
+      customerName: "Sarah Mitchell",
       review:
         "Professional service from start to finish. The team really knows their stuff.",
       rating: 5,
-      location: "Manchester, UK",
+      productName: "Manchester, UK",
     },
     {
-      name: "James Wilson",
+      customerName: "James Wilson",
       review:
         "Best investment I've made for my streaming setup. Handles everything flawlessly.",
       rating: 5,
-      location: "Birmingham, UK",
+      productName: "Birmingham, UK",
     },
   ];
 
-  const defaultFeaturedBuilds = [
+  const defaultMainFeatures = [
     {
-      name: "Gaming Beast",
-      description: "Ultimate 4K gaming powerhouse",
-      price: "£2,499",
-      specs: {
-        cpu: "Intel i7-13700K",
-        gpu: "RTX 4080 Super",
-        ram: "32GB DDR5",
-        storage: "1TB NVMe SSD",
-      },
-      image: "https://vortexpcs.com/gaming-pc.jpg",
+      icon: "CheckCircle",
+      title: "Quality Guaranteed",
+      description:
+        "Every component is carefully selected and tested for optimal performance and reliability.",
     },
     {
-      name: "Workstation Pro",
-      description: "Professional content creation",
-      price: "£3,299",
-      specs: {
-        cpu: "Intel i9-13900K",
-        gpu: "RTX 4090",
-        ram: "64GB DDR5",
-        storage: "2TB NVMe SSD",
-      },
-      image: "https://vortexpcs.com/workstation-pc.jpg",
+      icon: "Wrench",
+      title: "Expert Assembly",
+      description:
+        "Our certified technicians ensure every build meets the highest standards.",
+    },
+    {
+      icon: "Shield",
+      title: "Comprehensive Warranty",
+      description:
+        "All builds come with full warranty coverage and dedicated technical support.",
+    },
+    {
+      icon: "Zap",
+      title: "Maximum Performance",
+      description:
+        "Optimized configurations to get the most out of every component.",
+    },
+    {
+      icon: "Users",
+      title: "Personal Service",
+      description:
+        "One-on-one consultation to ensure your PC meets your exact needs.",
+    },
+    {
+      icon: "Settings",
+      title: "Custom Solutions",
+      description:
+        "Tailored builds for gaming, content creation, and professional workloads.",
     },
   ];
 
-  const currentHeroFeatures = heroFeatures.length > 0 ? heroFeatures : defaultHeroFeatures;
-  const currentTestimonials = testimonials.length > 0 ? testimonials : defaultTestimonials;
-  const currentFeaturedBuilds = featuredBuilds.length > 0 ? featuredBuilds : defaultFeaturedBuilds;
+  const currentHeroFeatures =
+    heroFeatures.length > 0 ? heroFeatures : defaultHeroFeatures;
+  const currentTestimonials =
+    testimonials.length > 0 ? testimonials : defaultTestimonials;
+  const currentMainFeatures =
+    mainFeatures.length > 0 ? mainFeatures : defaultMainFeatures;
 
   const getIconComponent = (iconName: string) => {
     const iconMap: { [key: string]: any } = {
@@ -274,10 +309,15 @@ export function HomePage({ setCurrentView }: HomePageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white overflow-hidden">
+    <div className="min-h-screen text-white overflow-hidden">
       {/* Animated Background */}
       <div className="fixed inset-0 bg-gradient-to-br from-blue-900/20 via-cyan-900/10 to-sky-900/20 animate-gradient"></div>
-      <div className="fixed inset-0 bg-[url('data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.02"%3E%3Ccircle cx="30" cy="30" r="1"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-40"></div>
+      <div
+        className="fixed inset-0 opacity-40"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+        }}
+      ></div>
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
@@ -288,6 +328,16 @@ export function HomePage({ setCurrentView }: HomePageProps) {
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/70"></div>
 
         <div className="relative z-10 text-center max-w-6xl mx-auto">
+          <Badge className="mb-32 bg-transparent border-sky-500/40 text-sky-400 px-4 py-2 text-base font-normal inline-flex items-center gap-2 animate-fade-in">
+            <Star
+              className="fill-transparent stroke-yellow-500 border-yellow-500"
+              style={{ width: "22px", height: "22px" }}
+              strokeWidth={1.5}
+            />
+            {pageContent?.heroBadgeText ||
+              "Custom PCs built for speed, power, and precision"}
+          </Badge>
+
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 animate-float">
             <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
               {pageContent?.heroTitle || "Build Your Dream PC with Vortex"}
@@ -295,7 +345,8 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           </h1>
 
           <p className="text-xl sm:text-2xl md:text-3xl mb-8 text-gray-300 max-w-4xl mx-auto animate-float animation-delay-200">
-            {pageContent?.heroSubtitle || "Custom PCs built for speed, power, and precision."}
+            {pageContent?.heroSubtitle ||
+              "Custom PCs built for speed, power, and precision."}
           </p>
 
           <p className="text-lg sm:text-xl mb-12 text-gray-400 max-w-3xl mx-auto animate-fade-in animation-delay-400">
@@ -348,60 +399,23 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
               <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                Why Choose Vortex PCs?
+                {pageContent?.featuresTitle || "Why Choose Vortex PCs?"}
               </span>
             </h2>
             <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-              We combine cutting-edge technology with expert craftsmanship to deliver
-              the ultimate computing experience
+              {pageContent?.featuresDescription ||
+                "We combine cutting-edge technology with expert craftsmanship to deliver the ultimate computing experience"}
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[
-              {
-                icon: CheckCircle,
-                title: "Quality Guaranteed",
-                description:
-                  "Every component is carefully selected and tested for optimal performance and reliability.",
-              },
-              {
-                icon: Wrench,
-                title: "Expert Assembly",
-                description:
-                  "Our certified technicians ensure every build meets the highest standards.",
-              },
-              {
-                icon: Shield,
-                title: "Comprehensive Warranty",
-                description:
-                  "All builds come with full warranty coverage and dedicated technical support.",
-              },
-              {
-                icon: Zap,
-                title: "Maximum Performance",
-                description:
-                  "Optimized configurations to get the most out of every component.",
-              },
-              {
-                icon: Users,
-                title: "Personal Service",
-                description:
-                  "One-on-one consultation to ensure your PC meets your exact needs.",
-              },
-              {
-                icon: SettingsIcon,
-                title: "Custom Solutions",
-                description:
-                  "Tailored builds for gaming, content creation, and professional workloads.",
-              },
-            ].map((feature, index) => (
+            {currentMainFeatures.map((feature, index) => (
               <Card
                 key={index}
                 className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 transform hover:-translate-y-2 group"
               >
                 <div className="p-6">
-                  <feature.icon className="h-10 w-10 mb-4 text-sky-400 group-hover:text-cyan-400 transition-colors" />
+                  {getIconComponent(feature.icon)}
                   <h3 className="text-xl font-semibold mb-3 text-white group-hover:text-sky-400 transition-colors">
                     {feature.title}
                   </h3>
@@ -415,83 +429,74 @@ export function HomePage({ setCurrentView }: HomePageProps) {
         </div>
       </section>
 
-      {/* Featured Builds Section */}
+      {/* Track Record Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 relative">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
               <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                Featured Builds
+                Our Track Record
               </span>
             </h2>
-            <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-              Discover our most popular configurations, carefully crafted for different
-              use cases
+            <p className="text-lg text-gray-400">
+              Real numbers that reflect our commitment to quality and service
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {currentFeaturedBuilds.map((build, index) => (
-              <Card
-                key={index}
-                className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 transform hover:-translate-y-2 group overflow-hidden"
-              >
-                <div className="aspect-video bg-gradient-to-br from-sky-900/30 to-blue-900/30 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-br from-sky-400/20 to-cyan-400/20"></div>
-                  <div className="absolute bottom-4 left-4">
-                    <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-400">
-                      Featured
-                    </Badge>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-2xl font-bold text-white group-hover:text-sky-400 transition-colors">
-                      {build.name}
-                    </h3>
-                    <span className="text-2xl font-bold text-sky-400">
-                      {build.price}
-                    </span>
-                  </div>
-                  <p className="text-gray-400 mb-6">{build.description}</p>
-                  <div className="space-y-2 mb-6">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">CPU:</span>
-                      <span className="text-white">{build.specs.cpu}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">GPU:</span>
-                      <span className="text-white">{build.specs.gpu}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">RAM:</span>
-                      <span className="text-white">{build.specs.ram}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Storage:</span>
-                      <span className="text-white">{build.specs.storage}</span>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => setCurrentView("pc-builder")}
-                    className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
-                  >
-                    Customize This Build
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-5xl mx-auto">
+            {/* Years Experience */}
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-6">
+              <div className="flex items-center justify-center mb-3">
+                <Shield className="h-7 w-7 text-sky-400" />
+              </div>
+              <div className="text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
+                {companyStats?.yearsExperience ?? 0}+
+              </div>
+              <div className="mt-1 text-gray-400">Years Experience</div>
+            </Card>
 
-          <div className="text-center mt-12">
-            <Button
-              onClick={() => setCurrentView("pc-finder")}
-              variant="outline"
-              className="border-sky-500 text-sky-400 hover:bg-sky-500 hover:text-white px-8 py-3 text-lg"
-            >
-              View All Builds
-            </Button>
+            {/* Customers Served */}
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-6">
+              <div className="flex items-center justify-center mb-3">
+                <Users className="h-7 w-7 text-sky-400" />
+              </div>
+              <div className="text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
+                {(() => {
+                  const n = companyStats?.customersServed ?? 0;
+                  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}m`;
+                  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+                  return n;
+                })()}
+              </div>
+              <div className="mt-1 text-gray-400">Customers Served</div>
+            </Card>
+
+            {/* PC Builds Completed */}
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-6">
+              <div className="flex items-center justify-center mb-3">
+                <Wrench className="h-7 w-7 text-sky-400" />
+              </div>
+              <div className="text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
+                {(() => {
+                  const n = companyStats?.pcBuildsCompleted ?? 0;
+                  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}m`;
+                  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+                  return n;
+                })()}
+              </div>
+              <div className="mt-1 text-gray-400">PC Builds Completed</div>
+            </Card>
+
+            {/* Satisfaction Rate */}
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-6">
+              <div className="flex items-center justify-center mb-3">
+                <Star className="h-7 w-7 text-sky-400" />
+              </div>
+              <div className="text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
+                {companyStats?.satisfactionRate ?? 0}%
+              </div>
+              <div className="mt-1 text-gray-400">Customer Satisfaction</div>
+            </Card>
           </div>
         </div>
       </section>
@@ -525,16 +530,22 @@ export function HomePage({ setCurrentView }: HomePageProps) {
                       />
                     ))}
                   </div>
-                  <p className="text-gray-300 mb-4 italic">"{testimonial.review}"</p>
+                  <p className="text-gray-300 mb-4 italic">
+                    "{testimonial.review}"
+                  </p>
                   <div className="flex items-center">
                     <div className="h-10 w-10 bg-gradient-to-br from-sky-400 to-cyan-400 rounded-full flex items-center justify-center mr-3">
                       <span className="text-black font-semibold">
-                        {testimonial.name.charAt(0)}
+                        {testimonial.customerName?.charAt(0) || "U"}
                       </span>
                     </div>
                     <div>
-                      <p className="font-semibold text-white">{testimonial.name}</p>
-                      <p className="text-sm text-gray-400">{testimonial.location}</p>
+                      <p className="font-semibold text-white">
+                        {testimonial.customerName || "User"}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        {testimonial.productName || "Customer"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -546,33 +557,53 @@ export function HomePage({ setCurrentView }: HomePageProps) {
 
       {/* CTA Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="bg-gradient-to-r from-sky-900/20 to-blue-900/20 backdrop-blur-xl border border-sky-500/20 rounded-2xl p-12">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
-              <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                Ready to Build?
-              </span>
-            </h2>
-            <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-              Let's create the perfect PC for your needs. Whether you're gaming,
-              creating content, or need a powerful workstation, we've got you covered.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                onClick={() => setCurrentView("pc-finder")}
-                className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-4 text-lg font-semibold transition-all duration-300 transform hover:scale-105"
-              >
-                Start Building Now
-              </Button>
-              <Button
-                onClick={() => setCurrentView("contact")}
-                variant="outline"
-                className="border-sky-500 text-sky-400 hover:bg-sky-500 hover:text-white px-8 py-4 text-lg"
-              >
-                Get Expert Advice
-              </Button>
+        <div className="max-w-6xl mx-auto">
+          <Card className="relative bg-gradient-to-br from-blue-950/50 to-sky-950/30 backdrop-blur-xl border-2 border-sky-500/30 hover:border-sky-400/50 transition-all duration-500 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(56,189,248,0.2)] hover:shadow-[0_0_70px_rgba(56,189,248,0.3)] group">
+            {/* Subtle shine effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+
+            {/* Content */}
+            <div className="relative px-8 py-16 md:px-16 md:py-20 text-center">
+              {/* Badge */}
+              {pageContent?.ctaBadgeText && (
+                <div className="flex justify-center mb-8">
+                  <Badge className="bg-sky-500/20 border border-sky-400/50 text-sky-300 px-6 py-2.5 text-xs font-bold uppercase tracking-wider">
+                    {pageContent.ctaBadgeText}
+                  </Badge>
+                </div>
+              )}
+
+              {/* Heading */}
+              <h2 className="text-4xl md:text-6xl font-bold mb-6 text-white leading-tight">
+                {pageContent?.ctaTitle || "Ready to Build Your Dream PC?"}
+              </h2>
+
+              {/* Description */}
+              <p className="text-lg md:text-xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
+                {pageContent?.ctaDescription ||
+                  "Get started with our AI-powered PC finder or dive into our custom builder"}
+              </p>
+
+              {/* Buttons */}
+              <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
+                <Button
+                  onClick={() => setCurrentView("pc-finder")}
+                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white px-10 py-6 text-lg font-bold rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg shadow-sky-500/30 hover:shadow-xl hover:shadow-sky-500/40"
+                >
+                  <Search className="mr-2 h-5 w-5" />
+                  Start PC Finder
+                </Button>
+
+                <Button
+                  onClick={() => setCurrentView("pc-builder")}
+                  className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-10 py-6 text-lg font-bold rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg shadow-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/40"
+                >
+                  <SettingsIcon className="mr-2 h-5 w-5" />
+                  Open Builder
+                </Button>
+              </div>
             </div>
-          </div>
+          </Card>
         </div>
       </section>
     </div>
