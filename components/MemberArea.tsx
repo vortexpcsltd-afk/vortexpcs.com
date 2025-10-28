@@ -331,7 +331,7 @@ export function MemberArea({
                     </p>
                     <Button
                       className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
-                      onClick={() => onNavigate?.("finder")}
+                      onClick={() => onNavigate?.("pc-finder")}
                     >
                       Open PC Finder
                     </Button>
@@ -473,7 +473,7 @@ export function MemberArea({
                     </p>
                     <Button
                       className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
-                      onClick={() => onNavigate?.("builder")}
+                      onClick={() => onNavigate?.("pc-builder")}
                     >
                       Open PC Builder
                     </Button>
