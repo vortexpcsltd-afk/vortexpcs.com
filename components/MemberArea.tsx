@@ -30,8 +30,10 @@ import {
   getUserOrders,
   getUserConfigurations,
   deleteConfiguration,
+  createSupportTicket,
 } from "../services/database";
 import type { Order, SavedConfiguration } from "../services/database";
+import { Textarea } from "./ui/textarea";
 
 interface MemberAreaProps {
   isLoggedIn: boolean;
@@ -61,6 +63,14 @@ export function MemberArea({
     phone: "",
     address: "",
   });
+
+  const [supportForm, setSupportForm] = useState({
+    subject: "",
+    type: "general",
+    message: "",
+  });
+  const [supportSubmitting, setSupportSubmitting] = useState(false);
+  const [supportSuccess, setSupportSuccess] = useState(false);
 
   // Load user data on component mount
   useEffect(() => {
@@ -186,6 +196,38 @@ export function MemberArea({
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(err.message || "Failed to delete configuration");
+    }
+  };
+
+  const handleSubmitSupportTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!supportForm.subject || !supportForm.message) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      setSupportSubmitting(true);
+
+      await createSupportTicket({
+        userId: currentUser?.uid,
+        name: profileData.name || currentUser?.displayName || "Member",
+        email: profileData.email || currentUser?.email || "",
+        subject: supportForm.subject,
+        message: supportForm.message,
+        type: supportForm.type,
+      });
+
+      setSupportSuccess(true);
+      setSupportForm({ subject: "", type: "general", message: "" });
+
+      setTimeout(() => setSupportSuccess(false), 5000);
+    } catch (err: any) {
+      console.error("❌ Support ticket error:", err);
+      alert("Failed to submit support ticket. Please try again.");
+    } finally {
+      setSupportSubmitting(false);
     }
   };
 
@@ -749,15 +791,42 @@ export function MemberArea({
                     Quick Support
                   </h3>
                   <div className="space-y-3">
-                    <Button className="w-full justify-start bg-blue-600 hover:bg-blue-700">
+                    <Button
+                      className="w-full justify-start bg-blue-600 hover:bg-blue-700"
+                      onClick={() =>
+                        setSupportForm({
+                          ...supportForm,
+                          type: "order",
+                          subject: "Order Tracking",
+                        })
+                      }
+                    >
                       <Package className="w-4 h-4 mr-3" />
                       Track My Order
                     </Button>
-                    <Button className="w-full justify-start bg-green-600 hover:bg-green-700">
+                    <Button
+                      className="w-full justify-start bg-green-600 hover:bg-green-700"
+                      onClick={() =>
+                        setSupportForm({
+                          ...supportForm,
+                          type: "technical",
+                          subject: "Technical Support",
+                        })
+                      }
+                    >
                       <Settings className="w-4 h-4 mr-3" />
                       Technical Support
                     </Button>
-                    <Button className="w-full justify-start bg-purple-600 hover:bg-purple-700">
+                    <Button
+                      className="w-full justify-start bg-purple-600 hover:bg-purple-700"
+                      onClick={() =>
+                        setSupportForm({
+                          ...supportForm,
+                          type: "billing",
+                          subject: "Billing & Returns",
+                        })
+                      }
+                    >
                       <CreditCard className="w-4 h-4 mr-3" />
                       Billing & Returns
                     </Button>
@@ -799,6 +868,126 @@ export function MemberArea({
                   </div>
                 </Card>
               </div>
+
+              {/* Support Ticket Form */}
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-8">
+                <h3 className="text-2xl font-bold text-white mb-6">
+                  Submit Support Ticket
+                </h3>
+
+                {supportSuccess && (
+                  <div className="mb-6 p-4 bg-green-500/20 border border-green-500/50 rounded-lg">
+                    <p className="text-green-400 font-medium">
+                      ✓ Support ticket submitted successfully! We'll respond
+                      within 24-48 hours.
+                    </p>
+                  </div>
+                )}
+
+                <form
+                  onSubmit={handleSubmitSupportTicket}
+                  className="space-y-6"
+                >
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <Label
+                        htmlFor="ticket-type"
+                        className="text-white text-sm font-semibold mb-2 block"
+                      >
+                        Type of Issue
+                      </Label>
+                      <select
+                        id="ticket-type"
+                        value={supportForm.type}
+                        onChange={(e) =>
+                          setSupportForm({
+                            ...supportForm,
+                            type: e.target.value,
+                          })
+                        }
+                        className="w-full h-12 bg-white/5 border border-white/10 text-white rounded-md px-4 focus:border-sky-500/50 focus:ring-sky-500/20 focus:outline-none"
+                      >
+                        <option value="general" className="bg-slate-900">
+                          General Inquiry
+                        </option>
+                        <option value="order" className="bg-slate-900">
+                          Order Tracking
+                        </option>
+                        <option value="technical" className="bg-slate-900">
+                          Technical Support
+                        </option>
+                        <option value="billing" className="bg-slate-900">
+                          Billing & Returns
+                        </option>
+                        <option value="warranty" className="bg-slate-900">
+                          Warranty Claim
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label
+                        htmlFor="ticket-subject"
+                        className="text-white text-sm font-semibold mb-2 block"
+                      >
+                        Subject *
+                      </Label>
+                      <Input
+                        id="ticket-subject"
+                        value={supportForm.subject}
+                        onChange={(e) =>
+                          setSupportForm({
+                            ...supportForm,
+                            subject: e.target.value,
+                          })
+                        }
+                        placeholder="Brief description of your issue"
+                        className="bg-white/5 border-white/10 text-white h-12 focus:border-sky-500/50 focus:ring-sky-500/20"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label
+                      htmlFor="ticket-message"
+                      className="text-white text-sm font-semibold mb-2 block"
+                    >
+                      Message *
+                    </Label>
+                    <Textarea
+                      id="ticket-message"
+                      value={supportForm.message}
+                      onChange={(e) =>
+                        setSupportForm({
+                          ...supportForm,
+                          message: e.target.value,
+                        })
+                      }
+                      placeholder="Please provide detailed information about your issue..."
+                      className="bg-white/5 border-white/10 text-white min-h-[150px] focus:border-sky-500/50 focus:ring-sky-500/20"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      type="submit"
+                      disabled={supportSubmitting}
+                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {supportSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>Submit Ticket</>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
