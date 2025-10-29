@@ -21,19 +21,12 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import {
   AlertTriangle,
   Package,
   Users,
   DollarSign,
-  TrendingUp,
   Eye,
   Edit,
   Trash2,
@@ -50,17 +43,12 @@ import {
   getAllOrders,
   getAllUsers,
   getDashboardStats,
-  updateOrderStatus,
-  updateOrder,
 } from "../services/database";
 import type { Order } from "../services/database";
 
 export function AdminPanel() {
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [customersLoading, setCustomersLoading] = useState(false);
 
   // Real data states
   const [dashboardStats, setDashboardStats] = useState({

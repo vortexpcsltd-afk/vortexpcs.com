@@ -48,8 +48,6 @@ export function MemberArea({
 }: MemberAreaProps) {
   const [editingProfile, setEditingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -77,7 +75,6 @@ export function MemberArea({
     const loadUserData = async () => {
       try {
         setLoading(true);
-        setError(null);
 
         const user = getCurrentUser();
         if (!user) {
@@ -115,7 +112,6 @@ export function MemberArea({
         setConfigurations(userConfigs);
       } catch (err: any) {
         console.error("❌ Member Area - Error loading data:", err);
-        setError(err.message || "Failed to load user data");
       } finally {
         setLoading(false);
       }
@@ -158,6 +154,7 @@ export function MemberArea({
   const handleLogout = () => {
     localStorage.removeItem("vortex_user");
     setIsLoggedIn(false);
+    onNavigate?.("home"); // Redirect to homepage
   };
 
   const handleSaveProfile = async () => {
@@ -165,8 +162,6 @@ export function MemberArea({
 
     try {
       setLoading(true);
-      setError(null);
-      setSuccess(null);
 
       await updateUserProfile(currentUser.uid, {
         displayName: profileData.name,
@@ -174,13 +169,9 @@ export function MemberArea({
         address: profileData.address,
       });
 
-      setSuccess("Profile updated successfully!");
       setEditingProfile(false);
-
-      setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error("❌ Profile update error:", err);
-      setError(err.message || "Failed to update profile");
     } finally {
       setLoading(false);
     }
@@ -192,10 +183,8 @@ export function MemberArea({
     try {
       await deleteConfiguration(configId);
       setConfigurations((prev) => prev.filter((c) => c.id !== configId));
-      setSuccess("Configuration deleted successfully!");
-      setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(err.message || "Failed to delete configuration");
+      console.error("❌ Delete configuration error:", err);
     }
   };
 

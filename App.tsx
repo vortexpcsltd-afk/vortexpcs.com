@@ -41,7 +41,6 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [user, setUser] = useState<any>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [showCookieConsent, setShowCookieConsent] = useState(false);
   const [recommendedBuild, setRecommendedBuild] = useState(null);
@@ -494,7 +493,6 @@ export default function App() {
                 role: firebaseUser.role || "user",
               };
               localStorage.setItem("vortex_user", JSON.stringify(userData));
-              setUser(firebaseUser);
               setIsLoggedIn(true);
               setIsAdmin(isAdminUser);
 
