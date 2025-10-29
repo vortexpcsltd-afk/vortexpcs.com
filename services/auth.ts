@@ -61,7 +61,32 @@ export const registerUser = async (
     return user;
   } catch (error: any) {
     console.error("Registration error:", error);
-    throw new Error(error.message || "Failed to register user");
+
+    // Parse Firebase error codes and return user-friendly messages
+    const errorCode = error.code;
+
+    switch (errorCode) {
+      case "auth/email-already-in-use":
+        throw new Error(
+          "This email is already registered. Please login instead."
+        );
+      case "auth/invalid-email":
+        throw new Error("Invalid email address. Please check and try again.");
+      case "auth/weak-password":
+        throw new Error(
+          "Password is too weak. Please use at least 6 characters."
+        );
+      case "auth/operation-not-allowed":
+        throw new Error(
+          "Email/password accounts are not enabled. Please contact support."
+        );
+      case "auth/network-request-failed":
+        throw new Error(
+          "Network error. Please check your connection and try again."
+        );
+      default:
+        throw new Error("Registration failed. Please try again.");
+    }
   }
 };
 
@@ -97,7 +122,36 @@ export const loginUser = async (
     return user;
   } catch (error: any) {
     console.error("Login error:", error);
-    throw new Error(error.message || "Failed to log in");
+
+    // Parse Firebase error codes and return user-friendly messages
+    const errorCode = error.code;
+
+    switch (errorCode) {
+      case "auth/invalid-email":
+        throw new Error("Invalid email address. Please check and try again.");
+      case "auth/user-disabled":
+        throw new Error(
+          "This account has been disabled. Please contact support."
+        );
+      case "auth/user-not-found":
+        throw new Error("Incorrect email. Please try again.");
+      case "auth/wrong-password":
+        throw new Error("Incorrect password. Please try again.");
+      case "auth/invalid-credential":
+        throw new Error("Incorrect email or password. Please try again.");
+      case "auth/too-many-requests":
+        throw new Error(
+          "Too many failed login attempts. Please try again later."
+        );
+      case "auth/network-request-failed":
+        throw new Error(
+          "Network error. Please check your connection and try again."
+        );
+      default:
+        throw new Error(
+          "Login failed. Please check your credentials and try again."
+        );
+    }
   }
 };
 
@@ -143,7 +197,26 @@ export const loginWithGoogle = async (): Promise<User> => {
     return user;
   } catch (error: any) {
     console.error("Google login error:", error);
-    throw new Error(error.message || "Failed to log in with Google");
+
+    // Parse Firebase error codes and return user-friendly messages
+    const errorCode = error.code;
+
+    switch (errorCode) {
+      case "auth/popup-closed-by-user":
+        throw new Error("Sign-in was cancelled. Please try again.");
+      case "auth/popup-blocked":
+        throw new Error("Pop-up blocked. Please allow pop-ups and try again.");
+      case "auth/account-exists-with-different-credential":
+        throw new Error(
+          "An account already exists with this email. Please use a different sign-in method."
+        );
+      case "auth/network-request-failed":
+        throw new Error(
+          "Network error. Please check your connection and try again."
+        );
+      default:
+        throw new Error("Google sign-in failed. Please try again.");
+    }
   }
 };
 
@@ -181,7 +254,24 @@ export const resetPassword = async (email: string): Promise<void> => {
     await sendPasswordResetEmail(auth, email);
   } catch (error: any) {
     console.error("Password reset error:", error);
-    throw new Error(error.message || "Failed to send password reset email");
+
+    // Parse Firebase error codes and return user-friendly messages
+    const errorCode = error.code;
+
+    switch (errorCode) {
+      case "auth/invalid-email":
+        throw new Error("Invalid email address. Please check and try again.");
+      case "auth/user-not-found":
+        throw new Error("No account found with this email address.");
+      case "auth/network-request-failed":
+        throw new Error(
+          "Network error. Please check your connection and try again."
+        );
+      default:
+        throw new Error(
+          "Failed to send password reset email. Please try again."
+        );
+    }
   }
 };
 
