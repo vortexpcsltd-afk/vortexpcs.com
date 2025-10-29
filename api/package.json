@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "stripe": "^17.4.0",
+    "@vercel/node": "^3.2.20"
+  }
+}

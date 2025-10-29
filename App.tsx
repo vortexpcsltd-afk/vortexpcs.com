@@ -13,6 +13,7 @@ import { FAQPage } from "./components/FAQPage.tsx";
 import { Footer } from "./components/Footer.tsx";
 import { LoginDialog } from "./components/LoginDialog.tsx";
 import { ShoppingCartModal } from "./components/ShoppingCartModal.tsx";
+import { OrderSuccess } from "./components/OrderSuccess.tsx";
 import { HomePage } from "./components/HomePage.tsx";
 import { TermsPage } from "./components/TermsPage.tsx";
 import { PrivacyPage } from "./components/PrivacyPage.tsx";
@@ -76,8 +77,23 @@ export default function App() {
       }
     };
 
+    // Check for Stripe success redirect
+    const checkStripeRedirect = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get("session_id");
+      const cancelled = urlParams.get("cancelled");
+
+      if (sessionId) {
+        setCurrentView("order-success");
+      } else if (cancelled) {
+        // Clear the URL parameter
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    };
+
     checkAuth();
     checkCookieConsent();
+    checkStripeRedirect();
   }, []);
 
   // Scroll to top whenever the view changes
@@ -122,6 +138,8 @@ export default function App() {
         );
       case "admin":
         return isAdmin ? <AdminPanel /> : <div>Access Denied</div>;
+      case "order-success":
+        return <OrderSuccess onNavigate={setCurrentView} />;
       case "terms":
         return <TermsPage />;
       case "privacy":
@@ -518,9 +536,9 @@ export default function App() {
             onRemoveItem={(id) => {
               setCartItems((items) => items.filter((item) => item.id !== id));
             }}
-            onCheckout={() => {
-              setShowCartModal(false);
-              alert("Checkout functionality coming soon!");
+            onLoginRequired={() => {
+              setShowLoginDialog(true);
+              setLoginTab("login");
             }}
           />
 

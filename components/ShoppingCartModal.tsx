@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Trash2,
   Plus,
@@ -5,6 +6,8 @@ import {
   ShoppingCart,
   ArrowRight,
   Package,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -16,6 +19,9 @@ import {
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Separator } from "./ui/separator";
+import { Alert, AlertDescription } from "./ui/alert";
+import { redirectToCheckout } from "../services/payment";
+import { getCurrentUser } from "../services/auth";
 
 interface CartItem {
   id: string;
@@ -32,7 +38,7 @@ interface ShoppingCartModalProps {
   cartItems?: CartItem[];
   onUpdateQuantity?: (id: string, quantity: number) => void;
   onRemoveItem?: (id: string) => void;
-  onCheckout?: () => void;
+  onLoginRequired?: () => void;
 }
 
 export function ShoppingCartModal({
@@ -41,8 +47,11 @@ export function ShoppingCartModal({
   cartItems = [],
   onUpdateQuantity,
   onRemoveItem,
-  onCheckout,
+  onLoginRequired,
 }: ShoppingCartModalProps) {
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
   // Calculate totals
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -57,6 +66,40 @@ export function ShoppingCartModal({
     if (item && onUpdateQuantity) {
       const newQuantity = Math.max(1, item.quantity + delta);
       onUpdateQuantity(id, newQuantity);
+    }
+  };
+
+  const handleCheckout = async () => {
+    setCheckoutError(null);
+
+    // Check if user is logged in
+    const currentUser = getCurrentUser();
+
+    if (!currentUser) {
+      // User not logged in - call the login required callback
+      onClose();
+      onLoginRequired?.();
+      return;
+    }
+
+    setCheckoutLoading(true);
+
+    try {
+      // Redirect to Stripe Checkout
+      await redirectToCheckout(
+        cartItems,
+        currentUser.email || undefined,
+        currentUser.uid
+      );
+
+      // If we reach here, something went wrong (redirect should have happened)
+      // The redirectToCheckout function will handle the actual redirect
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      setCheckoutError(
+        error.message || "Failed to proceed to checkout. Please try again."
+      );
+      setCheckoutLoading(false);
     }
   };
 
@@ -195,21 +238,40 @@ export function ShoppingCartModal({
               </div>
             </div>
 
+            {/* Error message */}
+            {checkoutError && (
+              <Alert className="bg-red-500/10 border-red-500/30 text-red-400 mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{checkoutError}</AlertDescription>
+              </Alert>
+            )}
+
             {/* Action buttons */}
             <div className="flex gap-3">
               <Button
                 onClick={onClose}
                 variant="outline"
                 className="flex-1 border-white/10 text-white hover:bg-white/5"
+                disabled={checkoutLoading}
               >
                 Continue Shopping
               </Button>
               <Button
-                onClick={onCheckout}
-                className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300"
+                onClick={handleCheckout}
+                disabled={checkoutLoading}
+                className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Proceed to Checkout
-                <ArrowRight className="w-4 h-4 ml-2" />
+                {checkoutLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    Proceed to Checkout
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
               </Button>
             </div>
 

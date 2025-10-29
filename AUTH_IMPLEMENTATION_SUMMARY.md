@@ -3,11 +3,13 @@
 ## ✅ Completed
 
 1. **Firebase Configuration** (`config/firebase.ts`)
+
    - Already set up and ready
    - Supports Firebase Auth, Firestore, Storage
    - Gracefully handles missing environment variables
 
 2. **Authentication Services** (`services/auth.ts`)
+
    - `registerUser()` - Create new user accounts
    - `loginUser()` - Email/password login
    - `loginWithGoogle()` - Google OAuth login
@@ -27,6 +29,7 @@
 **Location:** `components/LoginDialog.tsx` lines 123-138
 
 **Remove these lines:**
+
 ```typescript
 <Separator className="bg-white/10" />
 
@@ -46,20 +49,30 @@
 ### 2. Update LoginDialog.tsx imports
 
 **Change line 7-8:**
+
 ```typescript
 // OLD:
-import { Separator } from './ui/separator';
-import { Mail, Lock, User, Shield, LogIn, UserPlus } from 'lucide-react';
+import { Separator } from "./ui/separator";
+import { Mail, Lock, User, Shield, LogIn, UserPlus } from "lucide-react";
 
 // NEW:
-import { Alert, AlertDescription } from './ui/alert';
-import { Mail, Lock, User, LogIn, UserPlus, AlertCircle, Loader2 } from 'lucide-react';
-import { registerUser, loginUser, resetPassword } from '../services/auth';
+import { Alert, AlertDescription } from "./ui/alert";
+import {
+  Mail,
+  Lock,
+  User,
+  LogIn,
+  UserPlus,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
+import { registerUser, loginUser, resetPassword } from "../services/auth";
 ```
 
 ### 3. Update LoginDialog interface and state
 
 **Change lines 10-21:**
+
 ```typescript
 // OLD:
 interface LoginDialogProps {
@@ -97,11 +110,12 @@ export function LoginDialog({ isOpen, onClose, onLogin, activeTab = 'login' }: L
 ### 4. Add useEffect for resetting state
 
 **Add after line 24:**
+
 ```typescript
 React.useEffect(() => {
   if (isOpen) {
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
     setShowForgotPassword(false);
   }
 }, [isOpen]);
@@ -110,24 +124,25 @@ React.useEffect(() => {
 ### 5. Replace handleLogin function
 
 **Replace lines 27-36 with:**
+
 ```typescript
 const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault();
-  setError('');
-  setSuccess('');
+  setError("");
+  setSuccess("");
   setLoading(true);
 
   try {
     const user = await loginUser(email, password);
-    setSuccess('Login successful!');
+    setSuccess("Login successful!");
     setTimeout(() => {
       onLogin(user);
       onClose();
-      setEmail('');
-      setPassword('');
+      setEmail("");
+      setPassword("");
     }, 500);
   } catch (err: any) {
-    setError(err.message || 'Failed to login. Please check your credentials.');
+    setError(err.message || "Failed to login. Please check your credentials.");
   } finally {
     setLoading(false);
   }
@@ -135,28 +150,28 @@ const handleLogin = async (e: React.FormEvent) => {
 
 const handleRegister = async (e: React.FormEvent) => {
   e.preventDefault();
-  setError('');
-  setSuccess('');
+  setError("");
+  setSuccess("");
   setLoading(true);
 
   if (password.length < 6) {
-    setError('Password must be at least 6 characters long.');
+    setError("Password must be at least 6 characters long.");
     setLoading(false);
     return;
   }
 
   try {
     const user = await registerUser(email, password, name);
-    setSuccess('Account created successfully! Logging you in...');
+    setSuccess("Account created successfully! Logging you in...");
     setTimeout(() => {
       onLogin(user);
       onClose();
-      setEmail('');
-      setPassword('');
-      setName('');
+      setEmail("");
+      setPassword("");
+      setName("");
     }, 1000);
   } catch (err: any) {
-    setError(err.message || 'Failed to create account. Please try again.');
+    setError(err.message || "Failed to create account. Please try again.");
   } finally {
     setLoading(false);
   }
@@ -164,18 +179,18 @@ const handleRegister = async (e: React.FormEvent) => {
 
 const handleForgotPassword = async (e: React.FormEvent) => {
   e.preventDefault();
-  setError('');
-  setSuccess('');
+  setError("");
+  setSuccess("");
   setLoading(true);
 
   try {
     await resetPassword(email);
-    setSuccess('Password reset email sent! Check your inbox.');
+    setSuccess("Password reset email sent! Check your inbox.");
     setTimeout(() => {
       setShowForgotPassword(false);
     }, 2000);
   } catch (err: any) {
-    setError(err.message || 'Failed to send reset email. Please try again.');
+    setError(err.message || "Failed to send reset email. Please try again.");
   } finally {
     setLoading(false);
   }
@@ -185,32 +200,42 @@ const handleForgotPassword = async (e: React.FormEvent) => {
 ### 6. Add error/success alerts
 
 **Add after DialogDescription (around line 50):**
-```typescript
-{error && (
-  <Alert variant="destructive" className="mt-4 bg-red-500/10 border-red-500/50">
-    <AlertCircle className="h-4 w-4" />
-    <AlertDescription>{error}</AlertDescription>
-  </Alert>
-)}
 
-{success && (
-  <Alert className="mt-4 bg-green-500/10 border-green-500/50 text-green-300">
-    <AlertCircle className="h-4 w-4" />
-    <AlertDescription>{success}</AlertDescription>
-  </Alert>
-)}
+```typescript
+{
+  error && (
+    <Alert
+      variant="destructive"
+      className="mt-4 bg-red-500/10 border-red-500/50"
+    >
+      <AlertCircle className="h-4 w-4" />
+      <AlertDescription>{error}</AlertDescription>
+    </Alert>
+  );
+}
+
+{
+  success && (
+    <Alert className="mt-4 bg-green-500/10 border-green-500/50 text-green-300">
+      <AlertCircle className="h-4 w-4" />
+      <AlertDescription>{success}</AlertDescription>
+    </Alert>
+  );
+}
 ```
 
 ### 7. Update form inputs to include loading state
 
 **For each Input component, add:**
+
 ```typescript
-disabled={loading}
+disabled = { loading };
 ```
 
 ### 8. Update form submit buttons
 
 **Change all submit buttons to:**
+
 ```typescript
 <Button
   type="submit"
@@ -234,17 +259,19 @@ disabled={loading}
 ### 9. Update App.tsx
 
 **Change the onLogin handler to:**
+
 ```typescript
 const handleLoginSuccess = (user: any) => {
   setUser(user);
   setIsLoggedIn(true);
-  console.log('User logged in:', user);
+  console.log("User logged in:", user);
 };
 ```
 
 ## 🔐 Admin Account Setup
 
 ### Credentials
+
 ```
 Email: admin@vortexpcs.com
 Password: VortexAdmin2025!
@@ -255,6 +282,7 @@ Password: VortexAdmin2025!
 ### Create Admin in Firebase Console:
 
 1. **Firebase Authentication:**
+
    - Go to Authentication → Users
    - Add user with above credentials
    - Note the UID
