@@ -2915,44 +2915,44 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
           </div>
 
           <Tabs defaultValue="keyboard" className="space-y-6 sm:space-y-8">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-2 rounded-xl gap-2">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-2 rounded-xl gap-2 h-auto">
               <TabsTrigger
                 value="keyboard"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-3 py-3 sm:px-4 sm:py-3 flex items-center justify-center gap-2 rounded-lg transition-all"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
               >
-                <Keyboard className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
+                <Keyboard className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Keyboards</span>
                 <span className="sm:hidden">Keys</span>
               </TabsTrigger>
               <TabsTrigger
                 value="mouse"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-3 py-3 sm:px-4 sm:py-3 flex items-center justify-center gap-2 rounded-lg transition-all"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
               >
-                <Mouse className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
+                <Mouse className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Mice</span>
                 <span className="sm:hidden">Mice</span>
               </TabsTrigger>
               <TabsTrigger
                 value="monitor"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-3 py-3 sm:px-4 sm:py-3 flex items-center justify-center gap-2 rounded-lg transition-all"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
               >
-                <Monitor className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
+                <Monitor className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Monitors</span>
                 <span className="sm:hidden">Mon</span>
               </TabsTrigger>
               <TabsTrigger
                 value="gamepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-3 py-3 sm:px-4 sm:py-3 flex items-center justify-center gap-2 rounded-lg transition-all"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
               >
-                <Settings className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
+                <Settings className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Gamepads</span>
                 <span className="sm:hidden">Pad</span>
               </TabsTrigger>
               <TabsTrigger
                 value="mousepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-3 py-3 sm:px-4 sm:py-3 flex items-center justify-center gap-2 rounded-lg transition-all"
+                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
               >
-                <Package className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
+                <Package className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Mousepads</span>
                 <span className="sm:hidden">Mat</span>
               </TabsTrigger>
