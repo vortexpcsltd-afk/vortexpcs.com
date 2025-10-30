@@ -172,8 +172,8 @@ export const calculateCartTotal = (items: CartItem[]): number => {
 
 // Simulated backend session creation (DEVELOPMENT ONLY)
 export const mockCreateCheckoutSession = async (
-  items: CartItem[],
-  customerEmail?: string
+  _items: CartItem[],
+  _customerEmail?: string
 ): Promise<CheckoutSession> => {
   // This is a mock - in production, implement a proper backend
   console.warn(

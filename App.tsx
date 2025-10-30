@@ -1,23 +1,23 @@
 import { useState, useEffect } from "react";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Button } from "./components/ui/button";
-import { PCFinder } from "./components/PCFinderBlue.tsx";
-import { PCBuilder } from "./components/PCBuilder.tsx";
-import { AIAssistant } from "./components/AIAssistant.tsx";
-import { MemberArea } from "./components/MemberArea.tsx";
-import { AdminPanel } from "./components/AdminPanel.tsx";
-import { RepairService } from "./components/RepairService.tsx";
-import { AboutUs } from "./components/AboutUs.tsx";
-import { Contact } from "./components/Contact.tsx";
-import { FAQPage } from "./components/FAQPage.tsx";
-import { Footer } from "./components/Footer.tsx";
-import { LoginDialog } from "./components/LoginDialog.tsx";
-import { ShoppingCartModal } from "./components/ShoppingCartModal.tsx";
-import { OrderSuccess } from "./components/OrderSuccess.tsx";
-import { HomePage } from "./components/HomePage.tsx";
-import { TermsPage } from "./components/TermsPage.tsx";
-import { PrivacyPage } from "./components/PrivacyPage.tsx";
-import { CookiePolicyPage } from "./components/CookiePolicyPage.tsx";
+import { PCFinder } from "./components/PCFinderBlue";
+import { PCBuilder } from "./components/PCBuilder";
+import { AIAssistant } from "./components/AIAssistant";
+import { MemberArea } from "./components/MemberArea";
+import { AdminPanel } from "./components/AdminPanel";
+import { RepairService } from "./components/RepairService";
+import { AboutUs } from "./components/AboutUs";
+import { Contact } from "./components/Contact";
+import { FAQPage } from "./components/FAQPage";
+import { Footer } from "./components/Footer";
+import { LoginDialog } from "./components/LoginDialog";
+import { ShoppingCartModal } from "./components/ShoppingCartModal";
+import { OrderSuccess } from "./components/OrderSuccess";
+import { HomePage } from "./components/HomePage";
+import { TermsPage } from "./components/TermsPage";
+import { PrivacyPage } from "./components/PrivacyPage";
+import { CookiePolicyPage } from "./components/CookiePolicyPage";
 import {
   Shield,
   Settings,
