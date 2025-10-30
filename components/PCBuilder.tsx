@@ -1762,7 +1762,15 @@ const checkCompatibility = (selectedComponents: any, componentData: any) => {
   return issues;
 };
 
-export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
+export function PCBuilder({
+  recommendedBuild,
+  onAddToCart,
+  onOpenCart,
+}: {
+  recommendedBuild?: any;
+  onAddToCart?: (item: any) => void;
+  onOpenCart?: () => void;
+}) {
   const [selectedComponents, setSelectedComponents] = useState<any>({});
   const [selectedPeripherals, setSelectedPeripherals] = useState<any>({});
   const [activeCategory, setActiveCategory] = useState("case");
@@ -2138,15 +2146,54 @@ export function PCBuilder({ recommendedBuild }: { recommendedBuild?: any }) {
     if (issues.length > 0) {
       setShowCompatibilityDialog(true);
     } else {
-      // Proceed to checkout
-      alert("Proceeding to checkout!");
+      // Add build to cart and open cart modal
+      addBuildToCart();
     }
   };
 
   const handleCompatibilityAccept = () => {
     setShowCompatibilityDialog(false);
-    // Proceed to checkout despite issues
-    alert("Proceeding to checkout with compatibility warnings acknowledged!");
+    // Add build to cart despite compatibility issues
+    addBuildToCart();
+  };
+
+  const addBuildToCart = () => {
+    if (!onAddToCart || !onOpenCart) {
+      console.error("Cart functions not provided to PCBuilder");
+      return;
+    }
+
+    // Create cart item from selected components
+    const buildComponents = Object.entries(selectedComponents)
+      .filter(([_, component]) => component !== null)
+      .map(([category, component]: [string, any]) => ({
+        name: component.name,
+        price: component.price,
+        category: category,
+      }));
+
+    if (buildComponents.length === 0) {
+      return;
+    }
+
+    // Calculate total
+    const totalPrice = buildComponents.reduce(
+      (sum, comp) => sum + comp.price,
+      0
+    );
+
+    // Create a single cart item for the entire build
+    const buildItem = {
+      id: `custom-build-${Date.now()}`,
+      name: "Custom PC Build",
+      price: totalPrice,
+      image: "/placeholder-pc.png",
+      description: `Custom build with ${buildComponents.length} components`,
+      components: buildComponents,
+    };
+
+    onAddToCart(buildItem);
+    onOpenCart();
   };
 
   const handleCompatibilityCancel = () => {

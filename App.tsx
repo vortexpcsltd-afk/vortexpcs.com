@@ -101,6 +101,24 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentView]);
 
+  // Add item to cart
+  const addToCart = (item: any) => {
+    setCartItems((prevItems) => {
+      // Check if item already exists in cart
+      const existingItem = prevItems.find((i) => i.id === item.id);
+
+      if (existingItem) {
+        // Update quantity if item exists
+        return prevItems.map((i) =>
+          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
+        );
+      } else {
+        // Add new item with quantity 1
+        return [...prevItems, { ...item, quantity: 1 }];
+      }
+    });
+  };
+
   const navigation = [
     { id: "pc-finder", label: "PC Finder", icon: Search },
     { id: "pc-builder", label: "PC Builder", icon: Settings },
@@ -119,7 +137,13 @@ export default function App() {
           />
         );
       case "pc-builder":
-        return <PCBuilder recommendedBuild={recommendedBuild} />;
+        return (
+          <PCBuilder
+            recommendedBuild={recommendedBuild}
+            onAddToCart={addToCart}
+            onOpenCart={() => setShowCartModal(true)}
+          />
+        );
       case "repair":
         return <RepairService />;
       case "about":
