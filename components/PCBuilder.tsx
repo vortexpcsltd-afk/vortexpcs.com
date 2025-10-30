@@ -2165,12 +2165,25 @@ export function PCBuilder({
 
     // Create cart item from selected components
     const buildComponents = Object.entries(selectedComponents)
-      .filter(([_, component]) => component !== null)
-      .map(([category, component]: [string, any]) => ({
-        name: component.name,
-        price: component.price,
-        category: category,
-      }));
+      .filter(([_, componentId]) => componentId !== null)
+      .map(([category, componentId]: [string, any]) => {
+        // Find the actual component data from activeComponentData
+        const component = (activeComponentData as any)[category]?.find(
+          (c: any) => c.id === componentId
+        );
+
+        if (!component) {
+          console.warn(`Component not found: ${category} - ${componentId}`);
+          return null;
+        }
+
+        return {
+          name: component.name,
+          price: component.price || 0,
+          category: category,
+        };
+      })
+      .filter((comp) => comp !== null);
 
     if (buildComponents.length === 0) {
       return;
@@ -2178,7 +2191,7 @@ export function PCBuilder({
 
     // Calculate total
     const totalPrice = buildComponents.reduce(
-      (sum, comp) => sum + comp.price,
+      (sum, comp) => sum + (comp?.price || 0),
       0
     );
 
