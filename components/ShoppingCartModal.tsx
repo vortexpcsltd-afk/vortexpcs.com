@@ -38,7 +38,6 @@ interface ShoppingCartModalProps {
   cartItems?: CartItem[];
   onUpdateQuantity?: (id: string, quantity: number) => void;
   onRemoveItem?: (id: string) => void;
-  onLoginRequired?: () => void;
 }
 
 export function ShoppingCartModal({
@@ -47,7 +46,6 @@ export function ShoppingCartModal({
   cartItems = [],
   onUpdateQuantity,
   onRemoveItem,
-  onLoginRequired,
 }: ShoppingCartModalProps) {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -75,22 +73,15 @@ export function ShoppingCartModal({
     // Check if user is logged in
     const currentUser = getCurrentUser();
 
-    if (!currentUser) {
-      // User not logged in - call the login required callback
-      onClose();
-      onLoginRequired?.();
-      return;
-    }
+    // Allow guest checkout - if no user, use undefined for email and a guest ID
+    const userEmail = currentUser?.email || undefined;
+    const userId = currentUser?.uid || `guest_${Date.now()}`;
 
     setCheckoutLoading(true);
 
     try {
-      // Redirect to Stripe Checkout
-      await redirectToCheckout(
-        cartItems,
-        currentUser.email || undefined,
-        currentUser.uid
-      );
+      // Redirect to Stripe Checkout (works for both logged in and guest users)
+      await redirectToCheckout(cartItems, userEmail, userId);
 
       // If we reach here, something went wrong (redirect should have happened)
       // The redirectToCheckout function will handle the actual redirect
