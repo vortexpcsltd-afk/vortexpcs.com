@@ -40,9 +40,7 @@ export const createCheckoutSession = async (
 ): Promise<CheckoutSession> => {
   try {
     // Call backend API endpoint
-    const apiUrl = stripeBackendUrl.includes("localhost")
-      ? stripeBackendUrl
-      : "/api/stripe/create-checkout-session";
+    const apiUrl = `${stripeBackendUrl}/api/stripe/create-checkout-session`;
 
     const response = await axios.post(apiUrl, {
       items,
@@ -129,9 +127,7 @@ export const createPaymentIntent = async (
  */
 export const verifyPayment = async (sessionId: string) => {
   try {
-    const apiUrl = stripeBackendUrl.includes("localhost")
-      ? `${stripeBackendUrl}/verify-payment`
-      : `/api/stripe/verify-payment`;
+    const apiUrl = `${stripeBackendUrl}/api/stripe/verify-payment`;
 
     const response = await axios.get(`${apiUrl}?session_id=${sessionId}`);
     return response.data;
