@@ -60,9 +60,9 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       }
 
       try {
-        console.log("🚀 Loading Strapi CMS content...");
+        console.log("🚀 Loading Contentful CMS content...");
 
-        // Import Strapi services dynamically
+        // Import CMS services dynamically
         const {
           fetchSettings,
           fetchPageContent,
@@ -71,14 +71,14 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           fetchCompanyStats,
         } = await import("../services/cms");
 
-        // Load all content from Strapi CMS
+        // Load all content from Contentful CMS
         const [
-          strapiSettings,
-          strapiPageContent,
-          strapiTestimonials,
-          strapiHeroFeatures,
-          strapiMainFeatures,
-          strapiCompanyStats,
+          contentfulSettings,
+          contentfulPageContent,
+          contentfulTestimonials,
+          contentfulHeroFeatures,
+          contentfulMainFeatures,
+          contentfulCompanyStats,
         ] = await Promise.allSettled([
           fetchSettings(),
           fetchPageContent("home"),
@@ -88,32 +88,38 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           fetchCompanyStats(),
         ]);
 
-        console.log("📊 Strapi API Results:", {
-          settings: strapiSettings.status,
-          pageContent: strapiPageContent.status,
-          testimonials: strapiTestimonials.status,
-          heroFeatures: strapiHeroFeatures.status,
-          mainFeatures: strapiMainFeatures.status,
-          stats: strapiCompanyStats.status,
+        console.log("📊 Contentful API Results:", {
+          settings: contentfulSettings.status,
+          pageContent: contentfulPageContent.status,
+          testimonials: contentfulTestimonials.status,
+          heroFeatures: contentfulHeroFeatures.status,
+          mainFeatures: contentfulMainFeatures.status,
+          stats: contentfulCompanyStats.status,
         });
 
-        if (strapiSettings.status === "fulfilled" && strapiSettings.value) {
-          setSettings(strapiSettings.value);
-          console.log("✅ Strapi settings loaded:", strapiSettings.value);
+        if (
+          contentfulSettings.status === "fulfilled" &&
+          contentfulSettings.value
+        ) {
+          setSettings(contentfulSettings.value);
+          console.log(
+            "✅ Contentful settings loaded:",
+            contentfulSettings.value
+          );
         }
 
         if (
-          strapiPageContent.status === "fulfilled" &&
-          strapiPageContent.value
+          contentfulPageContent.status === "fulfilled" &&
+          contentfulPageContent.value
         ) {
-          setPageContent(strapiPageContent.value);
+          setPageContent(contentfulPageContent.value);
           console.log(
-            "✅ Strapi page content loaded:",
-            strapiPageContent.value
+            "✅ Contentful page content loaded:",
+            contentfulPageContent.value
           );
           console.log(
-            "🎉 Hero title from Strapi:",
-            strapiPageContent.value.heroTitle
+            "🎉 Hero title from Contentful:",
+            contentfulPageContent.value.heroTitle
           );
         } else {
           console.log("⚠️ FALLBACK: Using hardcoded hero content");
@@ -129,55 +135,55 @@ export function HomePage({ setCurrentView }: HomePageProps) {
         }
 
         if (
-          strapiTestimonials.status === "fulfilled" &&
-          strapiTestimonials.value
+          contentfulTestimonials.status === "fulfilled" &&
+          contentfulTestimonials.value
         ) {
-          setTestimonials(strapiTestimonials.value);
+          setTestimonials(contentfulTestimonials.value);
           console.log(
-            "✅ Strapi testimonials loaded:",
-            strapiTestimonials.value
+            "✅ Contentful testimonials loaded:",
+            contentfulTestimonials.value
           );
         }
 
         if (
-          strapiHeroFeatures.status === "fulfilled" &&
-          strapiHeroFeatures.value
+          contentfulHeroFeatures.status === "fulfilled" &&
+          contentfulHeroFeatures.value
         ) {
-          setHeroFeatures(strapiHeroFeatures.value);
+          setHeroFeatures(contentfulHeroFeatures.value);
           console.log(
-            "✅ Strapi hero features loaded:",
-            strapiHeroFeatures.value
+            "✅ Contentful hero features loaded:",
+            contentfulHeroFeatures.value
           );
         }
 
         if (
-          strapiMainFeatures.status === "fulfilled" &&
-          strapiMainFeatures.value
+          contentfulMainFeatures.status === "fulfilled" &&
+          contentfulMainFeatures.value
         ) {
-          setMainFeatures(strapiMainFeatures.value);
+          setMainFeatures(contentfulMainFeatures.value);
           console.log(
-            "✅ Strapi main features loaded:",
-            strapiMainFeatures.value
+            "✅ Contentful main features loaded:",
+            contentfulMainFeatures.value
           );
         }
 
         if (
-          strapiCompanyStats.status === "fulfilled" &&
-          strapiCompanyStats.value
+          contentfulCompanyStats.status === "fulfilled" &&
+          contentfulCompanyStats.value
         ) {
-          setCompanyStats(strapiCompanyStats.value);
+          setCompanyStats(contentfulCompanyStats.value);
           console.log(
-            "✅ Strapi company stats loaded:",
-            strapiCompanyStats.value
+            "✅ Contentful company stats loaded:",
+            contentfulCompanyStats.value
           );
         }
 
-        console.log("🎉 All Strapi content loaded successfully!");
+        console.log("🎉 All Contentful content loaded successfully!");
       } catch (error) {
-        console.error("❌ Failed to load Strapi content:", error);
+        console.error("❌ Failed to load Contentful content:", error);
         console.log("🔄 Using fallback content...");
 
-        // Fallback data when Strapi is unavailable
+        // Fallback data when Contentful is unavailable
         setPageContent({
           id: 1,
           pageSlug: "home",
