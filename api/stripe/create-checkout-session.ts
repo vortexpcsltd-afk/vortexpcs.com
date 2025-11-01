@@ -1,6 +1,13 @@
 import Stripe from "stripe";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
+// Log environment check (first 10 chars only for security)
+console.log("STRIPE_SECRET_KEY available:", !!process.env.STRIPE_SECRET_KEY);
+console.log(
+  "STRIPE_SECRET_KEY prefix:",
+  process.env.STRIPE_SECRET_KEY?.substring(0, 7)
+);
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -72,8 +79,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (error: any) {
     console.error("Stripe checkout session error:", error);
+    console.error("Error details:", {
+      message: error.message,
+      type: error.type,
+      code: error.code,
+      statusCode: error.statusCode,
+    });
     res.status(500).json({
       message: error.message || "Failed to create checkout session",
+      error: error.type || "unknown_error",
     });
   }
 }
