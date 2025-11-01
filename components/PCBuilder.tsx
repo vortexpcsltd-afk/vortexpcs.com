@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { fetchPCComponents, PCComponent } from "../services/cms";
+import {
+  fetchPCComponents,
+  fetchPCOptionalExtras,
+  PCComponent,
+  PCOptionalExtra,
+} from "../services/cms";
 import {
   Select,
   SelectContent,
@@ -1345,10 +1350,18 @@ const PeripheralCard = ({
 }) => {
   const [isFavorited, setIsFavorited] = useState(false);
 
-  const peripheralWithImages = {
-    ...peripheral,
-    images: Array(4).fill(PLACEHOLDER_IMAGE),
-  };
+  // Use actual images from CMS data, fallback to placeholder if none
+  const peripheralImages =
+    peripheral.images && peripheral.images.length > 0
+      ? peripheral.images
+      : Array(4).fill(PLACEHOLDER_IMAGE);
+
+  // Debug logging for image data
+  console.log(`🔍 PeripheralCard for ${peripheral.name}:`, {
+    hasImages: peripheral.images ? peripheral.images.length : 0,
+    firstImage: peripheral.images?.[0]?.substring(0, 50) + "..." || "none",
+    usingFallback: !(peripheral.images && peripheral.images.length > 0),
+  });
 
   if (viewMode === "list") {
     return (
@@ -1365,7 +1378,7 @@ const PeripheralCard = ({
             {/* Image */}
             <div className="sm:col-span-3">
               <ComponentImageGallery
-                images={peripheralWithImages.images}
+                images={peripheralImages}
                 productName={peripheral.name}
                 isCompact={true}
               />
@@ -1495,7 +1508,7 @@ const PeripheralCard = ({
       <div className="p-6 space-y-4">
         {/* Image Gallery */}
         <ComponentImageGallery
-          images={peripheralWithImages.images}
+          images={peripheralImages}
           productName={peripheral.name}
         />
 
@@ -1804,16 +1817,30 @@ export function PCBuilder({
     psu: [],
     cooling: [],
   });
+  const [cmsOptionalExtras, setCmsOptionalExtras] = useState<{
+    keyboard: PCOptionalExtra[];
+    mouse: PCOptionalExtra[];
+    monitor: PCOptionalExtra[];
+    gamepad: PCOptionalExtra[];
+    mousepad: PCOptionalExtra[];
+  }>({
+    keyboard: [],
+    mouse: [],
+    monitor: [],
+    gamepad: [],
+    mousepad: [],
+  });
   const [isLoadingCms, setIsLoadingCms] = useState(true);
   const [useCmsData, setUseCmsData] = useState(false);
 
   // Fetch components from CMS on mount
   useEffect(() => {
-    const loadCmsComponents = async () => {
+    const loadCmsData = async () => {
       try {
-        console.log("🔄 Loading PC components from CMS...");
+        console.log("🔄 Loading PC components and optional extras from CMS...");
         setIsLoadingCms(true);
 
+        // Load PC components
         const categories = [
           "case",
           "motherboard",
@@ -1825,38 +1852,59 @@ export function PCBuilder({
           "cooling",
         ];
 
-        const results: any = {};
-
+        const componentResults: any = {};
         for (const category of categories) {
           const components = await fetchPCComponents({ category });
-          results[category] = components;
+          componentResults[category] = components;
           console.log(
             `✅ Loaded ${components.length} ${category} components from CMS`
           );
         }
 
-        setCmsComponents(results);
+        // Load optional extras
+        const extraCategories = [
+          "keyboard",
+          "mouse",
+          "monitor",
+          "gamepad",
+          "mousepad",
+        ];
 
-        // Use CMS data if any components were loaded
-        const hasComponents = Object.values(results).some(
+        const extraResults: any = {};
+        for (const category of extraCategories) {
+          const extras = await fetchPCOptionalExtras({ category });
+          extraResults[category] = extras;
+          console.log(
+            `✅ Loaded ${extras.length} ${category} optional extras from CMS`
+          );
+        }
+
+        setCmsComponents(componentResults);
+        setCmsOptionalExtras(extraResults);
+
+        // Use CMS data if any components or extras were loaded
+        const hasComponents = Object.values(componentResults).some(
           (arr: any) => arr.length > 0
         );
-        setUseCmsData(hasComponents);
+        const hasExtras = Object.values(extraResults).some(
+          (arr: any) => arr.length > 0
+        );
+        setUseCmsData(hasComponents || hasExtras);
 
-        if (hasComponents) {
+        if (hasComponents || hasExtras) {
           console.log("✅ Using CMS data for PC Builder");
         } else {
           console.log("ℹ️ No CMS data found, using fallback hardcoded data");
         }
       } catch (error) {
-        console.error("❌ Error loading CMS components:", error);
+        console.error("❌ Error loading CMS data:", error);
         setUseCmsData(false);
       } finally {
         setIsLoadingCms(false);
       }
     };
 
-    loadCmsComponents();
+    loadCmsData();
   }, []);
 
   // Import recommended build on mount or when it changes
@@ -1900,6 +1948,11 @@ export function PCBuilder({
 
   // Merge CMS data with fallback componentData
   const activeComponentData = useCmsData ? cmsComponents : componentData;
+
+  // Merge CMS optional extras with fallback peripheralsData
+  const activeOptionalExtrasData = useCmsData
+    ? cmsOptionalExtras
+    : peripheralsData;
 
   // Check compatibility whenever components change
   useEffect(() => {
@@ -1982,9 +2035,9 @@ export function PCBuilder({
           return (
             total +
             items.reduce((itemTotal, itemId) => {
-              const peripheral = (peripheralsData as any)[category]?.find(
-                (p: any) => p.id === itemId
-              );
+              const peripheral = (activeOptionalExtrasData as any)[
+                category
+              ]?.find((p: any) => p.id === itemId);
               return itemTotal + (peripheral ? peripheral.price : 0);
             }, 0)
           );
@@ -2668,7 +2721,7 @@ export function PCBuilder({
                       if (!Array.isArray(items) || items.length === 0)
                         return null;
                       return items.map((itemId: any) => {
-                        const peripheral = (peripheralsData as any)[
+                        const peripheral = (activeOptionalExtrasData as any)[
                           category
                         ]?.find((p: any) => p.id === itemId);
                         return peripheral ? (
@@ -3029,7 +3082,7 @@ export function PCBuilder({
                 </Badge>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {peripheralsData.keyboard.map((keyboard: any) => (
+                {activeOptionalExtrasData.keyboard.map((keyboard: any) => (
                   <PeripheralCard
                     key={keyboard.id}
                     peripheral={keyboard}
@@ -3063,7 +3116,7 @@ export function PCBuilder({
                 </Badge>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {peripheralsData.mouse.map((mouse: any) => (
+                {activeOptionalExtrasData.mouse.map((mouse: any) => (
                   <PeripheralCard
                     key={mouse.id}
                     peripheral={mouse}
@@ -3098,7 +3151,7 @@ export function PCBuilder({
                 </Badge>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {peripheralsData.monitor.map((monitor: any) => (
+                {activeOptionalExtrasData.monitor.map((monitor: any) => (
                   <PeripheralCard
                     key={monitor.id}
                     peripheral={monitor}
@@ -3132,7 +3185,7 @@ export function PCBuilder({
                 </Badge>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {peripheralsData.gamepad.map((gamepad: any) => (
+                {activeOptionalExtrasData.gamepad.map((gamepad: any) => (
                   <PeripheralCard
                     key={gamepad.id}
                     peripheral={gamepad}
@@ -3166,7 +3219,7 @@ export function PCBuilder({
                 </Badge>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {peripheralsData.mousepad.map((mousepad: any) => (
+                {activeOptionalExtrasData.mousepad.map((mousepad: any) => (
                   <PeripheralCard
                     key={mousepad.id}
                     peripheral={mousepad}

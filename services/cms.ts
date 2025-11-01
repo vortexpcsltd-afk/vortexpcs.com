@@ -277,6 +277,65 @@ export interface PCComponent {
   rgbLighting?: boolean;
 }
 
+// PC Optional Extra Interface
+export interface PCOptionalExtra {
+  id: string;
+  name: string;
+  price: number;
+  category: string; // keyboard, mouse, monitor, gamepad, mousepad, headset, webcam, microphone, speakers, accessories
+  rating?: number;
+  description?: string;
+  images?: string[];
+  inStock?: boolean;
+  featured?: boolean;
+
+  // Common fields
+  type?: string; // Mechanical, Wireless, Gaming, etc.
+  wireless?: boolean;
+  rgb?: boolean;
+  brand?: string;
+  color?: string;
+
+  // Keyboard specific
+  switches?: string;
+  layout?: string;
+  keyCount?: number;
+
+  // Mouse specific
+  dpi?: number;
+  weight?: number;
+  sensor?: string;
+
+  // Monitor specific
+  size?: number; // inches
+  monitorResolution?: string;
+  refreshRate?: number;
+  panelType?: string; // IPS, VA, OLED
+  curved?: boolean;
+  aspectRatio?: string;
+
+  // Gamepad specific
+  platform?: string; // PC, Xbox, PlayStation, Multi-platform
+  batteryLife?: string;
+  connection?: string;
+
+  // Mousepad specific
+  surface?: string; // Cloth, Hard
+  dimensions?: string;
+  thickness?: number;
+
+  // Audio specific (headset, speakers, microphone)
+  frequencyResponse?: string;
+  impedance?: number;
+  microphone?: boolean;
+  surroundSound?: boolean;
+
+  // Webcam/Microphone specific
+  resolution?: string; // 1080p, 4K, etc.
+  frameRate?: number;
+  fieldOfView?: number;
+}
+
 export interface LegalPage {
   id: number;
   pageType: "terms" | "privacy" | "cookies";
@@ -1627,6 +1686,7 @@ export const fetchPCComponents = async (params?: {
 
     const query: any = {
       limit: params?.limit || 100,
+      include: 1, // Include linked assets (images)
     };
 
     // If category specified, use specific content type, otherwise fetch all types
@@ -1652,7 +1712,7 @@ export const fetchPCComponents = async (params?: {
         `📦 Found ${response.items.length} ${params.category} components`
       );
       allComponents = response.items.map((item: any) =>
-        mapContentfulToComponent(item, params.category!)
+        mapContentfulToComponent(item, params.category!, response.includes)
       );
 
       // Log sample component for debugging
@@ -1676,7 +1736,7 @@ export const fetchPCComponents = async (params?: {
             `📦 Found ${response.items.length} ${category} components`
           );
           const components = response.items.map((item: any) =>
-            mapContentfulToComponent(item, category)
+            mapContentfulToComponent(item, category, response.includes)
           );
           allComponents = [...allComponents, ...components];
         } catch (error) {
@@ -1707,17 +1767,29 @@ export const fetchPCComponents = async (params?: {
 /**
  * Helper function to map Contentful entry to PCComponent
  */
-function mapContentfulToComponent(item: any, category: string): PCComponent {
+function mapContentfulToComponent(
+  item: any,
+  category: string,
+  includes?: any
+): PCComponent {
   const fields = item.fields;
 
-  // Process images - handle both single image and multiple images fields
+  // Process images - resolve asset links from includes
   let images: string[] = [];
   if (fields.images && Array.isArray(fields.images)) {
     // Multiple images field
     images = fields.images
-      .map((img: any) =>
-        img.fields?.file?.url ? `https:${img.fields.file.url}` : null
-      )
+      .map((img: any) => {
+        if (img.sys?.linkType === "Asset" && includes?.Asset) {
+          const asset = includes.Asset.find(
+            (a: any) => a.sys.id === img.sys.id
+          );
+          return asset?.fields?.file?.url
+            ? `https:${asset.fields.file.url}`
+            : null;
+        }
+        return img.fields?.file?.url ? `https:${img.fields.file.url}` : null;
+      })
       .filter(Boolean);
   } else if (fields.image && fields.image.fields?.file?.url) {
     // Single image field
@@ -1795,5 +1867,149 @@ function mapContentfulToComponent(item: any, category: string): PCComponent {
     tdpSupport: fields.tdpSupport,
     radiatorSize: fields.radiatorSize,
     rgbLighting: fields.rgbLighting,
+  };
+}
+
+/**
+ * Fetch PC Optional Extras from Contentful
+ */
+export const fetchPCOptionalExtras = async (params?: {
+  category?: string;
+  limit?: number;
+  featured?: boolean;
+}): Promise<PCOptionalExtra[]> => {
+  if (!isContentfulEnabled || !contentfulClient) {
+    console.log(
+      "📦 Contentful not enabled, returning empty optional extras array"
+    );
+    return [];
+  }
+
+  try {
+    console.log("🔍 Fetching PC optional extras from Contentful...", params);
+
+    const query: any = {
+      content_type: "optionalExtra",
+      limit: params?.limit || 100,
+      include: 1, // Include linked assets (images)
+    };
+
+    if (params?.featured !== undefined) {
+      query["fields.featured"] = params.featured;
+    }
+    if (params?.category) {
+      query["fields.category"] = params.category;
+    }
+
+    const response = await contentfulClient.getEntries(query);
+    console.log(`📦 Found ${response.items.length} optional extras from CMS`);
+
+    const extras = response.items.map((item: any) =>
+      mapContentfulToOptionalExtra(item, response.includes)
+    );
+
+    // Log sample extra for debugging
+    if (extras.length > 0) {
+      console.log("🔍 Sample optional extra:", {
+        id: extras[0].id,
+        name: extras[0].name,
+        category: extras[0].category,
+        imagesCount: extras[0].images?.length || 0,
+      });
+    }
+
+    return extras;
+  } catch (error: any) {
+    console.error("Fetch PC optional extras error:", error);
+    console.error("Error details:", error.message);
+    return [];
+  }
+};
+
+/**
+ * Helper function to map Contentful entry to PCOptionalExtra
+ */
+function mapContentfulToOptionalExtra(
+  item: any,
+  includes?: any
+): PCOptionalExtra {
+  const fields = item.fields;
+
+  // Process images - resolve asset links from includes
+  let images: string[] = [];
+  if (fields.images && Array.isArray(fields.images)) {
+    images = fields.images
+      .map((img: any) => {
+        if (img.sys?.linkType === "Asset" && includes?.Asset) {
+          const asset = includes.Asset.find(
+            (a: any) => a.sys.id === img.sys.id
+          );
+          return asset?.fields?.file?.url
+            ? `https:${asset.fields.file.url}`
+            : null;
+        }
+        return img.fields?.file?.url ? `https:${img.fields.file.url}` : null;
+      })
+      .filter(Boolean);
+  } else if (fields.image && fields.image.fields?.file?.url) {
+    images = [`https:${fields.image.fields.file.url}`];
+  }
+
+  return {
+    id: fields.extraId || fields.id || item.sys.id,
+    name: fields.name,
+    price: fields.price || 0,
+    category: fields.category,
+    rating: fields.rating,
+    description: fields.description,
+    images: images,
+    inStock: fields.inStock !== false,
+    featured: fields.featured || false,
+
+    // Common fields
+    type: fields.type,
+    wireless: fields.wireless,
+    rgb: fields.rgb,
+    brand: fields.brand,
+    color: fields.color,
+
+    // Keyboard specific
+    switches: fields.switches,
+    layout: fields.layout,
+    keyCount: fields.keyCount,
+
+    // Mouse specific
+    dpi: fields.dpi,
+    weight: fields.weight,
+    sensor: fields.sensor,
+
+    // Monitor specific
+    size: fields.size,
+    monitorResolution: fields.monitorResolution,
+    refreshRate: fields.refreshRate,
+    panelType: fields.panelType,
+    curved: fields.curved,
+    aspectRatio: fields.aspectRatio,
+
+    // Gamepad specific
+    platform: fields.platform,
+    batteryLife: fields.batteryLife,
+    connection: fields.connection,
+
+    // Mousepad specific
+    surface: fields.surface,
+    dimensions: fields.dimensions,
+    thickness: fields.thickness,
+
+    // Audio specific
+    frequencyResponse: fields.frequencyResponse,
+    impedance: fields.impedance,
+    microphone: fields.microphone,
+    surroundSound: fields.surroundSound,
+
+    // Webcam/Microphone specific
+    resolution: fields.resolution,
+    frameRate: fields.frameRate,
+    fieldOfView: fields.fieldOfView,
   };
 }
