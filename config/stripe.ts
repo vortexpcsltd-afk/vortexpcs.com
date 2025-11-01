@@ -10,8 +10,8 @@
  * 6. Set up webhook endpoint for order confirmations
  * 7. Enable Payment Methods: Cards, Apple Pay, Google Pay
  *
- * Note: Use test keys (pk_test_...) for development
- * Updated: Environment variables configured in Vercel
+ * Note: Currently configured for TEST mode
+ * Updated: November 2025
  */
 
 import { loadStripe, Stripe } from "@stripe/stripe-js";
@@ -55,9 +55,9 @@ export const stripeConfig = {
 
 // Backend API URL for Stripe operations
 // Hardcoded to match production domain - no environment variable needed
-export const stripeBackendUrl = 
-  typeof window !== 'undefined' 
-    ? window.location.origin 
+export const stripeBackendUrl =
+  typeof window !== "undefined"
+    ? window.location.origin
     : "https://www.vortexpcs.com";
 
 console.log("🔧 Stripe Backend URL:", stripeBackendUrl);
