@@ -54,8 +54,10 @@ export const stripeConfig = {
 };
 
 // Backend API URL for Stripe operations
-// In production, this should point to your serverless functions or backend API
-export const stripeBackendUrl =
-  import.meta.env.VITE_STRIPE_BACKEND_URL || window.location.origin;
+// Hardcoded to match production domain - no environment variable needed
+export const stripeBackendUrl = 
+  typeof window !== 'undefined' 
+    ? window.location.origin 
+    : "https://www.vortexpcs.com";
 
 console.log("🔧 Stripe Backend URL:", stripeBackendUrl);
