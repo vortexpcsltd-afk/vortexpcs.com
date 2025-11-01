@@ -35,7 +35,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
   const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const heroBackground = "https://vortexpcs.com/gaming-keyboard.jpeg";
+  const heroBackground = "/gaming-keyboard.jpeg";
 
   useEffect(() => {
     console.log("🔄 HomePage useEffect running, cmsDisabled:", cmsDisabled);

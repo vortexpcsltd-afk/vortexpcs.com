@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { CheckCircle2, Package, Mail, Home, Loader2 } from "lucide-react";
+import { verifyPayment } from "../services/payment";
 
 interface OrderSuccessProps {
   onNavigate: (view: string) => void;
@@ -13,7 +14,7 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const verifyPayment = async () => {
+    const loadOrderDetails = async () => {
       // Get session_id from URL
       const urlParams = new URLSearchParams(window.location.search);
       const sessionId = urlParams.get("session_id");
@@ -26,15 +27,7 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
 
       try {
         // Verify payment with backend
-        const response = await fetch(
-          `/api/stripe/verify-payment?session_id=${sessionId}`
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to verify payment");
-        }
-
-        const data = await response.json();
+        const data = await verifyPayment(sessionId);
         setOrderDetails(data);
 
         // TODO: Create order in Firebase Firestore
@@ -47,7 +40,7 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
       }
     };
 
-    verifyPayment();
+    loadOrderDetails();
   }, []);
 
   if (loading) {

@@ -39,6 +39,15 @@ export const createCheckoutSession = async (
   userId?: string,
   metadata?: Record<string, string>
 ): Promise<CheckoutSession> => {
+  // Use mock for development to avoid CORS issues
+  if (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  ) {
+    console.log("Using mock checkout session for development");
+    return mockCreateCheckoutSession();
+  }
+
   try {
     // Call backend API endpoint
     const apiUrl = `${stripeBackendUrl}/api/stripe/create-checkout-session`;
@@ -106,15 +115,24 @@ export const createPaymentIntent = async (
   currency: string = "gbp",
   metadata?: Record<string, string>
 ): Promise<PaymentIntent> => {
+  // Use mock for development to avoid CORS issues
+  if (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  ) {
+    console.log("Using mock payment intent for development");
+    return mockCreatePaymentIntent(amount, currency, metadata);
+  }
+
   try {
-    const response = await axios.post(
-      `${stripeBackendUrl}/create-payment-intent`,
-      {
-        amount: Math.round(amount * 100), // Convert to pence
-        currency,
-        metadata,
-      }
-    );
+    // Use local proxy endpoint that Vite will forward to backend
+    const apiUrl = `/api/stripe/create-payment-intent`;
+
+    const response = await axios.post(apiUrl, {
+      amount: Math.round(amount * 100), // Convert to pence
+      currency,
+      metadata,
+    });
 
     return response.data;
   } catch (error: any) {
@@ -127,8 +145,18 @@ export const createPaymentIntent = async (
  * Verify payment status
  */
 export const verifyPayment = async (sessionId: string) => {
+  // Use mock for development to avoid CORS issues
+  if (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  ) {
+    console.log("Using mock payment verification for development");
+    return mockVerifyPayment();
+  }
+
   try {
-    const apiUrl = `${stripeBackendUrl}/api/stripe/verify-payment`;
+    // Use local proxy endpoint that Vite will forward to backend
+    const apiUrl = `/api/stripe/verify-payment`;
 
     const response = await axios.get(`${apiUrl}?session_id=${sessionId}`);
     return response.data;
@@ -168,18 +196,59 @@ export const calculateCartTotal = (items: CartItem[]): number => {
  */
 
 // Simulated backend session creation (DEVELOPMENT ONLY)
-export const mockCreateCheckoutSession = async (
-  _items: CartItem[],
-  _customerEmail?: string
-): Promise<CheckoutSession> => {
-  // This is a mock - in production, implement a proper backend
+export const mockCreateCheckoutSession = async (): Promise<CheckoutSession> => {
   console.warn(
-    "Using mock checkout session - implement real backend for production!"
+    "Using development checkout - redirecting to success page for testing"
   );
 
+  // For development, simulate a successful checkout by redirecting to success page
+  // This allows testing the UI flow without real Stripe integration
+  const sessionId = "dev_test_" + Date.now();
+
+  // Simulate successful payment by redirecting to success page with test data
+  setTimeout(() => {
+    window.location.href = `${stripeConfig.successUrl}?session_id=${sessionId}&dev_test=true`;
+  }, 1000);
+
+  // Return a mock session (won't be used due to redirect)
   return {
-    sessionId: "mock_session_" + Date.now(),
-    url: stripeConfig.successUrl + "?session_id=mock_session_" + Date.now(),
+    sessionId: sessionId,
+    url: `${stripeConfig.successUrl}?session_id=${sessionId}&dev_test=true`,
+  };
+};
+
+// Mock payment verification for development
+export const mockVerifyPayment = async () => {
+  console.warn("Using mock payment verification for development");
+
+  // Simulate successful payment verification
+  return {
+    status: "paid",
+    customerEmail: "test@example.com",
+    amountTotal: 10000, // £100.00 in pence
+    currency: "gbp",
+    paymentStatus: "paid",
+    devTest: true,
+  };
+};
+
+// Mock payment intent creation for development
+export const mockCreatePaymentIntent = async (
+  amount: number,
+  currency: string = "gbp",
+  metadata?: Record<string, string>
+): Promise<PaymentIntent> => {
+  console.warn("Using mock payment intent for development");
+
+  // Simulate payment intent creation
+  const clientSecret = `pi_mock_${Date.now()}_secret_${Math.random()
+    .toString(36)
+    .substring(2)}`;
+
+  return {
+    clientSecret,
+    amount: Math.round(amount * 100), // Convert to pence
+    currency: currency.toUpperCase(),
   };
 };
 

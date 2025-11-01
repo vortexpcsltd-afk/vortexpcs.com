@@ -6,7 +6,6 @@ import {
   ShoppingCart,
   ArrowRight,
   Package,
-  Loader2,
   AlertCircle,
 } from "lucide-react";
 import {
@@ -20,8 +19,6 @@ import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Separator } from "./ui/separator";
 import { Alert, AlertDescription } from "./ui/alert";
-import { redirectToCheckout } from "../services/payment";
-import { getCurrentUser } from "../services/auth";
 
 interface CartItem {
   id: string;
@@ -38,6 +35,7 @@ interface ShoppingCartModalProps {
   cartItems?: CartItem[];
   onUpdateQuantity?: (id: string, quantity: number) => void;
   onRemoveItem?: (id: string) => void;
+  onCheckout?: () => void;
 }
 
 export function ShoppingCartModal({
@@ -46,8 +44,8 @@ export function ShoppingCartModal({
   cartItems = [],
   onUpdateQuantity,
   onRemoveItem,
+  onCheckout,
 }: ShoppingCartModalProps) {
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   // Calculate totals
@@ -70,28 +68,9 @@ export function ShoppingCartModal({
   const handleCheckout = async () => {
     setCheckoutError(null);
 
-    // Check if user is logged in
-    const currentUser = getCurrentUser();
-
-    // Allow guest checkout - if no user, use undefined for email and a guest ID
-    const userEmail = currentUser?.email || undefined;
-    const userId = currentUser?.uid || `guest_${Date.now()}`;
-
-    setCheckoutLoading(true);
-
-    try {
-      // Redirect to Stripe Checkout (works for both logged in and guest users)
-      await redirectToCheckout(cartItems, userEmail, userId);
-
-      // If we reach here, something went wrong (redirect should have happened)
-      // The redirectToCheckout function will handle the actual redirect
-    } catch (error: any) {
-      console.error("Checkout error:", error);
-      setCheckoutError(
-        error.message || "Failed to proceed to checkout. Please try again."
-      );
-      setCheckoutLoading(false);
-    }
+    // Navigate to custom checkout page
+    onClose(); // Close the cart modal
+    onCheckout?.(); // Navigate to checkout page
   };
 
   return (
@@ -243,26 +222,15 @@ export function ShoppingCartModal({
                 onClick={onClose}
                 variant="outline"
                 className="flex-1 border-white/10 text-white hover:bg-white/5"
-                disabled={checkoutLoading}
               >
                 Continue Shopping
               </Button>
               <Button
                 onClick={handleCheckout}
-                disabled={checkoutLoading}
-                className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300"
               >
-                {checkoutLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    Proceed to Checkout
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </>
-                )}
+                Proceed to Checkout
+                <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
 

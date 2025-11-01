@@ -43,7 +43,12 @@ import {
   Bookmark,
   Heart,
 } from "lucide-react";
-import { fetchPCBuilds, fetchCategories, type PCBuild } from "../services/cms";
+import {
+  fetchPCBuilds,
+  fetchCategories,
+  fetchProducts,
+  type PCBuild,
+} from "../services/cms";
 
 // Dark themed placeholder image
 const PLACEHOLDER_IMAGE =
@@ -290,25 +295,27 @@ export function PCFinder({
 
   // Load Strapi builds and categories on component mount
   useEffect(() => {
-    const loadStrapiData = async () => {
+    const loadContentfulData = async () => {
       setLoadingBuilds(true);
       try {
-        const [builds, cats] = await Promise.all([
+        const [builds, cats, products] = await Promise.all([
           fetchPCBuilds(),
           fetchCategories(),
+          fetchProducts({ featured: true, limit: 10 }), // Load featured products
         ]);
         setStrapiBuilds(builds);
         setCategories(cats);
-        console.log("✅ Loaded Strapi builds:", builds);
-        console.log("✅ Loaded Strapi categories:", cats);
+        console.log("✅ Loaded Contentful builds:", builds);
+        console.log("✅ Loaded Contentful categories:", cats);
+        console.log("✅ Loaded Contentful products:", products);
       } catch (error) {
-        console.error("Failed to load Strapi data:", error);
+        console.error("Failed to load Contentful data:", error);
       } finally {
         setLoadingBuilds(false);
       }
     };
 
-    loadStrapiData();
+    loadContentfulData();
   }, []);
 
   // Question flow with branching logic
@@ -1344,9 +1351,9 @@ export function PCFinder({
 
     const builds: any[] = [];
 
-    // First, add relevant Strapi builds if available
+    // First, add relevant Contentful builds if available
     if (strapiBuilds.length > 0) {
-      const relevantStrapiBuilds = strapiBuilds.filter((build) => {
+      const relevantBuilds = strapiBuilds.filter((build) => {
         // Filter by budget (if price is available)
         if (build.price && build.price > answers.budget * 1.2) return false;
 
@@ -1366,16 +1373,16 @@ export function PCFinder({
         return build.featured; // Include featured builds as general recommendations
       });
 
-      // Add up to 1 relevant Strapi build (reduced to make room for intelligent recommendations)
-      relevantStrapiBuilds.slice(0, 1).forEach((strapiBuild) => {
+      // Add up to 3 relevant Contentful builds
+      relevantBuilds.slice(0, 3).forEach((build, index) => {
         builds.push({
-          name: strapiBuild.name,
-          price: strapiBuild.price || Math.min(answers.budget, 2500),
-          category: strapiBuild.category || "Custom Build",
+          name: build.name,
+          price: build.price || Math.min(answers.budget, 2500),
+          category: build.category || "Custom Build",
           description:
-            strapiBuild.description ||
+            build.description ||
             "Professional custom build specification designed for your needs",
-          specs: strapiBuild.components || {
+          specs: build.components || {
             cpu: "High-performance processor",
             gpu: "Latest graphics card",
             ram: "Fast DDR5 memory",
@@ -1388,38 +1395,50 @@ export function PCFinder({
             "3-Year Warranty",
             "Expert Support",
           ],
-          images: Array(6).fill(PLACEHOLDER_IMAGE),
+          images: build.images || Array(6).fill(PLACEHOLDER_IMAGE),
           expertComments: [
             `This custom build specification has been carefully selected to deliver excellent performance for ${answers.purpose} workloads.`,
           ],
-          isFromStrapi: true, // Mark as Strapi build for tracking
+          isFromContentful: true, // Mark as Contentful build for tracking
+          recommendation:
+            index === 0
+              ? "Best Match"
+              : index === 1
+              ? "Great Value"
+              : "Alternative Option",
         });
       });
     }
 
-    // Add intelligent recommendations based on scoring
-    topBuilds.forEach((build, index) => {
-      builds.push({
-        name: build.name,
-        price: build.accuratePrice, // Use accurate pricing instead of adjusted price
-        category: build.category,
-        description: build.description,
-        specs: adjustSpecsForRGB(build.specs, answers.rgb_preference || "none"),
-        features: build.features,
-        images: Array(6).fill(PLACEHOLDER_IMAGE),
-        expertComments: generateExpertComments(
-          answers,
-          build.category // Use build category for unique comments
-        ),
-        intelligentScore: build.score, // Add score for debugging/analytics
-        recommendation:
-          index === 0
-            ? "Best Match"
-            : index === 1
-            ? "Great Value"
-            : "Alternative Option",
+    // If we don't have enough Contentful builds, add intelligent recommendations
+    if (builds.length < 3) {
+      const remainingSlots = 3 - builds.length;
+      topBuilds.slice(0, remainingSlots).forEach((build, index) => {
+        builds.push({
+          name: build.name,
+          price: build.accuratePrice, // Use accurate pricing instead of adjusted price
+          category: build.category,
+          description: build.description,
+          specs: adjustSpecsForRGB(
+            build.specs,
+            answers.rgb_preference || "none"
+          ),
+          features: build.features,
+          images: Array(6).fill(PLACEHOLDER_IMAGE),
+          expertComments: generateExpertComments(
+            answers,
+            build.category // Use build category for unique comments
+          ),
+          intelligentScore: build.score, // Add score for debugging/analytics
+          recommendation:
+            builds.length === 0 && index === 0
+              ? "Best Match"
+              : builds.length === 0 && index === 1
+              ? "Great Value"
+              : "Alternative Option",
+        });
       });
-    });
+    }
 
     return builds;
   };

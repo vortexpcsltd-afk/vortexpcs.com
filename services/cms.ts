@@ -1654,6 +1654,18 @@ export const fetchPCComponents = async (params?: {
       allComponents = response.items.map((item: any) =>
         mapContentfulToComponent(item, params.category!)
       );
+
+      // Log sample component for debugging
+      if (allComponents.length > 0) {
+        console.log(`🔍 Sample ${params.category} component:`, {
+          id: allComponents[0].id,
+          name: allComponents[0].name,
+          imagesCount: allComponents[0].images?.length || 0,
+          firstImage:
+            allComponents[0].images?.[0]?.substring(0, 50) + "..." || "none",
+          rawFields: Object.keys(response.items[0].fields),
+        });
+      }
     } else {
       // Fetch all categories
       for (const [category, contentType] of Object.entries(contentTypeMap)) {
@@ -1673,6 +1685,17 @@ export const fetchPCComponents = async (params?: {
       }
     }
 
+    // Log sample component to debug image issues
+    if (allComponents.length > 0) {
+      console.log("🔍 Sample component data:", {
+        id: allComponents[0].id,
+        name: allComponents[0].name,
+        imagesCount: allComponents[0].images?.length || 0,
+        firstImage:
+          allComponents[0].images?.[0]?.substring(0, 50) + "..." || "none",
+      });
+    }
+
     return allComponents;
   } catch (error: any) {
     console.error("Fetch PC components error:", error);
@@ -1687,16 +1710,22 @@ export const fetchPCComponents = async (params?: {
 function mapContentfulToComponent(item: any, category: string): PCComponent {
   const fields = item.fields;
 
-  // Process images
-  const images =
-    fields.images
-      ?.map((img: any) =>
+  // Process images - handle both single image and multiple images fields
+  let images: string[] = [];
+  if (fields.images && Array.isArray(fields.images)) {
+    // Multiple images field
+    images = fields.images
+      .map((img: any) =>
         img.fields?.file?.url ? `https:${img.fields.file.url}` : null
       )
-      .filter(Boolean) || [];
+      .filter(Boolean);
+  } else if (fields.image && fields.image.fields?.file?.url) {
+    // Single image field
+    images = [`https:${fields.image.fields.file.url}`];
+  }
 
   return {
-    id: fields.componentId || item.sys.id,
+    id: fields.componentId || fields.id || item.sys.id,
     name: fields.name,
     price: fields.price || 0,
     category: category,
@@ -1713,7 +1742,7 @@ function mapContentfulToComponent(item: any, category: string): PCComponent {
     style: fields.style,
     compatibility: fields.compatibility,
     maxGpuLength: fields.maxGpuLength,
-    maxCpuCoolerHeight: fields.maxCpuCoolerHeight,
+    maxCpuCoolerHeight: fields.maxCpuCoolerHeight || fields.maxCoolerHeight,
     maxPsuLength: fields.maxPsuLength,
 
     // Motherboard fields

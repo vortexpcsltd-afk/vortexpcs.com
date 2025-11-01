@@ -14,6 +14,7 @@ import { Footer } from "./components/Footer";
 import { LoginDialog } from "./components/LoginDialog";
 import { ShoppingCartModal } from "./components/ShoppingCartModal";
 import { OrderSuccess } from "./components/OrderSuccess";
+import { CheckoutPage } from "./components/CheckoutPage";
 import { HomePage } from "./components/HomePage";
 import { TermsPage } from "./components/TermsPage";
 import { PrivacyPage } from "./components/PrivacyPage";
@@ -164,6 +165,14 @@ export default function App() {
         return isAdmin ? <AdminPanel /> : <div>Access Denied</div>;
       case "order-success":
         return <OrderSuccess onNavigate={setCurrentView} />;
+      case "checkout":
+        return (
+          <CheckoutPage
+            cartItems={cartItems}
+            onNavigate={setCurrentView}
+            onBackToCart={() => setShowCartModal(true)}
+          />
+        );
       case "terms":
         return <TermsPage />;
       case "privacy":
@@ -545,7 +554,6 @@ export default function App() {
             activeTab={loginTab}
           />
 
-          {/* Shopping Cart Modal */}
           <ShoppingCartModal
             isOpen={showCartModal}
             onClose={() => setShowCartModal(false)}
@@ -560,10 +568,7 @@ export default function App() {
             onRemoveItem={(id) => {
               setCartItems((items) => items.filter((item) => item.id !== id));
             }}
-            onLoginRequired={() => {
-              setShowLoginDialog(true);
-              setLoginTab("login");
-            }}
+            onCheckout={() => setCurrentView("checkout")}
           />
 
           {/* Floating Live Chat Button */}

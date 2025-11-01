@@ -14,7 +14,7 @@ import {
   Zap,
   ChevronRight,
 } from "lucide-react";
-const vortexLogo = "https://www.vortexpcs.com/vortexpcs-logo.png";
+const vortexLogo = "/vortexpcs-logo.png";
 
 interface FooterProps {
   onNavigate: (view: string) => void;

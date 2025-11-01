@@ -3,7 +3,14 @@
  * Provides authentication state and methods throughout the application
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { onAuthStateChanged } from "../services/auth";
 
 // Define types without importing from Firebase to avoid initialization issues
 interface User {
@@ -41,7 +48,7 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
+    throw new Error("useAuth must be used within AuthProvider");
   }
   return context;
 };
@@ -56,9 +63,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(false); // Start with false since we're not loading anything initially
 
   useEffect(() => {
-    // For now, Firebase is optional. The app works without authentication.
-    // When Firebase is properly configured, this will initialize auth state
-    setLoading(false);
+    // Listen to Firebase auth state changes
+    const unsubscribe = onAuthStateChanged((firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        // Load user profile from Firestore
+        import("../services/auth").then(({ getUserProfile }) => {
+          getUserProfile(firebaseUser.uid)
+            .then((profile) => {
+              setUserProfile(profile);
+            })
+            .catch((error) => {
+              console.error("Failed to load user profile:", error);
+            });
+        });
+      } else {
+        setUserProfile(null);
+      }
+      setLoading(false);
+    });
+
+    return unsubscribe;
   }, []);
 
   const value: AuthContextType = {
@@ -66,12 +91,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userProfile,
     loading,
     isAuthenticated: !!user,
-    isAdmin: userProfile?.email === 'admin@vortexpcs.co.uk' || false,
+    isAdmin: userProfile?.email === "admin@vortexpcs.co.uk" || false,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

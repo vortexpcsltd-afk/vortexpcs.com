@@ -309,10 +309,13 @@ const ComponentCard = ({
 }) => {
   const [isFavorited, setIsFavorited] = useState(false);
 
-  // Add images array to each component (placeholder for now)
+  // Add images array to each component (use actual images or placeholders)
   const componentWithImages = {
     ...component,
-    images: Array(4).fill(PLACEHOLDER_IMAGE),
+    images:
+      component.images && component.images.length > 0
+        ? component.images
+        : Array(4).fill(PLACEHOLDER_IMAGE),
   };
 
   if (viewMode === "list") {
@@ -2571,18 +2574,6 @@ export function PCBuilder({
               <div className="flex items-center justify-center gap-3">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-400"></div>
                 <p className="text-sky-300">Loading components from CMS...</p>
-              </div>
-            </div>
-          )}
-
-          {/* CMS Data Source Indicator */}
-          {!isLoadingCms && useCmsData && (
-            <div className="mt-6 p-3 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 max-w-2xl mx-auto">
-              <div className="flex items-center justify-center gap-2">
-                <Sparkles className="w-4 h-4 text-green-400" />
-                <p className="text-sm text-green-300">
-                  Components loaded from Contentful CMS
-                </p>
               </div>
             </div>
           )}

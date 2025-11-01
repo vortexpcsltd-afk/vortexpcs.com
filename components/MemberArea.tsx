@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { Avatar, AvatarFallback } from "./ui/avatar";
@@ -21,19 +22,16 @@ import {
   Camera,
   Loader2,
 } from "lucide-react";
-import {
-  getCurrentUser,
-  getUserProfile,
-  updateUserProfile,
-} from "../services/auth";
+import { updateUserProfile } from "../services/auth";
 import {
   getUserOrders,
   getUserConfigurations,
   deleteConfiguration,
   createSupportTicket,
+  Order,
+  SavedConfiguration,
 } from "../services/database";
-import type { Order, SavedConfiguration } from "../services/database";
-import { Textarea } from "./ui/textarea";
+import { useAuth } from "../contexts/AuthContext";
 
 interface MemberAreaProps {
   isLoggedIn: boolean;
@@ -46,10 +44,10 @@ export function MemberArea({
   setIsLoggedIn,
   onNavigate,
 }: MemberAreaProps) {
+  const { user, userProfile } = useAuth();
   const [editingProfile, setEditingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [configurations, setConfigurations] = useState<SavedConfiguration[]>(
     []
@@ -73,20 +71,15 @@ export function MemberArea({
   // Load user data on component mount
   useEffect(() => {
     const loadUserData = async () => {
+      if (!user) return;
+
       try {
         setLoading(true);
 
-        const user = getCurrentUser();
-        if (!user) {
-          setIsLoggedIn(false);
-          return;
-        }
-
-        setCurrentUser(user);
         console.log("📋 Member Area - Loading data for user:", user.uid);
 
         // Load user profile
-        const profile = await getUserProfile(user.uid);
+        const profile = userProfile;
         console.log("👤 Member Area - User profile:", profile);
 
         if (profile) {
@@ -117,10 +110,10 @@ export function MemberArea({
       }
     };
 
-    if (isLoggedIn) {
+    if (user && isLoggedIn) {
       loadUserData();
     }
-  }, [isLoggedIn, setIsLoggedIn]);
+  }, [user, userProfile, isLoggedIn]);
 
   // Helper function to get user initials
   const getInitials = (name: string) => {
@@ -134,14 +127,11 @@ export function MemberArea({
 
   // Calculate member since date
   const getMemberSince = () => {
-    if (currentUser?.metadata?.creationTime) {
-      return new Date(currentUser.metadata.creationTime).toLocaleDateString(
-        "en-US",
-        {
-          month: "long",
-          year: "numeric",
-        }
-      );
+    if (userProfile?.createdAt) {
+      return userProfile.createdAt.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      });
     }
     return "N/A";
   };
@@ -151,19 +141,25 @@ export function MemberArea({
     return orders.reduce((sum, order) => sum + order.total, 0);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      const { logoutUser } = await import("../services/auth");
+      await logoutUser();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
     localStorage.removeItem("vortex_user");
     setIsLoggedIn(false);
-    onNavigate?.("home"); // Redirect to homepage
+    onNavigate?.("home");
   };
 
   const handleSaveProfile = async () => {
-    if (!currentUser) return;
+    if (!user) return;
 
     try {
       setLoading(true);
 
-      await updateUserProfile(currentUser.uid, {
+      await updateUserProfile(user.uid, {
         displayName: profileData.name,
         phone: profileData.phone,
         address: profileData.address,
@@ -200,9 +196,9 @@ export function MemberArea({
       setSupportSubmitting(true);
 
       await createSupportTicket({
-        userId: currentUser?.uid,
-        name: profileData.name || currentUser?.displayName || "Member",
-        email: profileData.email || currentUser?.email || "",
+        userId: user?.uid,
+        name: profileData.name || user?.displayName || "Member",
+        email: profileData.email || user?.email || "",
         subject: supportForm.subject,
         message: supportForm.message,
         type: supportForm.type,
@@ -290,8 +286,8 @@ export function MemberArea({
                 <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xl">
                   {getInitials(
                     profileData.name ||
-                      currentUser?.displayName ||
-                      currentUser?.email ||
+                      user?.displayName ||
+                      user?.email ||
                       "User"
                   )}
                 </AvatarFallback>
@@ -299,7 +295,7 @@ export function MemberArea({
               <div>
                 <h1 className="text-3xl font-bold text-white">
                   Welcome back,{" "}
-                  {profileData.name || currentUser?.displayName || "Member"}!
+                  {profileData.name || user?.displayName || "Member"}!
                 </h1>
                 <p className="text-gray-400">Member since {getMemberSince()}</p>
               </div>
@@ -718,8 +714,8 @@ export function MemberArea({
                         <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-4xl">
                           {getInitials(
                             profileData.name ||
-                              currentUser?.displayName ||
-                              currentUser?.email ||
+                              user?.displayName ||
+                              user?.email ||
                               "User"
                           )}
                         </AvatarFallback>

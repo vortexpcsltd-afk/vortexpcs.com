@@ -116,6 +116,12 @@ export const getOrder = async (orderId: string): Promise<Order | null> => {
  * Get all orders for a user
  */
 export const getUserOrders = async (userId: string): Promise<Order[]> => {
+  // If Firebase is not configured, return empty array (no orders in development)
+  if (!db) {
+    console.log("Firebase not configured - returning empty orders array");
+    return [];
+  }
+
   try {
     const q = query(
       collection(db, "orders"),
@@ -191,6 +197,14 @@ export const saveConfiguration = async (
 export const getUserConfigurations = async (
   userId: string
 ): Promise<SavedConfiguration[]> => {
+  // If Firebase is not configured, return empty array (no configurations in development)
+  if (!db) {
+    console.log(
+      "Firebase not configured - returning empty configurations array"
+    );
+    return [];
+  }
+
   try {
     const q = query(
       collection(db, "configurations"),

@@ -40,5 +40,17 @@ export default defineConfig({
       protocol: "ws",
       host: "localhost",
     },
+    // Proxy stripe API requests during development to avoid CORS issues
+    proxy: {
+      // Forward any local /api/stripe requests to the configured backend
+      "/api/stripe": {
+        target:
+          process.env.VITE_STRIPE_BACKEND_URL ||
+          "https://vortexpcs-blu4m4bq5-vortexpc5.vercel.app",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/stripe/, "/api/stripe"),
+      },
+    },
   },
 });

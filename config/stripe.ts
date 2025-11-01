@@ -20,12 +20,13 @@ import { loadStripe, Stripe } from "@stripe/stripe-js";
 export const stripePublishableKey =
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_test_YOUR_PUBLISHABLE_KEY";
 
+// Enhanced key validation and logging - v2.0
+const keyMode = stripePublishableKey.includes("_test_") ? "TEST" : "LIVE";
+const keyPreview = stripePublishableKey.substring(0, 20);
 console.log(
   "🔑 Stripe Key Check:",
   stripePublishableKey
-    ? `${stripePublishableKey.substring(0, 20)}... (Mode: ${
-        stripePublishableKey.includes("_test_") ? "TEST" : "LIVE"
-      })`
+    ? `${keyPreview}... (Mode: ${keyMode}) [Build: ${Date.now()}]`
     : "NOT FOUND"
 );
 
@@ -56,10 +57,11 @@ export const stripeConfig = {
 };
 
 // Backend API URL for Stripe operations
-// Hardcoded to match production domain - no environment variable needed
+// Uses environment variable for flexibility between dev and production
 export const stripeBackendUrl =
-  typeof window !== "undefined"
+  import.meta.env.VITE_STRIPE_BACKEND_URL ||
+  (typeof window !== "undefined"
     ? window.location.origin
-    : "https://www.vortexpcs.com";
+    : "https://www.vortexpcs.com");
 
 console.log("🔧 Stripe Backend URL:", stripeBackendUrl);
