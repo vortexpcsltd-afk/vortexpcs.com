@@ -23,7 +23,9 @@ export const stripePublishableKey =
 console.log(
   "🔑 Stripe Key Check:",
   stripePublishableKey
-    ? `${stripePublishableKey.substring(0, 15)}...`
+    ? `${stripePublishableKey.substring(0, 20)}... (Mode: ${
+        stripePublishableKey.includes("_test_") ? "TEST" : "LIVE"
+      })`
     : "NOT FOUND"
 );
 
