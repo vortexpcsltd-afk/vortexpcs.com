@@ -1,6 +1,7 @@
 /**
  * Stripe Payment Service
  * Handles payment processing, checkout sessions, and order confirmations
+ * Supports both authenticated and guest checkout flows
  */
 
 import {
