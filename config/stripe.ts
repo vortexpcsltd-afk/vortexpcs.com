@@ -57,3 +57,5 @@ export const stripeConfig = {
 // In production, this should point to your serverless functions or backend API
 export const stripeBackendUrl =
   import.meta.env.VITE_STRIPE_BACKEND_URL || "http://localhost:3001/api/stripe";
+
+console.log("🔧 Stripe Backend URL:", stripeBackendUrl);
