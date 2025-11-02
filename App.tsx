@@ -103,7 +103,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentView]);
 
-  // Hydrate document title and meta tags from CMS (Contentful)
+  // Hydrate document title, standard meta tags, Open Graph and Twitter tags from CMS (Contentful)
   useEffect(() => {
     let mounted = true;
 
@@ -113,6 +113,17 @@ export default function App() {
       if (!el) {
         el = document.createElement("meta");
         el.setAttribute("name", name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+    };
+
+    const setMetaProperty = (prop: string, content: string) => {
+      if (!content) return;
+      let el = document.querySelector(`meta[property=\"${prop}\"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute("property", prop);
         document.head.appendChild(el);
       }
       el.setAttribute("content", content);
@@ -139,6 +150,33 @@ export default function App() {
 
         const author = settings?.siteName || "Vortex PCs";
         setMeta("author", author);
+
+        // Determine an image for OG/Twitter: prefer page hero, then settings.logoUrl
+        let ogImage = "";
+        if (home?.heroBackgroundImage) {
+          // Support multiple shapes returned by Contentful (raw asset or simplified URL)
+          const hb = home.heroBackgroundImage as any;
+          if (hb?.fields?.file?.url) ogImage = `https:${hb.fields.file.url}`;
+          else if (hb?.url) ogImage = hb.url;
+          else if (typeof hb === "string") ogImage = hb;
+        }
+        if (!ogImage && settings?.logoUrl) ogImage = settings.logoUrl;
+
+        const pageUrl = window.location.href;
+
+        // Open Graph
+        setMetaProperty("og:title", title);
+        setMetaProperty("og:description", description);
+        setMetaProperty("og:type", "website");
+        setMetaProperty("og:url", pageUrl);
+        if (ogImage) setMetaProperty("og:image", ogImage);
+
+        // Twitter
+        const twitterCard = ogImage ? "summary_large_image" : "summary";
+        setMeta("twitter:card", twitterCard);
+        setMeta("twitter:title", title);
+        setMeta("twitter:description", description);
+        if (ogImage) setMeta("twitter:image", ogImage);
       } catch (error) {
         console.error("Failed to hydrate meta from CMS:", error);
       }
