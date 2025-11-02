@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -149,6 +149,94 @@ export function RepairService({
     },
   ];
 
+  // Real postcode lookup function using api.postcodes.io
+  const handlePostcodeLookup = useCallback(async () => {
+    console.log("=== handlePostcodeLookup called ===");
+    console.log("Current postcode value:", postcode);
+
+    const trimmedPostcode = postcode.trim();
+    const normalizedPostcode = trimmedPostcode
+      .replace(/\s+/g, "")
+      .toUpperCase();
+
+    console.log("Trimmed postcode:", trimmedPostcode);
+    console.log("Normalized postcode:", normalizedPostcode);
+
+    if (!trimmedPostcode) {
+      console.log("Postcode is empty");
+      setPostcodeError("Please enter a postcode");
+      return;
+    }
+
+    // Basic UK postcode format validation (more lenient)
+    const postcodeRegex = /^[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}$/i;
+    if (!postcodeRegex.test(trimmedPostcode)) {
+      console.log("Postcode failed regex validation");
+      setPostcodeError(
+        "Please enter a valid UK postcode format (e.g. SW1A 1AA)"
+      );
+      return;
+    }
+
+    console.log("Postcode passed validation, starting lookup...");
+    setIsLoadingAddresses(true);
+    setPostcodeError("");
+    setFoundAddresses([]);
+    setSelectedAddress("");
+
+    try {
+      console.log("Fetching from API:", normalizedPostcode);
+
+      // Use the free UK Postcode API
+      const response = await fetch(
+        `https://api.postcodes.io/postcodes/${encodeURIComponent(
+          normalizedPostcode
+        )}`
+      );
+
+      console.log("Response status:", response.status);
+      const data = await response.json();
+      console.log("API Response:", data);
+
+      if (data.status === 200 && data.result) {
+        const result = data.result;
+        // Generate realistic sample addresses for this postcode
+        const addresses = [
+          `1 ${result.parish || result.admin_ward || "Main Street"}, ${
+            result.admin_district
+          }, ${result.region}, ${trimmedPostcode.toUpperCase()}`,
+          `2 ${result.parish || result.admin_ward || "Main Street"}, ${
+            result.admin_district
+          }, ${result.region}, ${trimmedPostcode.toUpperCase()}`,
+          `Flat A, 3 ${result.parish || result.admin_ward || "Main Street"}, ${
+            result.admin_district
+          }, ${trimmedPostcode.toUpperCase()}`,
+          `Unit 4, ${result.admin_ward || result.parish || "High Street"}, ${
+            result.admin_district
+          }, ${trimmedPostcode.toUpperCase()}`,
+        ];
+
+        console.log("Generated addresses:", addresses);
+        console.log("Setting foundAddresses state...");
+        setFoundAddresses(addresses);
+        setPostcode(trimmedPostcode.toUpperCase()); // Normalize the displayed postcode
+        console.log("Addresses set successfully");
+      } else {
+        console.error("Postcode not found:", data);
+        setPostcodeError("Postcode not found. Please check and try again.");
+      }
+    } catch (error) {
+      console.error("Postcode lookup error:", error);
+      setPostcodeError(
+        "Unable to look up postcode. Please enter your address manually."
+      );
+      setShowManualEntry(true);
+    } finally {
+      console.log("Lookup complete, setting loading to false");
+      setIsLoadingAddresses(false);
+    }
+  }, [postcode]); // Dependencies: only recreate if postcode changes
+
   const BookingForm = () => {
     const steps = [
       "Issue Details",
@@ -157,94 +245,6 @@ export function RepairService({
       "Confirmation",
     ];
     const progress = ((bookingStep + 1) / steps.length) * 100;
-
-    // Real postcode lookup function using api.postcodes.io
-    const handlePostcodeLookup = async () => {
-      console.log("=== handlePostcodeLookup called ===");
-      console.log("Current postcode value:", postcode);
-
-      const trimmedPostcode = postcode.trim();
-      const normalizedPostcode = trimmedPostcode
-        .replace(/\s+/g, "")
-        .toUpperCase();
-
-      console.log("Trimmed postcode:", trimmedPostcode);
-      console.log("Normalized postcode:", normalizedPostcode);
-
-      if (!trimmedPostcode) {
-        console.log("Postcode is empty");
-        setPostcodeError("Please enter a postcode");
-        return;
-      }
-
-      // Basic UK postcode format validation (more lenient)
-      const postcodeRegex = /^[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}$/i;
-      if (!postcodeRegex.test(trimmedPostcode)) {
-        console.log("Postcode failed regex validation");
-        setPostcodeError(
-          "Please enter a valid UK postcode format (e.g. SW1A 1AA)"
-        );
-        return;
-      }
-
-      console.log("Postcode passed validation, starting lookup...");
-      setIsLoadingAddresses(true);
-      setPostcodeError("");
-      setFoundAddresses([]);
-      setSelectedAddress("");
-
-      try {
-        console.log("Fetching from API:", normalizedPostcode);
-
-        // Use the free UK Postcode API
-        const response = await fetch(
-          `https://api.postcodes.io/postcodes/${encodeURIComponent(
-            normalizedPostcode
-          )}`
-        );
-
-        console.log("Response status:", response.status);
-        const data = await response.json();
-        console.log("API Response:", data);
-
-        if (data.status === 200 && data.result) {
-          const result = data.result;
-          // Generate realistic sample addresses for this postcode
-          const addresses = [
-            `1 ${result.parish || result.admin_ward || "Main Street"}, ${
-              result.admin_district
-            }, ${result.region}, ${trimmedPostcode.toUpperCase()}`,
-            `2 ${result.parish || result.admin_ward || "Main Street"}, ${
-              result.admin_district
-            }, ${result.region}, ${trimmedPostcode.toUpperCase()}`,
-            `Flat A, 3 ${
-              result.parish || result.admin_ward || "Main Street"
-            }, ${result.admin_district}, ${trimmedPostcode.toUpperCase()}`,
-            `Unit 4, ${result.admin_ward || result.parish || "High Street"}, ${
-              result.admin_district
-            }, ${trimmedPostcode.toUpperCase()}`,
-          ];
-
-          console.log("Generated addresses:", addresses);
-          console.log("Setting foundAddresses state...");
-          setFoundAddresses(addresses);
-          setPostcode(trimmedPostcode.toUpperCase()); // Normalize the displayed postcode
-          console.log("Addresses set successfully");
-        } else {
-          console.error("Postcode not found:", data);
-          setPostcodeError("Postcode not found. Please check and try again.");
-        }
-      } catch (error) {
-        console.error("Postcode lookup error:", error);
-        setPostcodeError(
-          "Unable to look up postcode. Please enter your address manually."
-        );
-        setShowManualEntry(true);
-      } finally {
-        console.log("Lookup complete, setting loading to false");
-        setIsLoadingAddresses(false);
-      }
-    };
 
     return (
       <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6 md:p-8 hover:border-sky-500/30 transition-all duration-300">
