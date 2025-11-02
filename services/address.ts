@@ -11,6 +11,57 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
   const trimmed = (postcode || "").trim();
   if (!trimmed) return [];
 
+  // TEMPORARY PRIORITY: try client getaddress.io FIRST if key exists
+  // Goal: deliver real addresses immediately while backend routing propagates
+  if (GETADDRESS_IO_API_KEY) {
+    if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
+      console.log("📫 Trying getaddress.io (client) first");
+    const url = `https://api.getaddress.io/find/${encodeURIComponent(
+      trimmed
+    )}?api-key=${encodeURIComponent(GETADDRESS_IO_API_KEY)}&expand=true`;
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const data: {
+          postcode?: string;
+          addresses?: Array<{
+            line_1?: string;
+            line_2?: string;
+            line_3?: string;
+            town_or_city?: string;
+            townOrCity?: string;
+            county?: string;
+          }>;
+        } = await res.json();
+        const addresses: string[] = (data.addresses || []).map((a) => {
+          const parts = [
+            a.line_1,
+            a.line_2,
+            a.line_3,
+            a.town_or_city || a.townOrCity,
+            a.county,
+            data.postcode || trimmed.toUpperCase(),
+          ].filter(Boolean);
+          return parts.join(", ").replace(/,\s*,/g, ", ").replace(/,\s*$/, "");
+        });
+        if (addresses.length > 0) {
+          lastAddressProvider = "getaddress.io (client)";
+          return addresses;
+        }
+      } else if (
+        import.meta.env.DEV ||
+        import.meta.env.VITE_DEBUG_ADDRESS === "1"
+      ) {
+        const text = await res.text().catch(() => "");
+        console.warn(`getaddress.io responded ${res.status}: ${text}`);
+      }
+    } catch (e) {
+      if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
+        console.warn("getaddress.io (client) failed, will try backend.", e);
+    }
+    // If client fails or returns empty, continue to backend attempts below
+  }
+
   // 1) Try backend proxy first (works locally if vercel dev is running, and in production)
   const backendUrl =
     import.meta.env.VITE_BACKEND_BASE_URL ||
@@ -73,51 +124,7 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
     // ignore
   }
 
-  // Prefer real address provider if an API key is configured (client-side)
-  if (GETADDRESS_IO_API_KEY) {
-    if (import.meta.env.DEV) console.log("📫 Using getaddress.io (client)");
-    const url = `https://api.getaddress.io/find/${encodeURIComponent(
-      trimmed
-    )}?api-key=${encodeURIComponent(GETADDRESS_IO_API_KEY)}&expand=true`;
-    try {
-      const res = await fetch(url);
-      if (res.ok) {
-        const data: {
-          postcode?: string;
-          addresses?: Array<{
-            line_1?: string;
-            line_2?: string;
-            line_3?: string;
-            town_or_city?: string;
-            townOrCity?: string;
-            county?: string;
-          }>;
-        } = await res.json();
-        const addresses: string[] = (data.addresses || []).map((a) => {
-          const parts = [
-            a.line_1,
-            a.line_2,
-            a.line_3,
-            a.town_or_city || a.townOrCity,
-            a.county,
-            data.postcode || trimmed.toUpperCase(),
-          ].filter(Boolean);
-          return parts.join(", ").replace(/,\s*,/g, ", ").replace(/,\s*$/, "");
-        });
-        if (addresses.length > 0) {
-          lastAddressProvider = "getaddress.io (client)";
-          return addresses;
-        }
-      } else if (import.meta.env.DEV) {
-        const text = await res.text().catch(() => "");
-        console.warn(`getaddress.io responded ${res.status}: ${text}`);
-      }
-    } catch (e) {
-      if (import.meta.env.DEV)
-        console.warn("getaddress.io (client) failed, will fallback.", e);
-    }
-    // If client provider fails, continue to fallback below (no hard throw)
-  }
+  // Note: client getaddress.io already attempted above; if no key, we'll continue
 
   // Fallback: use postcodes.io to synthesise plausible addresses for UX
   if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1") {
