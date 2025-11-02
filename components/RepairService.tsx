@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -85,21 +85,6 @@ export function RepairService() {
       duration: "3-7 days",
       icon: Shield,
     },
-  ];
-
-  const coverageAreas = [
-    "London",
-    "Birmingham",
-    "Manchester",
-    "Liverpool",
-    "Leeds",
-    "Sheffield",
-    "Bristol",
-    "Glasgow",
-    "Edinburgh",
-    "Newcastle",
-    "Nottingham",
-    "Cardiff",
   ];
 
   const testimonials = [
@@ -202,16 +187,20 @@ export function RepairService() {
     };
 
     return (
-      <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-8 hover:border-sky-500/30 transition-all duration-300 shadow-xl shadow-black/20">
+      <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6 md:p-8 hover:border-sky-500/30 transition-all duration-300">
         <div className="mb-8">
-          <div className="flex justify-between text-sm text-gray-400 mb-2">
+          <div className="flex justify-between text-sm text-gray-400 mb-3">
             <span>
               Step {bookingStep + 1} of {steps.length}
             </span>
-            <span>{Math.round(progress)}% Complete</span>
+            <span className="font-semibold">
+              {Math.round(progress)}% Complete
+            </span>
           </div>
-          <Progress value={progress} className="h-2 mb-4" />
-          <h3 className="text-xl font-bold text-white">{steps[bookingStep]}</h3>
+          <Progress value={progress} className="h-2 mb-4 bg-white/10" />
+          <h3 className="text-2xl font-bold text-white">
+            {steps[bookingStep]}
+          </h3>
         </div>
 
         {bookingStep === 0 && (
@@ -675,66 +664,78 @@ export function RepairService() {
 
         {bookingStep === 3 && (
           <div className="space-y-6">
-            <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-white" />
+            <div className="text-center py-4">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-500/25">
+                <CheckCircle className="w-10 h-10 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">
+              <h3 className="text-3xl font-bold text-white mb-3">
                 Booking Confirmed!
               </h3>
-              <p className="text-gray-400">
+              <p className="text-gray-400 text-lg">
                 Your repair service has been successfully booked.
               </p>
             </div>
 
-            <Card className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border-blue-500/20 p-6">
-              <h4 className="font-bold text-white mb-4">Booking Summary</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
+            <Card className="bg-gradient-to-br from-sky-600/10 to-blue-600/10 border-sky-500/30 p-6">
+              <h4 className="font-bold text-white mb-4 text-lg">
+                Booking Summary
+              </h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b border-white/10">
                   <span className="text-gray-400">Issue Type:</span>
-                  <span className="text-white">{bookingData.issueType}</span>
+                  <span className="text-white font-medium">
+                    {bookingData.issueType}
+                  </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center pb-2 border-b border-white/10">
                   <span className="text-gray-400">Turnaround Time:</span>
-                  <span className="text-white capitalize">
+                  <span className="text-white font-medium capitalize">
                     {bookingData.urgency}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center pb-2 border-b border-white/10">
                   <span className="text-gray-400">Service Type:</span>
-                  <span className="text-white capitalize">
+                  <span className="text-white font-medium capitalize">
                     {bookingData.urgency} Collection & Return
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-gray-400">Booking Reference:</span>
-                  <span className="text-white font-mono">
+                  <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-300 font-mono">
                     VX-REP-
                     {Math.random().toString(36).substr(2, 9).toUpperCase()}
-                  </span>
+                  </Badge>
                 </div>
               </div>
             </Card>
 
-            <div className="text-center text-sm text-gray-400">
-              <p>
-                You will receive a confirmation email shortly with tracking
-                details.
-              </p>
-              <p>
-                Our team will contact you within 2 hours to confirm collection
-                time.
-              </p>
-            </div>
+            <Alert className="border-sky-500/30 bg-sky-500/10">
+              <CheckCircle className="w-4 h-4 text-sky-400" />
+              <AlertDescription className="text-sky-200">
+                <p className="mb-2">
+                  <strong>What happens next:</strong>
+                </p>
+                <ul className="text-sm space-y-1 list-disc list-inside">
+                  <li>
+                    You'll receive a confirmation email shortly with tracking
+                    details
+                  </li>
+                  <li>
+                    Our team will contact you within 2 hours to confirm
+                    collection time
+                  </li>
+                </ul>
+              </AlertDescription>
+            </Alert>
           </div>
         )}
 
-        <div className="flex justify-between mt-8">
+        <div className="flex justify-between mt-8 pt-6 border-t border-white/10">
           <Button
             variant="outline"
             onClick={() => setBookingStep(Math.max(0, bookingStep - 1))}
             disabled={bookingStep === 0}
-            className="border-white/20 text-white hover:bg-white/10 disabled:opacity-50"
+            className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Previous
           </Button>
@@ -746,7 +747,7 @@ export function RepairService() {
               }
             }}
             disabled={bookingStep === 3}
-            className="bg-blue-600 hover:bg-blue-500 border border-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] transition-all duration-300 disabled:opacity-50 disabled:hover:bg-blue-600 disabled:hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]"
+            className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:from-sky-600 disabled:to-blue-600"
           >
             {bookingStep === 2
               ? "Confirm Booking"
@@ -760,265 +761,335 @@ export function RepairService() {
   };
 
   return (
-    <div className="min-h-screen text-white overflow-hidden">
-      {/* Animated Background */}
-      <div className="fixed inset-0 bg-gradient-to-br from-blue-900/20 via-cyan-900/10 to-sky-900/20 animate-gradient"></div>
-      <div
-        className="fixed inset-0 opacity-40"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }}
-      ></div>
+    <div className="min-h-screen text-white">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="max-w-7xl mx-auto">
+          {/* Hero Section */}
+          <section className="text-center mb-20">
+            <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-300 mb-6 px-4 py-1.5">
+              <Wrench className="w-4 h-4 mr-2" />
+              UK-Wide PC Repair Service
+            </Badge>
 
-      <div className="relative z-10 py-20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-6xl mx-auto">
-            {/* Hero Section */}
-            <section className="text-center mb-16">
-              <div className="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 mb-8">
-                <Wrench className="w-4 h-4 text-blue-400 mr-2" />
-                <span className="text-sm text-blue-300">
-                  UK-Wide PC Repair Service
-                </span>
-              </div>
+            <h1 className="text-5xl md:text-7xl font-black mb-6 bg-gradient-to-r from-white via-sky-200 to-cyan-400 bg-clip-text text-transparent leading-tight">
+              Expert PC Repair
+              <br />
+              <span className="text-4xl md:text-5xl">Done Right</span>
+            </h1>
 
-              <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-blue-100 to-purple-200 bg-clip-text text-transparent">
-                Expert PC Repair
-              </h1>
+            <p className="text-xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
+              Professional PC repair services with UK-wide collection and return
+              from £29.99. Expert diagnostics, genuine parts, and comprehensive
+              warranty on all repairs.
+            </p>
 
-              <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
-                Professional PC repair services with UK-wide collection and
-                return from £29.99. Expert diagnostics, genuine parts, and
-                comprehensive warranty on all repairs.
-              </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+              <Button
+                onClick={() => setBookingStep(0)}
+                className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-6 text-lg font-semibold transition-all duration-300 shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 hover:scale-105"
+              >
+                <Calendar className="w-5 h-5 mr-2" />
+                Book Repair Service
+              </Button>
+              <Button
+                variant="outline"
+                className="bg-white/5 backdrop-blur-sm border-white/20 text-white hover:bg-white/10 hover:border-white/30 px-8 py-6 text-lg font-semibold transition-all duration-300"
+              >
+                <Phone className="w-5 h-5 mr-2" />
+                Call: 0800 123 4567
+              </Button>
+            </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-                <Button
-                  onClick={() => setBookingStep(0)}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 rounded-xl text-lg font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-xl hover:shadow-blue-500/25"
+            {/* Key Features */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              {[
+                {
+                  icon: Truck,
+                  title: "UK-Wide Collection",
+                  desc: "From £29.99 inc. return",
+                },
+                {
+                  icon: Clock,
+                  title: "Fast Turnaround",
+                  desc: "Same day service available",
+                },
+                {
+                  icon: Shield,
+                  title: "90-Day Warranty",
+                  desc: "All repairs guaranteed",
+                },
+                {
+                  icon: Wrench,
+                  title: "Expert Technicians",
+                  desc: "Certified professionals",
+                },
+              ].map((feature, index) => (
+                <Card
+                  key={index}
+                  className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 p-6 text-center group"
                 >
-                  <Calendar className="w-5 h-5 mr-2" />
-                  Book Repair Service
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-white/20 text-white hover:bg-white/10 px-8 py-4 rounded-xl text-lg font-semibold transition-all duration-300 transform hover:scale-105"
-                >
-                  <Phone className="w-5 h-5 mr-2" />
-                  Call: 0800 123 4567
-                </Button>
-              </div>
-
-              {/* Key Features */}
-              <div className="grid md:grid-cols-4 gap-6">
-                {[
-                  {
-                    icon: Truck,
-                    title: "UK-Wide Collection",
-                    desc: "From £29.99 inc. return",
-                  },
-                  {
-                    icon: Clock,
-                    title: "Fast Turnaround",
-                    desc: "Same day service available",
-                  },
-                  {
-                    icon: Shield,
-                    title: "90-Day Warranty",
-                    desc: "All repairs guaranteed",
-                  },
-                  {
-                    icon: Wrench,
-                    title: "Expert Technicians",
-                    desc: "Certified professionals",
-                  },
-                ].map((feature, index) => (
-                  <Card
-                    key={index}
-                    className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-xl hover:shadow-sky-500/10 p-4 text-center"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center mx-auto mb-3">
-                      <feature.icon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="font-bold text-white mb-1">
-                      {feature.title}
-                    </h3>
-                    <p className="text-sm text-gray-400">{feature.desc}</p>
-                  </Card>
-                ))}
-              </div>
-            </section>
-
-            {/* Repair Services */}
-            <section className="mb-20">
-              <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                  Our Repair Services
-                </h2>
-                <p className="text-gray-400 text-lg">
-                  Comprehensive PC repair solutions for all your needs
-                </p>
-              </div>
-
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {repairServices.map((service, index) => (
-                  <Card
-                    key={index}
-                    className="bg-white/5 border-white/10 backdrop-blur-xl p-6 hover:bg-white/10 hover:border-sky-500/30 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-xl hover:shadow-sky-500/10 group"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center mb-4">
-                      <service.icon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-sky-400 transition-colors">
-                      {service.title}
-                    </h3>
-                    <p className="text-gray-400 mb-4 group-hover:text-gray-300 transition-colors">
-                      {service.description}
-                    </p>
-                    <div className="flex justify-between items-center">
-                      <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
-                        {service.price}
-                      </Badge>
-                      <span className="text-sm text-gray-400">
-                        {service.duration}
-                      </span>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </section>
-
-            {/* Repair Process */}
-            <section className="mb-20">
-              <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                  How It Works
-                </h2>
-                <p className="text-gray-400 text-lg">
-                  Simple, transparent process for all repairs
-                </p>
-              </div>
-
-              <div className="flex flex-col md:flex-row items-center justify-center gap-8">
-                {repairProcess.map((step, index) => (
-                  <React.Fragment key={index}>
-                    <div className="text-center flex-shrink-0">
-                      <div className="relative mb-6">
-                        <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-sm border-2 border-blue-500/50 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(59,130,246,0.3)]">
-                          <step.icon className="w-8 h-8 text-blue-400" />
-                        </div>
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-2">
-                        {step.title}
-                      </h3>
-                      <p className="text-gray-400">{step.description}</p>
-                    </div>
-                    {index < repairProcess.length - 1 && (
-                      <div className="hidden md:flex flex-shrink-0">
-                        <ArrowRight className="w-6 h-6 text-blue-400" />
-                      </div>
-                    )}
-                  </React.Fragment>
-                ))}
-              </div>
-            </section>
-
-            {/* Booking Form */}
-            <section className="mb-20">
-              <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                  Book Your Repair
-                </h2>
-                <p className="text-gray-400 text-lg">
-                  Get started with your PC repair in just a few steps
-                </p>
-              </div>
-
-              <BookingForm />
-            </section>
-
-            {/* Testimonials */}
-            <section className="mb-20">
-              <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                  What Our Customers Say
-                </h2>
-                <p className="text-gray-400 text-lg">
-                  Trusted by thousands across the UK
-                </p>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-8">
-                {testimonials.map((testimonial, index) => (
-                  <Card
-                    key={index}
-                    className="bg-white/5 border-white/10 backdrop-blur-xl p-6 hover:border-sky-500/30 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-xl hover:shadow-sky-500/10"
-                  >
-                    <div className="flex mb-4">
-                      {[...Array(testimonial.rating)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className="w-4 h-4 text-yellow-400 fill-current"
-                        />
-                      ))}
-                    </div>
-                    <p className="text-gray-300 mb-4 italic">
-                      "{testimonial.comment}"
-                    </p>
-                    <div className="flex items-center">
-                      <div className="h-10 w-10 bg-gradient-to-br from-sky-400 to-cyan-400 rounded-full flex items-center justify-center mr-3">
-                        <span className="text-black font-semibold">
-                          {testimonial.name.charAt(0)}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">
-                          {testimonial.name}
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          {testimonial.location}
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </section>
-
-            {/* Coverage Area */}
-            <section className="mb-20">
-              <Card className="relative bg-gradient-to-br from-blue-950/50 to-sky-950/30 backdrop-blur-xl border-2 border-sky-500/30 hover:border-sky-400/50 transition-all duration-500 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(56,189,248,0.2)] hover:shadow-[0_0_70px_rgba(56,189,248,0.3)] group p-8 text-center">
-                {/* Subtle shine effect */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-
-                {/* Content */}
-                <div className="relative">
-                  <h3 className="text-3xl font-bold text-white mb-4">
-                    UK-Wide Coverage
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <feature.icon className="w-7 h-7 text-white" />
+                  </div>
+                  <h3 className="font-bold text-white mb-2 text-sm md:text-base">
+                    {feature.title}
                   </h3>
-                  <p className="text-gray-300 text-lg mb-6">
-                    We provide collection and return services across major UK
-                    cities from £29.99
+                  <p className="text-xs md:text-sm text-gray-400">
+                    {feature.desc}
                   </p>
-                  <div className="flex flex-wrap justify-center gap-3">
-                    {coverageAreas.map((area) => (
-                      <Badge
-                        key={area}
-                        variant="secondary"
-                        className="bg-white/10 text-white border-white/20 hover:bg-sky-500/20 hover:border-sky-400/50 transition-all duration-300"
-                      >
-                        {area}
-                      </Badge>
+                </Card>
+              ))}
+            </div>
+          </section>
+
+          {/* Repair Services */}
+          <section className="mb-20">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+                Our Repair Services
+              </h2>
+              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+                Comprehensive PC repair solutions for all your needs
+              </p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {repairServices.map((service, index) => (
+                <Card
+                  key={index}
+                  className="bg-white/5 border-white/10 backdrop-blur-xl p-6 hover:bg-white/10 hover:border-sky-500/30 transition-all duration-300 group cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <service.icon className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-2 group-hover:text-sky-400 transition-colors">
+                    {service.title}
+                  </h3>
+                  <p className="text-sm text-gray-400 mb-4 leading-relaxed">
+                    {service.description}
+                  </p>
+                  <div className="flex justify-between items-center pt-3 border-t border-white/10">
+                    <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-sm">
+                      {service.price}
+                    </Badge>
+                    <span className="text-xs text-gray-500">
+                      {service.duration}
+                    </span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </section>
+
+          {/* Repair Process */}
+          <section className="mb-20">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+                How It Works
+              </h2>
+              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+                Simple, transparent process for all repairs
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4">
+              {repairProcess.map((step, index) => (
+                <div key={index} className="relative">
+                  <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 p-6 text-center h-full">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-sky-500/25">
+                      <step.icon className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center font-bold text-sm shadow-lg">
+                      {step.step}
+                    </div>
+                    <h3 className="text-lg font-bold text-white mb-2">
+                      {step.title}
+                    </h3>
+                    <p className="text-sm text-gray-400 leading-relaxed">
+                      {step.description}
+                    </p>
+                  </Card>
+                  {index < repairProcess.length - 1 && (
+                    <div className="hidden md:block absolute top-1/2 -right-2 transform -translate-y-1/2 z-10">
+                      <ArrowRight className="w-5 h-5 text-sky-500/50" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Booking Form */}
+          <section className="mb-20">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+                Book Your Repair
+              </h2>
+              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+                Get started with your PC repair in just a few steps
+              </p>
+            </div>
+
+            <div className="max-w-3xl mx-auto">
+              <BookingForm />
+            </div>
+          </section>
+
+          {/* Testimonials */}
+          <section className="mb-20">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+                What Our Customers Say
+              </h2>
+              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+                Trusted by thousands across the UK
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              {testimonials.map((testimonial, index) => (
+                <Card
+                  key={index}
+                  className="bg-white/5 border-white/10 backdrop-blur-xl p-6 hover:border-sky-500/30 transition-all duration-300"
+                >
+                  <div className="flex gap-1 mb-4">
+                    {[...Array(testimonial.rating)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className="w-4 h-4 text-yellow-400 fill-current"
+                      />
                     ))}
                   </div>
-                  <p className="text-sm text-gray-400 mt-4">
-                    Don't see your area? Contact us - we may still be able to
-                    help!
+                  <p className="text-gray-300 mb-4 text-sm leading-relaxed italic">
+                    "{testimonial.comment}"
+                  </p>
+                  <Separator className="mb-4 bg-white/10" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-cyan-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-black font-bold text-sm">
+                        {testimonial.name.charAt(0)}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-white text-sm">
+                        {testimonial.name}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {testimonial.location} • {testimonial.repair}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </section>
+
+          {/* Coverage Area */}
+          <section className="mb-20">
+            <Card className="bg-gradient-to-br from-sky-950/30 to-blue-950/30 backdrop-blur-xl border border-sky-500/30 p-8 md:p-12 hover:border-sky-400/50 transition-all duration-500 overflow-hidden relative">
+              <div className="relative z-10">
+                <h3 className="text-3xl md:text-4xl font-black text-white mb-4">
+                  UK-Wide Coverage
+                </h3>
+                <p className="text-gray-300 text-lg mb-8 max-w-2xl mx-auto">
+                  Professional PC repair and collection service available
+                  throughout England, Scotland, Wales, and Northern Ireland
+                </p>
+
+                {/* UK Map Silhouette */}
+                <div className="flex justify-center items-center gap-8 mb-8">
+                  <div className="relative">
+                    {/* UK Map Outline */}
+                    <div className="relative w-56 h-72 md:w-64 md:h-80 flex items-center justify-center">
+                      <img
+                        src="/uk-map-outline.png"
+                        alt="UK Map"
+                        className="w-full h-full object-contain"
+                        style={{
+                          filter:
+                            "brightness(0) saturate(100%) invert(70%) sepia(52%) saturate(2878%) hue-rotate(169deg) brightness(98%) contrast(101%)",
+                        }}
+                      />
+                      {/* Glow effect */}
+                      <div className="absolute inset-0 bg-sky-400/30 blur-2xl -z-10 scale-90"></div>
+                    </div>
+                  </div>
+
+                  <div className="text-left space-y-4 max-w-md">
+                    <div className="flex items-start gap-3">
+                      <Truck className="w-6 h-6 text-sky-400 flex-shrink-0 mt-1" />
+                      <div>
+                        <h4 className="font-bold text-white mb-1">
+                          Nationwide Collection
+                        </h4>
+                        <p className="text-sm text-gray-400">
+                          Free collection and return anywhere in the UK
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Clock className="w-6 h-6 text-sky-400 flex-shrink-0 mt-1" />
+                      <div>
+                        <h4 className="font-bold text-white mb-1">
+                          Fast Service
+                        </h4>
+                        <p className="text-sm text-gray-400">
+                          Standard, express, and same-day options available
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Shield className="w-6 h-6 text-sky-400 flex-shrink-0 mt-1" />
+                      <div>
+                        <h4 className="font-bold text-white mb-1">
+                          Fully Insured
+                        </h4>
+                        <p className="text-sm text-gray-400">
+                          Your PC is protected during transit and repair
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-white/10">
+                  <p className="text-sky-300 font-semibold mb-2">
+                    Collection & Return from £29.99
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    We serve all UK postcodes. Book online or call 0800 123 4567
+                    for a quote.
                   </p>
                 </div>
-              </Card>
-            </section>
-          </div>
+              </div>
+
+              {/* Background decoration */}
+              <div className="absolute inset-0 opacity-5">
+                <svg
+                  className="w-full h-full"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <defs>
+                    <pattern
+                      id="grid"
+                      width="40"
+                      height="40"
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <circle
+                        cx="20"
+                        cy="20"
+                        r="1"
+                        fill="currentColor"
+                        className="text-sky-400"
+                      />
+                    </pattern>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#grid)" />
+                </svg>
+              </div>
+            </Card>
+          </section>
         </div>
       </div>
     </div>
