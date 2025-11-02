@@ -410,7 +410,8 @@ function BookingForm(props: BookingFormProps) {
                 <p className="text-sm text-gray-400">
                   We'll verify if we cover your area
                 </p>
-                {import.meta.env.DEV && (
+                {(import.meta.env.DEV ||
+                  import.meta.env.VITE_DEBUG_ADDRESS === "1") && (
                   <p className="text-xs text-gray-500">
                     Provider:{" "}
                     {lastAddressProvider ||

@@ -30,6 +30,13 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
             console.log("📦 Using backend address proxy");
           lastAddressProvider = "backend proxy";
           return json.addresses;
+        } else if (
+          Array.isArray(json.addresses) &&
+          json.addresses.length === 0 &&
+          (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
+        ) {
+          console.warn("Backend proxy returned no addresses for:", trimmed);
+          lastAddressProvider = "backend proxy (no results)";
         }
       }
     } catch {
@@ -50,6 +57,16 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
           console.log("📦 Using same-origin backend address proxy");
         lastAddressProvider = "backend proxy (same-origin)";
         return json.addresses;
+      } else if (
+        Array.isArray(json.addresses) &&
+        json.addresses.length === 0 &&
+        (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
+      ) {
+        console.warn(
+          "Same-origin backend proxy returned no addresses for:",
+          trimmed
+        );
+        lastAddressProvider = "backend proxy (same-origin, no results)";
       }
     }
   } catch {
@@ -103,7 +120,7 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
   }
 
   // Fallback: use postcodes.io to synthesise plausible addresses for UX
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1") {
     console.log("📮 Falling back to postcodes.io synthetic addresses");
   }
   const normalized = trimmed.replace(/\s+/g, "").toUpperCase();
