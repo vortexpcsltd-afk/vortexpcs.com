@@ -436,11 +436,16 @@ export function RepairService({
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
+                    console.log("===BUTTON CLICKED===");
                     console.log(
                       "Find Address button clicked, postcode:",
                       postcode
                     );
+                    console.log("isLoadingAddresses:", isLoadingAddresses);
+                    console.log("About to call handlePostcodeLookup");
                     handlePostcodeLookup();
+                    console.log("handlePostcodeLookup called");
                   }}
                   className="bg-blue-600 hover:bg-blue-700"
                   disabled={isLoadingAddresses || postcode.trim().length === 0}
