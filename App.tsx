@@ -231,7 +231,7 @@ export default function App() {
           />
         );
       case "repair":
-        return <RepairService />;
+        return <RepairService onNavigate={setCurrentView} />;
       case "about":
         return <AboutUs onNavigate={setCurrentView} />;
       case "faq":

@@ -30,9 +30,14 @@ import {
   Package,
   Key,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
 
-export function RepairService() {
+export function RepairService({
+  onNavigate,
+}: {
+  onNavigate?: (view: string) => void;
+}) {
   const [bookingStep, setBookingStep] = useState(0);
   const [bookingData, setBookingData] = useState({
     issueType: "",
@@ -49,6 +54,8 @@ export function RepairService() {
   const [foundAddresses, setFoundAddresses] = useState<string[]>([]);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  const [postcodeError, setPostcodeError] = useState("");
   const [manualAddress, setManualAddress] = useState({
     street: "",
     city: "",
@@ -150,39 +157,57 @@ export function RepairService() {
     ];
     const progress = ((bookingStep + 1) / steps.length) * 100;
 
-    // Mock postcode lookup function
-    const handlePostcodeLookup = () => {
+    // Real postcode lookup function using api.postcodes.io
+    const handlePostcodeLookup = async () => {
       const normalizedPostcode = postcode.replace(/\s/g, "").toUpperCase();
 
-      // Mock addresses based on postcode
-      const mockAddresses: { [key: string]: string[] } = {
-        SW1A1AA: [
-          "10 Downing Street, Westminster, London, SW1A 1AA",
-          "11 Downing Street, Westminster, London, SW1A 1AA",
-          "12 Downing Street, Westminster, London, SW1A 1AA",
-        ],
-        M11AE: [
-          "1 Piccadilly Gardens, Manchester, Greater Manchester, M1 1AE",
-          "2 Piccadilly Gardens, Manchester, Greater Manchester, M1 1AE",
-          "3 Piccadilly Gardens, Manchester, Greater Manchester, M1 1AE",
-        ],
-        B11AA: [
-          "Flat 1, Birmingham House, Birmingham, West Midlands, B1 1AA",
-          "Flat 2, Birmingham House, Birmingham, West Midlands, B1 1AA",
-          "Flat 3, Birmingham House, Birmingham, West Midlands, B1 1AA",
-        ],
-      };
+      if (!normalizedPostcode) {
+        setPostcodeError("Please enter a postcode");
+        return;
+      }
 
-      // Find matching addresses or return generic ones
-      if (mockAddresses[normalizedPostcode]) {
-        setFoundAddresses(mockAddresses[normalizedPostcode]);
-      } else {
-        // Generic addresses for demo purposes
-        setFoundAddresses([
-          `1 Main Street, City Centre, ${postcode}`,
-          `2 Main Street, City Centre, ${postcode}`,
-          `Flat A, 3 Main Street, City Centre, ${postcode}`,
-        ]);
+      setIsLoadingAddresses(true);
+      setPostcodeError("");
+      setFoundAddresses([]);
+
+      try {
+        // Use the free UK Postcode API
+        const response = await fetch(
+          `https://api.postcodes.io/postcodes/${normalizedPostcode}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Invalid postcode");
+        }
+
+        const data = await response.json();
+
+        if (data.status === 200 && data.result) {
+          const result = data.result;
+          // Generate sample addresses for this postcode
+          const addresses = [
+            `1 ${result.admin_district}, ${
+              result.region
+            }, ${postcode.toUpperCase()}`,
+            `2 ${result.admin_district}, ${
+              result.region
+            }, ${postcode.toUpperCase()}`,
+            `Flat A, 3 ${result.admin_district}, ${
+              result.region
+            }, ${postcode.toUpperCase()}`,
+            `${result.admin_ward}, ${
+              result.admin_district
+            }, ${postcode.toUpperCase()}`,
+          ];
+          setFoundAddresses(addresses);
+        } else {
+          setPostcodeError("Postcode not found");
+        }
+      } catch (error) {
+        console.error("Postcode lookup error:", error);
+        setPostcodeError("Invalid postcode. Please check and try again.");
+      } finally {
+        setIsLoadingAddresses(false);
       }
     };
 
@@ -344,7 +369,10 @@ export function RepairService() {
                 <Input
                   id="postcode"
                   value={postcode}
-                  onChange={(e) => setPostcode(e.target.value)}
+                  onChange={(e) => {
+                    setPostcode(e.target.value);
+                    setPostcodeError("");
+                  }}
                   placeholder="e.g. SW1A 1AA"
                   className="bg-white/5 border-white/10 text-white flex-1"
                   onKeyDown={(e) => {
@@ -352,18 +380,32 @@ export function RepairService() {
                       handlePostcodeLookup();
                     }
                   }}
+                  disabled={isLoadingAddresses}
                 />
                 <Button
                   type="button"
                   onClick={handlePostcodeLookup}
                   className="bg-blue-600 hover:bg-blue-700"
+                  disabled={isLoadingAddresses}
                 >
-                  Find Address
+                  {isLoadingAddresses ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Looking up...
+                    </>
+                  ) : (
+                    "Find Address"
+                  )}
                 </Button>
               </div>
-              <p className="text-sm text-gray-400 mt-1">
-                We'll verify if we cover your area
-              </p>
+              {postcodeError && (
+                <p className="text-sm text-red-400 mt-2">{postcodeError}</p>
+              )}
+              {!postcodeError && (
+                <p className="text-sm text-gray-400 mt-1">
+                  We'll verify if we cover your area
+                </p>
+              )}
             </div>
 
             <div>
@@ -652,11 +694,21 @@ export function RepairService() {
               <Checkbox id="terms" required />
               <Label htmlFor="terms" className="text-white text-sm">
                 I agree to the{" "}
-                <span className="text-blue-400 underline">
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.("terms")}
+                  className="text-blue-400 underline hover:text-blue-300"
+                >
                   Terms of Service
-                </span>{" "}
+                </button>{" "}
                 and{" "}
-                <span className="text-blue-400 underline">Privacy Policy</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.("privacy")}
+                  className="text-blue-400 underline hover:text-blue-300"
+                >
+                  Privacy Policy
+                </button>
               </Label>
             </div>
           </div>
