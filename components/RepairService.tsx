@@ -235,7 +235,8 @@ export function RepairService({
       console.log("Lookup complete, setting loading to false");
       setIsLoadingAddresses(false);
     }
-  }, [postcode]); // Dependencies: only recreate if postcode changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependencies - function reads current state when called
 
   const BookingForm = () => {
     const steps = [
