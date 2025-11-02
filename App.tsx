@@ -109,7 +109,7 @@ export default function App() {
 
     const setMeta = (name: string, content: string) => {
       if (!content) return;
-      let el = document.querySelector(`meta[name=\"${name}\"]`);
+      let el = document.querySelector(`meta[name="${name}"]`);
       if (!el) {
         el = document.createElement("meta");
         el.setAttribute("name", name);
@@ -120,7 +120,7 @@ export default function App() {
 
     const setMetaProperty = (prop: string, content: string) => {
       if (!content) return;
-      let el = document.querySelector(`meta[property=\"${prop}\"]`);
+      let el = document.querySelector(`meta[property="${prop}"]`);
       if (!el) {
         el = document.createElement("meta");
         el.setAttribute("property", prop);

@@ -5,13 +5,15 @@
 
 import { contentfulClient, isContentfulEnabled } from "../config/contentful";
 
-// Debug logging
-console.log("🔧 CMS Service initialized");
-console.log("🔧 Contentful enabled:", isContentfulEnabled);
-console.log(
-  "🔧 Contentful client:",
-  contentfulClient ? "✅ Created" : "❌ Not created"
-);
+// Debug logging (development only)
+if (import.meta.env.DEV) {
+  console.log("🔧 CMS Service initialized");
+  console.log("🔧 Contentful enabled:", isContentfulEnabled);
+  console.log(
+    "🔧 Contentful client:",
+    contentfulClient ? "✅ Created" : "❌ Not created"
+  );
+}
 
 // Re-export all interfaces from original cms.ts
 export interface Product {

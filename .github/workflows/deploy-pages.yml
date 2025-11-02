@@ -29,14 +29,15 @@ jobs:
       - name: Fetch CMS meta and inject into dist/index.html
         # This step will use Contentful credentials stored in repository secrets to fetch
         # site settings and the homepage content, then inject meta/OG/Twitter tags into dist/index.html
+        # Optional: Configure these secrets in GitHub if using Contentful
         env:
-          CONTENTFUL_SPACE_ID: ${{ secrets.CONTENTFUL_SPACE_ID }}
-          CONTENTFUL_DELIVERY_TOKEN: ${{ secrets.CONTENTFUL_DELIVERY_TOKEN }}
-          CONTENTFUL_ACCESS_TOKEN: ${{ secrets.CONTENTFUL_ACCESS_TOKEN }}
-          CONTENTFUL_ENV: ${{ secrets.CONTENTFUL_ENV }}
-          SITE_URL: ${{ secrets.SITE_URL }}
+          CONTENTFUL_SPACE_ID: ${{ secrets.CONTENTFUL_SPACE_ID || '' }}
+          CONTENTFUL_DELIVERY_TOKEN: ${{ secrets.CONTENTFUL_DELIVERY_TOKEN || '' }}
+          CONTENTFUL_ACCESS_TOKEN: ${{ secrets.CONTENTFUL_ACCESS_TOKEN || '' }}
+          CONTENTFUL_ENV: ${{ secrets.CONTENTFUL_ENV || 'master' }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://www.vortexpcs.com' }}
         run: |
-          node scripts/inject-meta.js
+          node scripts/inject-meta.js || echo "Meta injection skipped (Contentful not configured)"
 
       - name: Inject version into built files
         # Update dist/version.json and patch dist/index.html meta/script/fav links so clients fetch new assets

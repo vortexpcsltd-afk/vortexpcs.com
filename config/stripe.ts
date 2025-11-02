@@ -20,15 +20,15 @@ import { loadStripe, Stripe } from "@stripe/stripe-js";
 export const stripePublishableKey =
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_test_YOUR_PUBLISHABLE_KEY";
 
-// Enhanced key validation and logging - v2.0
-const keyMode = stripePublishableKey.includes("_test_") ? "TEST" : "LIVE";
-const keyPreview = stripePublishableKey.substring(0, 20);
-console.log(
-  "🔑 Stripe Key Check:",
-  stripePublishableKey
-    ? `${keyPreview}... (Mode: ${keyMode}) [Build: ${Date.now()}]`
-    : "NOT FOUND"
-);
+// Enhanced key validation and logging (development only)
+if (import.meta.env.DEV) {
+  const keyMode = stripePublishableKey.includes("_test_") ? "TEST" : "LIVE";
+  const keyPreview = stripePublishableKey.substring(0, 20);
+  console.log(
+    "🔑 Stripe Key Check:",
+    stripePublishableKey ? `${keyPreview}... (Mode: ${keyMode})` : "NOT FOUND"
+  );
+}
 
 // Initialize Stripe only if properly configured
 let stripePromise: Promise<Stripe | null> | null = null;
@@ -39,11 +39,15 @@ if (
   stripePublishableKey.startsWith("pk_")
 ) {
   stripePromise = loadStripe(stripePublishableKey);
-  console.log("✅ Stripe initialized successfully");
+  if (import.meta.env.DEV) {
+    console.log("✅ Stripe initialized successfully");
+  }
 } else {
-  console.warn(
-    "Stripe not configured. Payment features will be disabled. See .env.example"
-  );
+  if (import.meta.env.DEV) {
+    console.warn(
+      "Stripe not configured. Payment features will be disabled. See .env.example"
+    );
+  }
 }
 
 export { stripePromise };
@@ -64,4 +68,6 @@ export const stripeBackendUrl =
     ? window.location.origin
     : "https://www.vortexpcs.com");
 
-console.log("🔧 Stripe Backend URL:", stripeBackendUrl);
+if (import.meta.env.DEV) {
+  console.log("🔧 Stripe Backend URL:", stripeBackendUrl);
+}

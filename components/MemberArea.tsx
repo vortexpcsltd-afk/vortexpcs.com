@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import type { FormEvent } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -184,7 +185,7 @@ export function MemberArea({
     }
   };
 
-  const handleSubmitSupportTicket = async (e: React.FormEvent) => {
+  const handleSubmitSupportTicket = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!supportForm.subject || !supportForm.message) {
