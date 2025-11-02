@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -38,9 +38,10 @@ export function RepairService({
 }: {
   onNavigate?: (view: string) => void;
 }) {
+  const bookingFormRef = useRef<HTMLDivElement>(null);
   const [bookingStep, setBookingStep] = useState(0);
   const [bookingData, setBookingData] = useState({
-    issueType: "",
+    issueTypes: [] as string[], // Changed to array for multiple selections
     description: "",
     urgency: "",
     collectionMethod: "",
@@ -159,10 +160,22 @@ export function RepairService({
 
     // Real postcode lookup function using api.postcodes.io
     const handlePostcodeLookup = async () => {
-      const normalizedPostcode = postcode.replace(/\s/g, "").toUpperCase();
+      const normalizedPostcode = postcode
+        .trim()
+        .replace(/\s+/g, "")
+        .toUpperCase();
 
       if (!normalizedPostcode) {
         setPostcodeError("Please enter a postcode");
+        return;
+      }
+
+      // Basic UK postcode format validation
+      const postcodeRegex = /^[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}$/i;
+      if (!postcodeRegex.test(postcode.trim())) {
+        setPostcodeError(
+          "Please enter a valid UK postcode format (e.g. SW1A 1AA)"
+        );
         return;
       }
 
@@ -173,39 +186,41 @@ export function RepairService({
       try {
         // Use the free UK Postcode API
         const response = await fetch(
-          `https://api.postcodes.io/postcodes/${normalizedPostcode}`
+          `https://api.postcodes.io/postcodes/${encodeURIComponent(
+            normalizedPostcode
+          )}`
         );
-
-        if (!response.ok) {
-          throw new Error("Invalid postcode");
-        }
 
         const data = await response.json();
 
         if (data.status === 200 && data.result) {
           const result = data.result;
-          // Generate sample addresses for this postcode
+          // Generate realistic sample addresses for this postcode
           const addresses = [
-            `1 ${result.admin_district}, ${
-              result.region
-            }, ${postcode.toUpperCase()}`,
-            `2 ${result.admin_district}, ${
-              result.region
-            }, ${postcode.toUpperCase()}`,
-            `Flat A, 3 ${result.admin_district}, ${
-              result.region
-            }, ${postcode.toUpperCase()}`,
-            `${result.admin_ward}, ${
+            `1 ${result.parish || result.admin_ward}, ${
               result.admin_district
-            }, ${postcode.toUpperCase()}`,
+            }, ${result.region}, ${postcode.trim().toUpperCase()}`,
+            `2 ${result.parish || result.admin_ward}, ${
+              result.admin_district
+            }, ${result.region}, ${postcode.trim().toUpperCase()}`,
+            `Flat A, 3 ${result.parish || result.admin_ward}, ${
+              result.admin_district
+            }, ${postcode.trim().toUpperCase()}`,
+            `Unit 4, ${result.admin_ward}, ${result.admin_district}, ${postcode
+              .trim()
+              .toUpperCase()}`,
           ];
           setFoundAddresses(addresses);
+          setPostcode(postcode.trim().toUpperCase()); // Normalize the displayed postcode
         } else {
-          setPostcodeError("Postcode not found");
+          setPostcodeError("Postcode not found. Please check and try again.");
         }
       } catch (error) {
         console.error("Postcode lookup error:", error);
-        setPostcodeError("Invalid postcode. Please check and try again.");
+        setPostcodeError(
+          "Unable to look up postcode. Please enter your address manually."
+        );
+        setShowManualEntry(true);
       } finally {
         setIsLoadingAddresses(false);
       }
@@ -232,15 +247,9 @@ export function RepairService({
           <div className="space-y-6">
             <div>
               <Label className="text-white mb-3 block">
-                What type of issue are you experiencing?
+                What type of issue are you experiencing? (Select all that apply)
               </Label>
-              <RadioGroup
-                value={bookingData.issueType}
-                onValueChange={(value) =>
-                  setBookingData((prev) => ({ ...prev, issueType: value }))
-                }
-                className="space-y-3"
-              >
+              <div className="space-y-3">
                 {[
                   "PC won't turn on",
                   "Performance issues/slow speeds",
@@ -255,7 +264,25 @@ export function RepairService({
                     key={issue}
                     className="flex items-center space-x-3 p-3 rounded-lg border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all"
                   >
-                    <RadioGroupItem value={issue} id={issue} />
+                    <Checkbox
+                      id={issue}
+                      checked={bookingData.issueTypes.includes(issue)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setBookingData((prev) => ({
+                            ...prev,
+                            issueTypes: [...prev.issueTypes, issue],
+                          }));
+                        } else {
+                          setBookingData((prev) => ({
+                            ...prev,
+                            issueTypes: prev.issueTypes.filter(
+                              (i) => i !== issue
+                            ),
+                          }));
+                        }
+                      }}
+                    />
                     <Label
                       htmlFor={issue}
                       className="text-white cursor-pointer flex-1"
@@ -264,7 +291,7 @@ export function RepairService({
                     </Label>
                   </div>
                 ))}
-              </RadioGroup>
+              </div>
             </div>
 
             <div>
@@ -733,10 +760,10 @@ export function RepairService({
                 Booking Summary
               </h4>
               <div className="space-y-3">
-                <div className="flex justify-between items-center pb-2 border-b border-white/10">
-                  <span className="text-gray-400">Issue Type:</span>
-                  <span className="text-white font-medium">
-                    {bookingData.issueType}
+                <div className="flex justify-between items-start pb-2 border-b border-white/10">
+                  <span className="text-gray-400">Issue Types:</span>
+                  <span className="text-white font-medium text-right max-w-xs">
+                    {bookingData.issueTypes.join(", ") || "Not specified"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-white/10">
@@ -837,7 +864,13 @@ export function RepairService({
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
               <Button
-                onClick={() => setBookingStep(0)}
+                onClick={() => {
+                  setBookingStep(0);
+                  bookingFormRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  });
+                }}
                 className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-6 text-lg font-semibold transition-all duration-300 shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 hover:scale-105"
               >
                 <Calendar className="w-5 h-5 mr-2" />
@@ -972,7 +1005,7 @@ export function RepairService({
           </section>
 
           {/* Booking Form */}
-          <section className="mb-20">
+          <section className="mb-20" ref={bookingFormRef}>
             <div className="text-center mb-12">
               <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
                 Book Your Repair
