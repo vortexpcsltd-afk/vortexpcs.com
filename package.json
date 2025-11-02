@@ -8,8 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "postinstall": "echo 'Dependencies installed successfully'",
-    "seed:strapi": "node ./seed-strapi-sample-data.js"
+    "postinstall": "echo 'Dependencies installed successfully'"
   },
   "dependencies": {
     "@contentful/rich-text-react-renderer": "^16.1.5",

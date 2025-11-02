@@ -1,11 +1,11 @@
 {
-  "version": "2025-10-25-02",
-  "timestamp": "2025-11-02T12:00:00Z",
-  "build": "modal-fixes-forced-redeploy",
-  "description": "ComponentDetailModal fixes: wider modal (max-w-screen-xl) and fixed close button event bubbling",
+  "version": "2025-10-25-03",
+  "timestamp": "2025-11-02T12:15:00Z",
+  "build": "strapi-cleanup-and-modal-fixes",
+  "description": "ComponentDetailModal fixes and Strapi references cleanup",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
-    "HomePage": "strapi-cms-integration-v1",
+    "HomePage": "contentful-cms-integration-v1",
     "Footer": "glassmorphism-updated-v2-custom-logo",
     "Navigation": "responsive-redesign-v1",
     "MobileMenu": "dark-background-v1",
@@ -16,7 +16,7 @@
     "CookiePolicyPage": "separate-component-v2",
     "PCBuilder": "modal-fixes-v1",
     "ComponentDetailModal": "wider-modal-event-handling-v1",
-    "CMS": "strapi-v5-28-0-enterprise"
+    "CMS": "contentful-v11-8-7"
   },
   "theme": {
     "primary": "#0ea5e9",
@@ -31,9 +31,15 @@
     "favicon": "https://www.vortexpcs.com/vortexpcs-logo.png"
   },
   "cms": {
-    "platform": "Strapi v5.28.0 Enterprise",
-    "database": "SQLite",
-    "contentTypes": ["Page Contents", "Site Settings", "Company Stats"],
+    "platform": "Contentful v11.8.7",
+    "database": "Contentful CDN",
+    "contentTypes": [
+      "Page Contents",
+      "Site Settings",
+      "Company Stats",
+      "PC Components",
+      "Optional Extras"
+    ],
     "features": [
       "Smart Caching",
       "Auto Retry",
@@ -48,7 +54,10 @@
     "customDomain": true,
     "https": true,
     "cicd": "GitHub Actions",
-    "environmentVariables": ["VITE_STRAPI_URL", "VITE_STRAPI_API_TOKEN"]
+    "environmentVariables": [
+      "VITE_CONTENTFUL_SPACE_ID",
+      "VITE_CONTENTFUL_ACCESS_TOKEN"
+    ]
   },
   "changes": [
     "� MODAL FIXES: ComponentDetailModal width increased from max-w-7xl to max-w-screen-xl",
@@ -58,6 +67,7 @@
     "✅ CNAME file restored for custom domain vortexpcs.com",
     "✅ Version bumped to 2025-10-25-01 for cache busting",
     "🎯 MODAL IMPROVEMENTS: Better space utilization and user experience",
-    "Previous Strapi CMS integration and responsiveness improvements maintained"
+    "Previous Contentful CMS integration and responsiveness improvements maintained",
+    "🧹 CLEANUP: Removed outdated Strapi references and files, updated to reflect Contentful CMS usage"
   ]
 }
