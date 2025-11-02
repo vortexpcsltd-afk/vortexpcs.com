@@ -78,6 +78,11 @@ export interface Settings {
   contactEmail: string;
   contactPhone: string;
   whatsappNumber?: string;
+  // Optional explicit social/meta fields
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  twitterImage?: string;
 }
 
 export interface PageContent {
@@ -103,6 +108,11 @@ export interface PageContent {
   sections?: Array<any>;
   seo?: Record<string, any>;
   lastUpdated?: string;
+  // Optional explicit social/meta fields
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: any;
+  twitterImage?: any;
 }
 
 export interface FAQItem {
@@ -653,6 +663,11 @@ export const fetchSettings = async (): Promise<Settings | null> => {
       contactEmail: fields.contactEmail || "",
       contactPhone: fields.contactPhone || "",
       whatsappNumber: fields.whatsappNumber,
+      // Map optional explicit social/meta fields
+      ogTitle: fields.ogTitle || undefined,
+      ogDescription: fields.ogDescription || undefined,
+      ogImage: fields.ogImage || undefined,
+      twitterImage: fields.twitterImage || undefined,
     };
 
     console.log("✅ Contentful settings fetched:", settings);
@@ -708,6 +723,11 @@ export const fetchPageContent = async (
       heroButtons: fields.heroButtons,
       sections: fields.sections,
       seo: fields.seo,
+      // Map explicit OG/Twitter fields so editors can set them
+      ogTitle: fields.ogTitle || undefined,
+      ogDescription: fields.ogDescription || undefined,
+      ogImage: fields.ogImage || undefined,
+      twitterImage: fields.twitterImage || undefined,
       lastUpdated: entry.sys.updatedAt,
     };
 
