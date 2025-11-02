@@ -160,12 +160,19 @@ export function RepairService({
 
     // Real postcode lookup function using api.postcodes.io
     const handlePostcodeLookup = async () => {
+      console.log("=== handlePostcodeLookup called ===");
+      console.log("Current postcode value:", postcode);
+
       const trimmedPostcode = postcode.trim();
       const normalizedPostcode = trimmedPostcode
         .replace(/\s+/g, "")
         .toUpperCase();
 
+      console.log("Trimmed postcode:", trimmedPostcode);
+      console.log("Normalized postcode:", normalizedPostcode);
+
       if (!trimmedPostcode) {
+        console.log("Postcode is empty");
         setPostcodeError("Please enter a postcode");
         return;
       }
@@ -173,19 +180,21 @@ export function RepairService({
       // Basic UK postcode format validation (more lenient)
       const postcodeRegex = /^[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}$/i;
       if (!postcodeRegex.test(trimmedPostcode)) {
+        console.log("Postcode failed regex validation");
         setPostcodeError(
           "Please enter a valid UK postcode format (e.g. SW1A 1AA)"
         );
         return;
       }
 
+      console.log("Postcode passed validation, starting lookup...");
       setIsLoadingAddresses(true);
       setPostcodeError("");
       setFoundAddresses([]);
       setSelectedAddress("");
 
       try {
-        console.log("Looking up postcode:", normalizedPostcode);
+        console.log("Fetching from API:", normalizedPostcode);
 
         // Use the free UK Postcode API
         const response = await fetch(
@@ -194,6 +203,7 @@ export function RepairService({
           )}`
         );
 
+        console.log("Response status:", response.status);
         const data = await response.json();
         console.log("API Response:", data);
 
@@ -216,8 +226,10 @@ export function RepairService({
           ];
 
           console.log("Generated addresses:", addresses);
+          console.log("Setting foundAddresses state...");
           setFoundAddresses(addresses);
           setPostcode(trimmedPostcode.toUpperCase()); // Normalize the displayed postcode
+          console.log("Addresses set successfully");
         } else {
           console.error("Postcode not found:", data);
           setPostcodeError("Postcode not found. Please check and try again.");
@@ -229,6 +241,7 @@ export function RepairService({
         );
         setShowManualEntry(true);
       } finally {
+        console.log("Lookup complete, setting loading to false");
         setIsLoadingAddresses(false);
       }
     };
@@ -421,9 +434,16 @@ export function RepairService({
                 />
                 <Button
                   type="button"
-                  onClick={handlePostcodeLookup}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    console.log(
+                      "Find Address button clicked, postcode:",
+                      postcode
+                    );
+                    handlePostcodeLookup();
+                  }}
                   className="bg-blue-600 hover:bg-blue-700"
-                  disabled={isLoadingAddresses || !postcode.trim()}
+                  disabled={isLoadingAddresses || postcode.trim().length === 0}
                 >
                   {isLoadingAddresses ? (
                     <>
