@@ -611,12 +611,27 @@ export const fetchSettings = async (): Promise<Settings | null> => {
   }
 
   try {
-    const response = await contentfulClient!.getEntries({
-      content_type: "siteSettings",
-      limit: 1,
-    });
+    // Try the plural 'siteSettings' first, then fall back to older singular 'siteSetting'
+    const contentTypesToTry = ["siteSettings", "siteSetting"];
+    let response: any = null;
 
-    if (response.items.length === 0) {
+    for (const ct of contentTypesToTry) {
+      try {
+        response = await contentfulClient!.getEntries({
+          content_type: ct,
+          limit: 1,
+        });
+        if (response && response.items && response.items.length > 0) break;
+      } catch (innerErr) {
+        // Continue to next content type if this one fails
+        console.warn(
+          `Contentful lookup for ${ct} failed:`,
+          (innerErr as any)?.message || innerErr
+        );
+      }
+    }
+
+    if (!response || response.items.length === 0) {
       return getMockSettings();
     }
 
