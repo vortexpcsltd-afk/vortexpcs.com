@@ -38,7 +38,11 @@ import {
   ArrowRight,
   Loader2,
 } from "lucide-react";
-import { lookupAddresses, lastAddressProvider } from "../services/address";
+import {
+  lookupAddresses,
+  lastAddressProvider,
+  lastAddressError,
+} from "../services/address";
 import { GETADDRESS_IO_API_KEY } from "../config/address";
 
 // Stable child component to prevent remounts that interrupt typing/focus
@@ -412,13 +416,20 @@ function BookingForm(props: BookingFormProps) {
                 </p>
                 {(import.meta.env.DEV ||
                   import.meta.env.VITE_DEBUG_ADDRESS === "1") && (
-                  <p className="text-xs text-gray-500">
-                    Provider:{" "}
-                    {lastAddressProvider ||
-                      (GETADDRESS_IO_API_KEY
-                        ? "getaddress.io (client?)"
-                        : "postcodes.io (fallback)")}
-                  </p>
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-gray-500">
+                      Provider:{" "}
+                      {lastAddressProvider ||
+                        (GETADDRESS_IO_API_KEY
+                          ? "getaddress.io (client?)"
+                          : "postcodes.io (fallback)")}
+                    </p>
+                    {lastAddressError && (
+                      <p className="text-[11px] text-gray-500/80">
+                        Detail: {lastAddressError}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
