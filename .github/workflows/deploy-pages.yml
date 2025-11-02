@@ -1,0 +1,60 @@
+name: Build and Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Inject version into built files
+        # Update dist/version.json and patch dist/index.html meta/script/fav links so clients fetch new assets
+        run: |
+          set -e
+          # Generate a short version string using UTC time + git sha
+          VERSION="$(date -u +%Y-%m-%d-%H%M%S)-${GITHUB_SHA:0:8}"
+          TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          echo "{\"version\":\"$VERSION\",\"timestamp\":\"$TIMESTAMP\",\"build\":\"github-actions\"}" > dist/version.json
+
+          if [ -f dist/index.html ]; then
+            # Replace cache-version meta if present
+            sed -i -E "s/(<meta name=\"cache-version\" content=\")[^\"]+(\")/\1$VERSION\2/" dist/index.html || true
+
+            # Replace script query param if pattern matches (best-effort)
+            sed -i -E "s|(src=\"/src/main.tsx\?v=)[^\"]+(\")|\1$VERSION\2|g" dist/index.html || true
+
+            # Replace favicon version query param if present
+            sed -i -E "s|(href=\"https://www.vortexpcs.com/vortexpcs-logo.png\?v=)[^\"]+(\")|\1$VERSION\2|g" dist/index.html || true
+          fi
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+
+      - name: Display deployed version
+        if: success()
+        run: |
+          echo "Deployed version:"
+          cat dist/version.json || true

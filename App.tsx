@@ -36,6 +36,7 @@ import {
   Info,
   Phone,
 } from "lucide-react";
+import { fetchSettings, fetchPageContent } from "./services/cms";
 const vortexLogo = "/vortexpcs-logo.png";
 
 export default function App() {
@@ -101,6 +102,52 @@ export default function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentView]);
+
+  // Hydrate document title and meta tags from CMS (Contentful)
+  useEffect(() => {
+    let mounted = true;
+
+    const setMeta = (name: string, content: string) => {
+      if (!content) return;
+      let el = document.querySelector(`meta[name=\"${name}\"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute("name", name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+    };
+
+    (async () => {
+      try {
+        const [settings, home] = await Promise.all([
+          fetchSettings(),
+          fetchPageContent("home"),
+        ]);
+
+        if (!mounted) return;
+
+        const title = home?.pageTitle || settings?.siteName || "Vortex PCs";
+        document.title = title;
+
+        const description =
+          home?.metaDescription || settings?.metaDescription || "";
+        setMeta("description", description);
+
+        const keywords = home?.seo?.keywords || "";
+        setMeta("keywords", keywords);
+
+        const author = settings?.siteName || "Vortex PCs";
+        setMeta("author", author);
+      } catch (error) {
+        console.error("Failed to hydrate meta from CMS:", error);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Add item to cart
   const addToCart = (item: any) => {
