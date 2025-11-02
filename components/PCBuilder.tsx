@@ -35,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "./ui/dialog";
 import { AspectRatio } from "./ui/aspect-ratio";
 import {
@@ -216,7 +217,7 @@ const ComponentImageGallery = ({
 
       {/* Full Gallery Modal */}
       <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
-        <DialogContent className="max-w-5xl bg-black/95 border-white/10 text-white">
+        <DialogContent className="max-w-5xl bg-black/95 border-white/10 text-white z-50">
           <DialogHeader>
             <DialogTitle className="text-2xl bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent">
               {productName} - Image Gallery
@@ -298,6 +299,458 @@ const ComponentImageGallery = ({
   );
 };
 
+// Enhanced Component Detail Modal - Updated for wider modal and fixed close button (v2)
+const ComponentDetailModal = ({
+  component,
+  category,
+  isOpen,
+  onClose,
+  onSelect,
+  isSelected,
+}: {
+  component: any;
+  category: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (category: string, componentId: string) => void;
+  isSelected: boolean;
+}) => {
+  if (!component) return null;
+
+  const getSpecifications = () => {
+    const specs = [];
+
+    // Common specs
+    if (component.name) specs.push({ label: "Name", value: component.name });
+    if (component.brand) specs.push({ label: "Brand", value: component.brand });
+    if (component.model) specs.push({ label: "Model", value: component.model });
+    if (component.price)
+      specs.push({ label: "Price", value: `£${component.price.toFixed(2)}` });
+    if (component.rating)
+      specs.push({ label: "Rating", value: `${component.rating}/5` });
+
+    // Category-specific specs
+    switch (category) {
+      case "case":
+        if (component.formFactor)
+          specs.push({ label: "Form Factor", value: component.formFactor });
+        if (component.gpuClearance)
+          specs.push({
+            label: "GPU Clearance",
+            value: `${component.gpuClearance}mm`,
+          });
+        if (component.coolingSupport)
+          specs.push({
+            label: "Cooling Support",
+            value: component.coolingSupport,
+          });
+        if (component.style)
+          specs.push({ label: "Style", value: component.style });
+        if (component.maxGpuLength)
+          specs.push({
+            label: "Max GPU Length",
+            value: `${component.maxGpuLength}mm`,
+          });
+        if (component.maxCpuCoolerHeight)
+          specs.push({
+            label: "Max CPU Cooler Height",
+            value: `${component.maxCpuCoolerHeight}mm`,
+          });
+        if (component.maxPsuLength)
+          specs.push({
+            label: "Max PSU Length",
+            value: `${component.maxPsuLength}mm`,
+          });
+        if (component.compatibility)
+          specs.push({
+            label: "Compatibility",
+            value: component.compatibility.join(", "),
+          });
+        break;
+
+      case "motherboard":
+        if (component.formFactor)
+          specs.push({ label: "Form Factor", value: component.formFactor });
+        if (component.socket)
+          specs.push({ label: "Socket", value: component.socket });
+        if (component.chipset)
+          specs.push({ label: "Chipset", value: component.chipset });
+        if (component.ramSupport)
+          specs.push({
+            label: "RAM Support",
+            value: Array.isArray(component.ramSupport)
+              ? component.ramSupport.join(", ")
+              : component.ramSupport,
+          });
+        if (component.maxRam)
+          specs.push({ label: "Max RAM", value: `${component.maxRam}GB` });
+        if (component.ramSlots)
+          specs.push({ label: "RAM Slots", value: component.ramSlots });
+        if (component.pciSlots)
+          specs.push({ label: "PCIe Slots", value: component.pciSlots });
+        if (component.m2Slots)
+          specs.push({ label: "M.2 Slots", value: component.m2Slots });
+        break;
+
+      case "cpu":
+        if (component.socket)
+          specs.push({ label: "Socket", value: component.socket });
+        if (component.cores)
+          specs.push({ label: "Cores", value: component.cores });
+        if (component.threads)
+          specs.push({ label: "Threads", value: component.threads });
+        if (component.tdp)
+          specs.push({ label: "TDP", value: `${component.tdp}W` });
+        if (component.generation)
+          specs.push({ label: "Generation", value: component.generation });
+        if (component.platform)
+          specs.push({ label: "Platform", value: component.platform });
+        break;
+
+      case "gpu":
+        if (component.vram)
+          specs.push({ label: "VRAM", value: `${component.vram}GB` });
+        if (component.power)
+          specs.push({
+            label: "Power Consumption",
+            value: `${component.power}W`,
+          });
+        if (component.length)
+          specs.push({ label: "Length", value: `${component.length}mm` });
+        if (component.height)
+          specs.push({ label: "Height", value: `${component.height}mm` });
+        if (component.slots)
+          specs.push({ label: "Slots", value: component.slots });
+        if (component.platform)
+          specs.push({ label: "Platform", value: component.platform });
+        if (component.performance)
+          specs.push({
+            label: "Performance Tier",
+            value: component.performance,
+          });
+        break;
+
+      case "ram":
+        if (component.capacity)
+          specs.push({ label: "Capacity", value: `${component.capacity}GB` });
+        if (component.type)
+          specs.push({ label: "Type", value: component.type });
+        if (component.speed)
+          specs.push({ label: "Speed", value: `${component.speed}MHz` });
+        if (component.modules)
+          specs.push({ label: "Modules", value: component.modules });
+        if (component.latency)
+          specs.push({ label: "Latency", value: `CL${component.latency}` });
+        if (component.rgb !== undefined)
+          specs.push({
+            label: "RGB Lighting",
+            value: component.rgb ? "Yes" : "No",
+          });
+        break;
+
+      case "storage":
+        if (component.capacity)
+          specs.push({ label: "Capacity", value: `${component.capacity}GB` });
+        if (component.driveType)
+          specs.push({ label: "Drive Type", value: component.driveType });
+        if (component.interface)
+          specs.push({ label: "Interface", value: component.interface });
+        if (component.readSpeed)
+          specs.push({
+            label: "Read Speed",
+            value: `${component.readSpeed}MB/s`,
+          });
+        if (component.writeSpeed)
+          specs.push({
+            label: "Write Speed",
+            value: `${component.writeSpeed}MB/s`,
+          });
+        if (component.nand)
+          specs.push({ label: "NAND Type", value: component.nand });
+        break;
+
+      case "psu":
+        if (component.wattage)
+          specs.push({ label: "Wattage", value: `${component.wattage}W` });
+        if (component.efficiency)
+          specs.push({ label: "Efficiency", value: component.efficiency });
+        if (component.modular)
+          specs.push({ label: "Modular", value: component.modular });
+        if (component.length)
+          specs.push({ label: "Length", value: `${component.length}mm` });
+        break;
+
+      case "cooling":
+        if (component.coolerType)
+          specs.push({ label: "Type", value: component.coolerType });
+        if (component.radiatorSize)
+          specs.push({
+            label: "Radiator Size",
+            value: `${component.radiatorSize}mm`,
+          });
+        if (component.fanSize)
+          specs.push({ label: "Fan Size", value: `${component.fanSize}mm` });
+        if (component.tdpSupport)
+          specs.push({
+            label: "TDP Support",
+            value: `${component.tdpSupport}W`,
+          });
+        if (component.height)
+          specs.push({ label: "Height", value: `${component.height}mm` });
+        if (component.rgbLighting !== undefined)
+          specs.push({
+            label: "RGB Lighting",
+            value: component.rgbLighting ? "Yes" : "No",
+          });
+        break;
+    }
+
+    return specs;
+  };
+
+  const specs = getSpecifications();
+
+  // Group specs into categories for better organization
+  const technicalSpecs = specs.filter(
+    (spec) =>
+      !["Name", "Brand", "Model", "Price", "Rating"].includes(spec.label)
+  );
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-screen-xl max-h-[95vh] bg-gradient-to-br from-black via-slate-900/95 to-black border border-white/10 text-white overflow-hidden backdrop-blur-xl">
+        <DialogHeader className="pb-6 border-b border-white/5">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 space-y-2">
+              <DialogTitle className="text-3xl font-bold bg-gradient-to-r from-white via-sky-200 to-cyan-200 bg-clip-text text-transparent">
+                {component.name}
+              </DialogTitle>
+              <DialogDescription className="text-gray-300 text-lg leading-relaxed">
+                {component.description}
+              </DialogDescription>
+            </div>
+            <div className="flex items-center gap-3 ml-6">
+              <div className="flex items-center gap-1 text-yellow-400 bg-yellow-400/10 px-3 py-1 rounded-full">
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    className={`w-4 h-4 ${
+                      i < Math.floor(component.rating) ? "fill-current" : ""
+                    }`}
+                  />
+                ))}
+                <span className="text-sm font-medium ml-1">
+                  {component.rating}
+                </span>
+              </div>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 overflow-y-auto max-h-[calc(95vh-200px)] pr-2">
+          {/* Left Column - Image Gallery */}
+          <div className="space-y-6">
+            {/* Image Gallery */}
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+              <ComponentImageGallery
+                images={component.images || []}
+                productName={component.name}
+              />
+            </div>
+
+            {/* Key Specifications Preview */}
+            <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/20 rounded-2xl p-6">
+              <h4 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+                <Info className="w-5 h-5 text-sky-400" />
+                Key Specifications
+              </h4>
+              <div className="grid grid-cols-1 gap-3">
+                {technicalSpecs.slice(0, 4).map((spec, index) => (
+                  <div
+                    key={index}
+                    className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg border border-white/5"
+                  >
+                    <span className="text-gray-400 font-medium text-sm">
+                      {spec.label}:
+                    </span>
+                    <span className="text-white text-sm font-semibold">
+                      {spec.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Detailed Specifications */}
+          <div className="space-y-6">
+            {/* Price & Action Card */}
+            <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/20 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <div className="text-4xl font-bold bg-gradient-to-r from-sky-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent mb-1">
+                    £{component.price.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-400 flex items-center gap-2">
+                    <Package className="w-4 h-4" />
+                    {component.inStock !== false ? "In Stock" : "Out of Stock"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Technical Specifications */}
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                <Settings className="w-6 h-6 text-sky-400" />
+                Technical Specifications
+              </h3>
+
+              <div className="space-y-4">
+                {technicalSpecs.map((spec, index) => (
+                  <div
+                    key={index}
+                    className="flex justify-between items-center py-3 px-4 bg-gradient-to-r from-white/5 to-transparent rounded-xl border border-white/5 hover:border-white/10 transition-colors"
+                  >
+                    <span className="text-gray-300 font-medium">
+                      {spec.label}
+                    </span>
+                    <span className="text-white font-semibold text-right">
+                      {spec.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Additional Information Cards */}
+            <div className="space-y-4">
+              {/* Compatibility Notes */}
+              {component.compatibility && (
+                <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6">
+                  <h4 className="text-lg font-bold text-blue-300 mb-3 flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5" />
+                    Compatibility
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.isArray(component.compatibility) ? (
+                      component.compatibility.map(
+                        (item: string, idx: number) => (
+                          <Badge
+                            key={idx}
+                            className="bg-blue-500/20 text-blue-300 border-blue-500/30 px-3 py-1"
+                          >
+                            {item.toUpperCase()}
+                          </Badge>
+                        )
+                      )
+                    ) : (
+                      <p className="text-blue-200">{component.compatibility}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Performance Notes */}
+              {(component.performance || component.tdp || component.power) && (
+                <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 backdrop-blur-sm border border-green-500/20 rounded-2xl p-6">
+                  <h4 className="text-lg font-bold text-green-300 mb-3 flex items-center gap-2">
+                    <Zap className="w-5 h-5" />
+                    Performance
+                  </h4>
+                  <div className="space-y-2 text-green-200">
+                    {component.performance && (
+                      <div className="flex justify-between">
+                        <span>Performance Tier:</span>
+                        <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
+                          {component.performance}
+                        </Badge>
+                      </div>
+                    )}
+                    {component.tdp && (
+                      <div className="flex justify-between">
+                        <span>Power Consumption:</span>
+                        <span className="font-semibold">
+                          {component.tdp}W TDP
+                        </span>
+                      </div>
+                    )}
+                    {component.power && (
+                      <div className="flex justify-between">
+                        <span>Recommended PSU:</span>
+                        <span className="font-semibold">
+                          {component.power}W minimum
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Features */}
+              {(component.rgb !== undefined ||
+                component.wireless !== undefined ||
+                component.modular) && (
+                <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 backdrop-blur-sm border border-purple-500/20 rounded-2xl p-6">
+                  <h4 className="text-lg font-bold text-purple-300 mb-3 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5" />
+                    Features
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {component.rgb && (
+                      <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 px-3 py-1">
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        RGB Lighting
+                      </Badge>
+                    )}
+                    {component.wireless && (
+                      <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 px-3 py-1">
+                        Wireless
+                      </Badge>
+                    )}
+                    {component.modular && (
+                      <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 px-3 py-1">
+                        {component.modular} Modular
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="pt-6 border-t border-white/10 gap-4">
+          <Button
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30 px-6 py-2"
+          >
+            Close
+          </Button>
+          <Button
+            onClick={() => {
+              onSelect(category, component.id);
+              onClose();
+            }}
+            size="lg"
+            className={`px-8 py-2 font-semibold ${
+              isSelected
+                ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
+                : "bg-gradient-to-r from-sky-600 via-blue-600 to-cyan-600 hover:from-sky-500 hover:via-blue-500 hover:to-cyan-500"
+            } text-white shadow-lg`}
+          >
+            {isSelected ? "Component Selected" : "Select This Component"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // Enhanced Component Card with images
 const ComponentCard = ({
   component,
@@ -313,6 +766,7 @@ const ComponentCard = ({
   viewMode?: string;
 }) => {
   const [isFavorited, setIsFavorited] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Add images array to each component (use actual images or placeholders)
   const componentWithImages = {
@@ -325,153 +779,238 @@ const ComponentCard = ({
 
   if (viewMode === "list") {
     return (
+      <>
+        <Card
+          className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] ${
+            isSelected
+              ? "ring-2 ring-sky-500 bg-sky-500/10 border-sky-500/50"
+              : "bg-white/5 border-white/10 hover:bg-white/10"
+          }`}
+          onClick={() => setShowDetailModal(true)}
+        >
+          <div className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6 items-center">
+              {/* Image */}
+              <div className="sm:col-span-3">
+                <ComponentImageGallery
+                  images={componentWithImages.images}
+                  productName={component.name}
+                  isCompact={true}
+                />
+              </div>
+
+              {/* Content */}
+              <div className="sm:col-span-6 space-y-3">
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
+                    {component.name}
+                  </h3>
+                  <p className="text-gray-400 line-clamp-2 text-sm sm:text-base">
+                    {component.description}
+                  </p>
+                </div>
+
+                {/* Badges */}
+                <div className="flex flex-wrap gap-2">
+                  {/* Core Component Badges */}
+                  {component.capacity && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-blue-500/20 text-blue-300 border-blue-500/30"
+                    >
+                      {component.capacity}GB
+                    </Badge>
+                  )}
+                  {component.cores && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
+                    >
+                      {component.cores} Cores
+                    </Badge>
+                  )}
+                  {component.threads && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                    >
+                      {component.threads} Threads
+                    </Badge>
+                  )}
+                  {component.vram && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
+                    >
+                      {component.vram}GB VRAM
+                    </Badge>
+                  )}
+
+                  {/* Storage Specific Badges */}
+                  {component.driveType && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-purple-500/20 text-purple-300 border-purple-500/30"
+                    >
+                      {component.driveType}
+                    </Badge>
+                  )}
+                  {component.interface && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+                    >
+                      {component.interface}
+                    </Badge>
+                  )}
+
+                  {/* Performance Badges */}
+                  {component.wattage && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-orange-500/20 text-orange-300 border-orange-500/30"
+                    >
+                      {component.wattage}W
+                    </Badge>
+                  )}
+                  {component.tdp && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-red-500/20 text-red-300 border-red-500/30"
+                    >
+                      {component.tdp}W TDP
+                    </Badge>
+                  )}
+
+                  {/* Operating System Badges */}
+                  {component.version && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-slate-500/20 text-slate-300 border-slate-500/30"
+                    >
+                      {component.version}
+                    </Badge>
+                  )}
+                  {component.licenseType && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-gray-500/20 text-gray-300 border-gray-500/30"
+                    >
+                      {component.licenseType}
+                    </Badge>
+                  )}
+                  {component.architecture && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-zinc-500/20 text-zinc-300 border-zinc-500/30"
+                    >
+                      {component.architecture}
+                    </Badge>
+                  )}
+
+                  {/* GPU Platform Badges */}
+                  {component.platform && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+                    >
+                      {component.platform}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Price & Actions */}
+              <div className="sm:col-span-3 text-left sm:text-right space-y-3">
+                <div>
+                  <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                    £{component.price.toFixed(2)}
+                  </div>
+                  <div className="flex items-center justify-start sm:justify-end gap-1 text-yellow-400">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`w-3 h-3 ${
+                          i < Math.floor(component.rating) ? "fill-current" : ""
+                        }`}
+                      />
+                    ))}
+                    <span className="text-xs text-gray-400 ml-1">
+                      ({component.rating})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-start sm:justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsFavorited(!isFavorited);
+                    }}
+                    className={`p-2 ${
+                      isFavorited
+                        ? "text-red-400 hover:text-red-300"
+                        : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    <Heart
+                      className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`}
+                    />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="p-2 text-gray-400 hover:text-white"
+                  >
+                    <Bookmark className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Detail Modal */}
+        <ComponentDetailModal
+          component={component}
+          category={category}
+          isOpen={showDetailModal}
+          onClose={() => setShowDetailModal(false)}
+          onSelect={onSelect}
+          isSelected={isSelected}
+        />
+      </>
+    );
+  }
+
+  // Grid view (default)
+  return (
+    <>
       <Card
-        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] ${
+        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group ${
           isSelected
             ? "ring-2 ring-sky-500 bg-sky-500/10 border-sky-500/50"
             : "bg-white/5 border-white/10 hover:bg-white/10"
         }`}
-        onClick={() => onSelect(category, component.id)}
+        onClick={() => setShowDetailModal(true)}
       >
-        <div className="p-4 sm:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6 items-center">
-            {/* Image */}
-            <div className="sm:col-span-3">
-              <ComponentImageGallery
-                images={componentWithImages.images}
-                productName={component.name}
-                isCompact={true}
-              />
-            </div>
+        <div className="p-6 space-y-4">
+          {/* Image Gallery */}
+          <ComponentImageGallery
+            images={componentWithImages.images}
+            productName={component.name}
+          />
 
-            {/* Content */}
-            <div className="sm:col-span-6 space-y-3">
-              <div>
-                <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
+          {/* Content */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-white mb-1 group-hover:text-sky-300 transition-colors">
                   {component.name}
                 </h3>
-                <p className="text-gray-400 line-clamp-2 text-sm sm:text-base">
-                  {component.description}
-                </p>
-              </div>
-
-              {/* Badges */}
-              <div className="flex flex-wrap gap-2">
-                {/* Core Component Badges */}
-                {component.capacity && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-blue-500/20 text-blue-300 border-blue-500/30"
-                  >
-                    {component.capacity}GB
-                  </Badge>
-                )}
-                {component.cores && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
-                  >
-                    {component.cores} Cores
-                  </Badge>
-                )}
-                {component.threads && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                  >
-                    {component.threads} Threads
-                  </Badge>
-                )}
-                {component.vram && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
-                  >
-                    {component.vram}GB VRAM
-                  </Badge>
-                )}
-
-                {/* Storage Specific Badges */}
-                {component.driveType && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-purple-500/20 text-purple-300 border-purple-500/30"
-                  >
-                    {component.driveType}
-                  </Badge>
-                )}
-                {component.interface && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
-                  >
-                    {component.interface}
-                  </Badge>
-                )}
-
-                {/* Performance Badges */}
-                {component.wattage && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-orange-500/20 text-orange-300 border-orange-500/30"
-                  >
-                    {component.wattage}W
-                  </Badge>
-                )}
-                {component.tdp && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-red-500/20 text-red-300 border-red-500/30"
-                  >
-                    {component.tdp}W TDP
-                  </Badge>
-                )}
-
-                {/* Operating System Badges */}
-                {component.version && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-slate-500/20 text-slate-300 border-slate-500/30"
-                  >
-                    {component.version}
-                  </Badge>
-                )}
-                {component.licenseType && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-gray-500/20 text-gray-300 border-gray-500/30"
-                  >
-                    {component.licenseType}
-                  </Badge>
-                )}
-                {component.architecture && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-zinc-500/20 text-zinc-300 border-zinc-500/30"
-                  >
-                    {component.architecture}
-                  </Badge>
-                )}
-
-                {/* GPU Platform Badges */}
-                {component.platform && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
-                  >
-                    {component.platform}
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            {/* Price & Actions */}
-            <div className="sm:col-span-3 text-left sm:text-right space-y-3">
-              <div>
-                <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
-                  £{component.price.toFixed(2)}
-                </div>
-                <div className="flex items-center justify-start sm:justify-end gap-1 text-yellow-400">
+                <div className="flex items-center gap-1 text-yellow-400 mb-2">
                   {[...Array(5)].map((_, i) => (
                     <Star
                       key={i}
@@ -486,7 +1025,7 @@ const ComponentCard = ({
                 </div>
               </div>
 
-              <div className="flex gap-2 justify-start sm:justify-end">
+              <div className="flex gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -513,142 +1052,79 @@ const ComponentCard = ({
                 </Button>
               </div>
             </div>
+
+            <p className="text-gray-400 text-sm line-clamp-2">
+              {component.description}
+            </p>
+
+            {/* Badges */}
+            <div className="flex flex-wrap gap-2">
+              {/* All the existing badge logic from your original code */}
+              {component.capacity && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs py-1 px-2 bg-blue-500/20 text-blue-300 border-blue-500/30"
+                >
+                  {component.capacity}GB
+                </Badge>
+              )}
+              {component.cores && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
+                >
+                  {component.cores} Cores
+                </Badge>
+              )}
+              {component.vram && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
+                >
+                  {component.vram}GB VRAM
+                </Badge>
+              )}
+              {component.platform && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs py-1 px-2 bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+                >
+                  {component.platform}
+                </Badge>
+              )}
+            </div>
+
+            {/* Price */}
+            <div className="flex justify-between items-center pt-2">
+              <div className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                £{component.price.toFixed(2)}
+              </div>
+              <div
+                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  isSelected
+                    ? "bg-sky-500 text-white"
+                    : "bg-white/10 text-gray-300 group-hover:bg-sky-500/20 group-hover:text-sky-300"
+                }`}
+              >
+                {isSelected ? "Selected" : "Select"}
+              </div>
+            </div>
           </div>
         </div>
       </Card>
-    );
-  }
 
-  // Grid view (default)
-  return (
-    <Card
-      className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group ${
-        isSelected
-          ? "ring-2 ring-sky-500 bg-sky-500/10 border-sky-500/50"
-          : "bg-white/5 border-white/10 hover:bg-white/10"
-      }`}
-      onClick={() => onSelect(category, component.id)}
-    >
-      <div className="p-6 space-y-4">
-        {/* Image Gallery */}
-        <ComponentImageGallery
-          images={componentWithImages.images}
-          productName={component.name}
-        />
-
-        {/* Content */}
-        <div className="space-y-3">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <h3 className="text-lg font-bold text-white mb-1 group-hover:text-sky-300 transition-colors">
-                {component.name}
-              </h3>
-              <div className="flex items-center gap-1 text-yellow-400 mb-2">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`w-3 h-3 ${
-                      i < Math.floor(component.rating) ? "fill-current" : ""
-                    }`}
-                  />
-                ))}
-                <span className="text-xs text-gray-400 ml-1">
-                  ({component.rating})
-                </span>
-              </div>
-            </div>
-
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsFavorited(!isFavorited);
-                }}
-                className={`p-2 ${
-                  isFavorited
-                    ? "text-red-400 hover:text-red-300"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                <Heart
-                  className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`}
-                />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="p-2 text-gray-400 hover:text-white"
-              >
-                <Bookmark className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          <p className="text-gray-400 text-sm line-clamp-2">
-            {component.description}
-          </p>
-
-          {/* Badges */}
-          <div className="flex flex-wrap gap-2">
-            {/* All the existing badge logic from your original code */}
-            {component.capacity && (
-              <Badge
-                variant="secondary"
-                className="text-xs py-1 px-2 bg-blue-500/20 text-blue-300 border-blue-500/30"
-              >
-                {component.capacity}GB
-              </Badge>
-            )}
-            {component.cores && (
-              <Badge
-                variant="secondary"
-                className="text-xs py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
-              >
-                {component.cores} Cores
-              </Badge>
-            )}
-            {component.vram && (
-              <Badge
-                variant="secondary"
-                className="text-xs py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
-              >
-                {component.vram}GB VRAM
-              </Badge>
-            )}
-            {component.platform && (
-              <Badge
-                variant="secondary"
-                className="text-xs py-1 px-2 bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
-              >
-                {component.platform}
-              </Badge>
-            )}
-          </div>
-
-          {/* Price */}
-          <div className="flex justify-between items-center pt-2">
-            <div className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
-              £{component.price.toFixed(2)}
-            </div>
-            <div
-              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                isSelected
-                  ? "bg-sky-500 text-white"
-                  : "bg-white/10 text-gray-300 group-hover:bg-sky-500/20 group-hover:text-sky-300"
-              }`}
-            >
-              {isSelected ? "Selected" : "Select"}
-            </div>
-          </div>
-        </div>
-      </div>
-    </Card>
+      {/* Detail Modal */}
+      <ComponentDetailModal
+        component={component}
+        category={category}
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        onSelect={onSelect}
+        isSelected={isSelected}
+      />
+    </>
   );
-};
-
-// Compatibility Alert Dialog Component
+}; // Compatibility Alert Dialog Component
 const CompatibilityAlert = ({
   compatibilityIssues,
   onAccept,
@@ -1675,15 +2151,20 @@ const checkCompatibility = (selectedComponents: any, componentData: any) => {
   }
 
   // RAM & Motherboard Compatibility
-  if (ram && motherboard && !motherboard.ramSupport.includes(ram.type)) {
-    issues.push({
-      severity: "critical",
-      title: "RAM Type Incompatibility",
-      description: `The ${motherboard.name} supports ${motherboard.ramSupport}, but you've selected ${ram.type} memory.`,
-      recommendation:
-        "Select memory that matches the motherboard's supported type.",
-      affectedComponents: [ram.name, motherboard.name],
-    });
+  if (ram && motherboard) {
+    const ramSupported = Array.isArray(motherboard.ramSupport)
+      ? motherboard.ramSupport.includes(ram.type)
+      : motherboard.ramSupport.includes(ram.type);
+    if (!ramSupported) {
+      issues.push({
+        severity: "critical",
+        title: "RAM Type Incompatibility",
+        description: `The ${motherboard.name} supports ${motherboard.ramSupport}, but you've selected ${ram.type} memory.`,
+        recommendation:
+          "Select memory that matches the motherboard's supported type.",
+        affectedComponents: [ram.name, motherboard.name],
+      });
+    }
   }
 
   // Motherboard & Case Form Factor
@@ -2269,6 +2750,19 @@ export function PCBuilder({
     setShowCompatibilityDialog(false);
   };
 
+  // Helper function for safe array includes check
+  const safeIncludes = (array: any, value: any) => {
+    return Array.isArray(array) && array.includes(value);
+  };
+
+  // Helper function to get category display label
+  const getCategoryLabel = (categoryId: string) => {
+    const category = categories.find((cat) => cat.id === categoryId);
+    return category
+      ? category.label
+      : categoryId.charAt(0).toUpperCase() + categoryId.slice(1);
+  };
+
   // Intelligent component filtering based on compatibility
   const getCompatibleComponents = (
     category: string,
@@ -2332,32 +2826,45 @@ export function PCBuilder({
 
       // RAM-Motherboard Compatibility
       if (category === "ram" && currentComponents.motherboard) {
-        const motherboard = componentData.motherboard.find(
+        const motherboard = activeComponentData.motherboard.find(
           (mb: any) => mb.id === currentComponents.motherboard
         );
-        if (motherboard && !motherboard.ramSupport.includes(component.type)) {
+        if (
+          motherboard &&
+          motherboard.ramSupport &&
+          !(Array.isArray(motherboard.ramSupport)
+            ? motherboard.ramSupport.includes(component.type)
+            : motherboard.ramSupport.includes(component.type))
+        ) {
           return false;
         }
       }
 
       if (category === "motherboard" && currentComponents.ram) {
-        const ram = componentData.ram.find(
+        const ram = activeComponentData.ram.find(
           (r: any) => r.id === currentComponents.ram
         );
-        if (ram && !component.ramSupport.includes(ram.type)) {
+        if (
+          ram &&
+          component.ramSupport &&
+          !(Array.isArray(component.ramSupport)
+            ? component.ramSupport.includes(ram.type)
+            : component.ramSupport.includes(ram.type))
+        ) {
           return false;
         }
       }
 
       // Case-Motherboard Form Factor
       if (category === "case" && currentComponents.motherboard) {
-        const motherboard = componentData.motherboard.find(
+        const motherboard = activeComponentData.motherboard.find(
           (mb: any) => mb.id === currentComponents.motherboard
         );
         if (
           motherboard &&
-          !component.compatibility.includes(
-            motherboard.formFactor.toLowerCase()
+          !safeIncludes(
+            component.compatibility,
+            motherboard.formFactor?.toLowerCase()
           )
         ) {
           return false;
@@ -2365,12 +2872,15 @@ export function PCBuilder({
       }
 
       if (category === "motherboard" && currentComponents.case) {
-        const pcCase = componentData.case.find(
+        const pcCase = activeComponentData.case.find(
           (c: any) => c.id === currentComponents.case
         );
         if (
           pcCase &&
-          !pcCase.compatibility.includes(component.formFactor.toLowerCase())
+          !safeIncludes(
+            pcCase.compatibility,
+            component.formFactor?.toLowerCase()
+          )
         ) {
           return false;
         }
@@ -2382,21 +2892,27 @@ export function PCBuilder({
         currentComponents.case &&
         component.type === "Air"
       ) {
-        const pcCase = componentData.case.find(
+        const pcCase = activeComponentData.case.find(
           (c: any) => c.id === currentComponents.case
         );
-        if (pcCase && component.height > pcCase.maxCpuCoolerHeight) {
+        if (
+          pcCase &&
+          pcCase.maxCpuCoolerHeight &&
+          component.height > pcCase.maxCpuCoolerHeight
+        ) {
           return false;
         }
       }
 
       if (category === "case" && currentComponents.cooling) {
-        const cooling = componentData.cooling.find(
+        const cooling = activeComponentData.cooling.find(
           (cool: any) => cool.id === currentComponents.cooling
         );
         if (
           cooling &&
           cooling.type === "Air" &&
+          cooling.height &&
+          component.maxCpuCoolerHeight &&
           cooling.height > component.maxCpuCoolerHeight
         ) {
           return false;
@@ -2405,19 +2921,28 @@ export function PCBuilder({
 
       // PSU Length-Case Compatibility
       if (category === "psu" && currentComponents.case) {
-        const pcCase = componentData.case.find(
+        const pcCase = activeComponentData.case.find(
           (c: any) => c.id === currentComponents.case
         );
-        if (pcCase && component.length > pcCase.maxPsuLength) {
+        if (
+          pcCase &&
+          pcCase.maxPsuLength &&
+          component.length > pcCase.maxPsuLength
+        ) {
           return false;
         }
       }
 
       if (category === "case" && currentComponents.psu) {
-        const psu = componentData.psu.find(
+        const psu = activeComponentData.psu.find(
           (p: any) => p.id === currentComponents.psu
         );
-        if (psu && psu.length > component.maxPsuLength) {
+        if (
+          psu &&
+          psu.length &&
+          component.maxPsuLength &&
+          psu.length > component.maxPsuLength
+        ) {
           return false;
         }
       }
@@ -2431,7 +2956,7 @@ export function PCBuilder({
     category: string,
     currentComponents: any
   ) => {
-    const allComponents = (componentData as any)[category] || [];
+    const allComponents = (activeComponentData as any)[category] || [];
     const compatibleComponents = getCompatibleComponents(
       category,
       currentComponents
@@ -2450,7 +2975,7 @@ export function PCBuilder({
 
       // CPU-Motherboard Socket Compatibility
       if (category === "cpu" && currentComponents.motherboard) {
-        const motherboard = componentData.motherboard.find(
+        const motherboard = activeComponentData.motherboard.find(
           (mb: any) => mb.id === currentComponents.motherboard
         );
         if (motherboard && component.socket !== motherboard.socket) {
@@ -2461,7 +2986,7 @@ export function PCBuilder({
       }
 
       if (category === "motherboard" && currentComponents.cpu) {
-        const cpu = componentData.cpu.find(
+        const cpu = activeComponentData.cpu.find(
           (c: any) => c.id === currentComponents.cpu
         );
         if (cpu && component.socket !== cpu.socket) {
@@ -2473,10 +2998,14 @@ export function PCBuilder({
 
       // GPU-Case Clearance
       if (category === "gpu" && currentComponents.case) {
-        const pcCase = componentData.case.find(
+        const pcCase = activeComponentData.case.find(
           (c: any) => c.id === currentComponents.case
         );
-        if (pcCase && component.length > pcCase.maxGpuLength) {
+        if (
+          pcCase &&
+          pcCase.maxGpuLength &&
+          component.length > pcCase.maxGpuLength
+        ) {
           issues.push(
             `Length clearance: ${component.length}mm GPU too long for ${pcCase.maxGpuLength}mm case clearance`
           );
@@ -2484,10 +3013,15 @@ export function PCBuilder({
       }
 
       if (category === "case" && currentComponents.gpu) {
-        const gpu = componentData.gpu.find(
+        const gpu = activeComponentData.gpu.find(
           (g: any) => g.id === currentComponents.gpu
         );
-        if (gpu && gpu.length > component.maxGpuLength) {
+        if (
+          gpu &&
+          gpu.length &&
+          component.maxGpuLength &&
+          gpu.length > component.maxGpuLength
+        ) {
           issues.push(
             `GPU clearance: Selected ${gpu.length}mm GPU won't fit in this case (max: ${component.maxGpuLength}mm)`
           );
@@ -2496,10 +3030,16 @@ export function PCBuilder({
 
       // RAM-Motherboard Compatibility
       if (category === "ram" && currentComponents.motherboard) {
-        const motherboard = componentData.motherboard.find(
+        const motherboard = activeComponentData.motherboard.find(
           (mb: any) => mb.id === currentComponents.motherboard
         );
-        if (motherboard && !motherboard.ramSupport.includes(component.type)) {
+        if (
+          motherboard &&
+          motherboard.ramSupport &&
+          !(Array.isArray(motherboard.ramSupport)
+            ? motherboard.ramSupport.includes(component.type)
+            : motherboard.ramSupport.includes(component.type))
+        ) {
           issues.push(
             `Memory type mismatch: ${component.type} RAM not supported by motherboard (supports: ${motherboard.ramSupport})`
           );
@@ -2507,27 +3047,38 @@ export function PCBuilder({
       }
 
       if (category === "motherboard" && currentComponents.ram) {
-        const ram = componentData.ram.find(
+        const ram = activeComponentData.ram.find(
           (r: any) => r.id === currentComponents.ram
         );
-        if (ram && !component.ramSupport.includes(ram.type)) {
+        if (
+          ram &&
+          component.ramSupport &&
+          !(Array.isArray(component.ramSupport)
+            ? component.ramSupport.includes(ram.type)
+            : component.ramSupport.includes(ram.type))
+        ) {
           issues.push(
             `Memory type mismatch: Selected ${
               ram.type
-            } RAM not supported (supports: ${component.ramSupport.join(", ")})`
+            } RAM not supported (supports: ${
+              Array.isArray(component.ramSupport)
+                ? component.ramSupport.join(", ")
+                : component.ramSupport
+            })`
           );
         }
       }
 
       // Case-Motherboard Form Factor
       if (category === "case" && currentComponents.motherboard) {
-        const motherboard = componentData.motherboard.find(
+        const motherboard = activeComponentData.motherboard.find(
           (mb: any) => mb.id === currentComponents.motherboard
         );
         if (
           motherboard &&
-          !component.compatibility.includes(
-            motherboard.formFactor.toLowerCase()
+          !safeIncludes(
+            component.compatibility,
+            motherboard.formFactor?.toLowerCase()
           )
         ) {
           issues.push(
@@ -2541,12 +3092,15 @@ export function PCBuilder({
       }
 
       if (category === "motherboard" && currentComponents.case) {
-        const pcCase = componentData.case.find(
+        const pcCase = activeComponentData.case.find(
           (c: any) => c.id === currentComponents.case
         );
         if (
           pcCase &&
-          !pcCase.compatibility.includes(component.formFactor.toLowerCase())
+          !safeIncludes(
+            pcCase.compatibility,
+            component.formFactor?.toLowerCase()
+          )
         ) {
           issues.push(
             `Form factor mismatch: ${component.formFactor} motherboard won't fit in selected case`
@@ -2560,10 +3114,14 @@ export function PCBuilder({
         currentComponents.case &&
         component.type === "Air"
       ) {
-        const pcCase = componentData.case.find(
+        const pcCase = activeComponentData.case.find(
           (c: any) => c.id === currentComponents.case
         );
-        if (pcCase && component.height > pcCase.maxCpuCoolerHeight) {
+        if (
+          pcCase &&
+          pcCase.maxCpuCoolerHeight &&
+          component.height > pcCase.maxCpuCoolerHeight
+        ) {
           issues.push(
             `Height clearance: ${component.height}mm cooler too tall for ${pcCase.maxCpuCoolerHeight}mm case clearance`
           );
@@ -2571,12 +3129,14 @@ export function PCBuilder({
       }
 
       if (category === "case" && currentComponents.cooling) {
-        const cooling = componentData.cooling.find(
+        const cooling = activeComponentData.cooling.find(
           (cool: any) => cool.id === currentComponents.cooling
         );
         if (
           cooling &&
           cooling.type === "Air" &&
+          cooling.height &&
+          component.maxCpuCoolerHeight &&
           cooling.height > component.maxCpuCoolerHeight
         ) {
           issues.push(
@@ -2696,17 +3256,22 @@ export function PCBuilder({
                 <div className="space-y-2">
                   {Object.entries(selectedComponents).map(
                     ([category, componentId]) => {
-                      const component = (componentData as any)[category]?.find(
-                        (c: any) => c.id === componentId
-                      );
+                      const component = (activeComponentData as any)[
+                        category
+                      ]?.find((c: any) => c.id === componentId);
                       return component ? (
                         <div
                           key={category}
                           className="flex justify-between items-center text-sm"
                         >
-                          <span className="text-gray-400 capitalize">
-                            {category}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="text-gray-400 text-xs">
+                              {getCategoryLabel(category)}
+                            </span>
+                            <span className="text-white font-medium truncate max-w-32">
+                              {component.name}
+                            </span>
+                          </div>
                           <span className="text-white font-medium">
                             £{component.price.toFixed(2)}
                           </span>
@@ -2729,10 +3294,15 @@ export function PCBuilder({
                             key={`${category}-${itemId}`}
                             className="flex justify-between items-center text-sm"
                           >
-                            <span className="text-green-400 capitalize flex items-center gap-1">
-                              <Plus className="w-3 h-3" />
-                              {category}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="text-green-400 text-xs flex items-center gap-1">
+                                <Plus className="w-3 h-3" />
+                                {getCategoryLabel(category)}
+                              </span>
+                              <span className="text-white font-medium truncate max-w-32">
+                                {peripheral.name}
+                              </span>
+                            </div>
                             <span className="text-white font-medium">
                               £{peripheral.price.toFixed(2)}
                             </span>

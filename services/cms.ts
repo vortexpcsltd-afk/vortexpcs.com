@@ -486,10 +486,37 @@ export const fetchPCBuilds = async (params?: {
       query["fields.category"] = params.category;
     }
 
-    const response = await contentfulClient!.getEntries(query);
+    const response = await contentfulClient!.getEntries({
+      ...query,
+      include: 1, // Include linked assets (images)
+    });
 
     return response.items.map((entry) => {
       const fields = entry.fields as any;
+
+      // Process images - resolve asset links from includes
+      let images: string[] = [];
+      if (fields.images && Array.isArray(fields.images)) {
+        images = fields.images
+          .map((img: any) => {
+            if (img.sys?.linkType === "Asset" && response.includes?.Asset) {
+              const asset = response.includes.Asset.find(
+                (a: any) => a.sys.id === img.sys.id
+              );
+              return asset?.fields?.file?.url
+                ? `https:${asset.fields.file.url}`
+                : null;
+            }
+            return img.fields?.file?.url
+              ? `https:${img.fields.file.url}`
+              : null;
+          })
+          .filter(Boolean);
+      } else if (fields.image && fields.image.fields?.file?.url) {
+        // Single image field fallback
+        images = [`https:${fields.image.fields.file.url}`];
+      }
+
       return {
         id: getNumericId(entry.sys.id),
         name: fields.name,
@@ -498,7 +525,7 @@ export const fetchPCBuilds = async (params?: {
         category: fields.category,
         featured: fields.featured,
         components: fields.components || {},
-        images: fields.images,
+        images: images,
       };
     });
   } catch (error: any) {
@@ -1777,8 +1804,23 @@ function mapContentfulToComponent(
   // Process images - resolve asset links from includes
   let images: string[] = [];
   if (fields.images && Array.isArray(fields.images)) {
-    // Multiple images field
+    // Multiple images field (plural)
     images = fields.images
+      .map((img: any) => {
+        if (img.sys?.linkType === "Asset" && includes?.Asset) {
+          const asset = includes.Asset.find(
+            (a: any) => a.sys.id === img.sys.id
+          );
+          return asset?.fields?.file?.url
+            ? `https:${asset.fields.file.url}`
+            : null;
+        }
+        return img.fields?.file?.url ? `https:${img.fields.file.url}` : null;
+      })
+      .filter(Boolean);
+  } else if (fields.image && Array.isArray(fields.image)) {
+    // Multiple images field named "image" (singular but array)
+    images = fields.image
       .map((img: any) => {
         if (img.sys?.linkType === "Asset" && includes?.Asset) {
           const asset = includes.Asset.find(

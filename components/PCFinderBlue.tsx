@@ -310,6 +310,10 @@ export function PCFinder({
         console.log("✅ Loaded Contentful products:", products);
       } catch (error) {
         console.error("Failed to load Contentful data:", error);
+        // Set empty arrays to indicate no CMS data available
+        setStrapiBuilds([]);
+        setCategories([]);
+        console.log("ℹ️ Using fallback recommendations without CMS data");
       } finally {
         setLoadingBuilds(false);
       }
@@ -810,87 +814,105 @@ export function PCFinder({
   ): number => {
     let totalPrice = 0;
 
+    // Ensure specs is an object and has required properties
+    if (!specs || typeof specs !== "object") {
+      console.warn(
+        "Invalid specs object provided to calculateAccuratePrice:",
+        specs
+      );
+      return 1000; // Return a default price
+    }
+
+    // Safe helper function to check includes
+    const safeIncludes = (str: any, search: string): boolean => {
+      return typeof str === "string" && str.includes(search);
+    };
+
     // Simple pricing based on spec content - more reliable than complex matching
     const componentPrices = {
       // CPU Pricing
-      cpu: specs.cpu.includes("9950X")
+      cpu: safeIncludes(specs.cpu, "9950X")
         ? 649.99
-        : specs.cpu.includes("9900X")
+        : safeIncludes(specs.cpu, "9900X")
         ? 449.99
-        : specs.cpu.includes("9800X")
+        : safeIncludes(specs.cpu, "9800X")
         ? 449.99
-        : specs.cpu.includes("9700X")
+        : safeIncludes(specs.cpu, "9700X")
         ? 349.99
-        : specs.cpu.includes("9600X")
+        : safeIncludes(specs.cpu, "9600X")
         ? 229.99
-        : specs.cpu.includes("i7-14700K")
+        : safeIncludes(specs.cpu, "i7-14700K")
         ? 399.99
-        : specs.cpu.includes("i5-14400")
+        : safeIncludes(specs.cpu, "i5-14400")
         ? 189.99
-        : specs.cpu.includes("i5-13400F")
+        : safeIncludes(specs.cpu, "i5-13400F")
         ? 169.99
-        : specs.cpu.includes("7600")
+        : safeIncludes(specs.cpu, "7600")
         ? 159.99
-        : specs.cpu.includes("i5-12400")
+        : safeIncludes(specs.cpu, "i5-12400")
         ? 149.99
         : 179.99, // default
 
       // GPU Pricing
-      gpu: specs.gpu.includes("4090")
+      gpu: safeIncludes(specs.gpu, "4090")
         ? 1599.99
-        : specs.gpu.includes("4080")
+        : safeIncludes(specs.gpu, "4080")
         ? 999.99
-        : specs.gpu.includes("4070 Ti")
+        : safeIncludes(specs.gpu, "4070 Ti")
         ? 799.99
-        : specs.gpu.includes("4070")
+        : safeIncludes(specs.gpu, "4070")
         ? 599.99
-        : specs.gpu.includes("4060 Ti")
+        : safeIncludes(specs.gpu, "4060 Ti")
         ? 449.99
-        : specs.gpu.includes("4060")
+        : safeIncludes(specs.gpu, "4060")
         ? 299.99
-        : specs.gpu.includes("RTX 3060")
+        : safeIncludes(specs.gpu, "RTX 3060")
         ? 199.99
-        : specs.gpu.includes("GTX 1660")
+        : safeIncludes(specs.gpu, "GTX 1660")
         ? 149.99
-        : specs.gpu.includes("Integrated")
+        : safeIncludes(specs.gpu, "Integrated")
         ? 0
         : 250.99, // default
 
       // RAM Pricing (adjust for RGB)
-      ram: specs.ram.includes("128GB")
+      ram: safeIncludes(specs.ram, "128GB")
         ? 599.99
-        : specs.ram.includes("64GB")
+        : safeIncludes(specs.ram, "64GB")
         ? 329.99
-        : specs.ram.includes("32GB")
+        : safeIncludes(specs.ram, "32GB")
         ? 189.99
-        : specs.ram.includes("16GB")
+        : safeIncludes(specs.ram, "16GB")
         ? 99.99
         : 129.99, // default
 
       // Storage Pricing
       storage:
-        specs.storage.includes("4TB") && specs.storage.includes("Gen5")
+        safeIncludes(specs.storage, "4TB") &&
+        safeIncludes(specs.storage, "Gen5")
           ? 599.99
-          : specs.storage.includes("2TB") && specs.storage.includes("Gen5")
+          : safeIncludes(specs.storage, "2TB") &&
+            safeIncludes(specs.storage, "Gen5")
           ? 349.99
-          : specs.storage.includes("2TB") && specs.storage.includes("4TB")
+          : safeIncludes(specs.storage, "2TB") &&
+            safeIncludes(specs.storage, "4TB")
           ? 279.99
-          : specs.storage.includes("2TB")
+          : safeIncludes(specs.storage, "2TB")
           ? 239.99
-          : specs.storage.includes("1TB") && specs.storage.includes("HDD")
+          : safeIncludes(specs.storage, "1TB") &&
+            safeIncludes(specs.storage, "HDD")
           ? 179.99
-          : specs.storage.includes("500GB")
+          : safeIncludes(specs.storage, "500GB")
           ? 79.99
           : 129.99, // 1TB NVMe
 
       // Cooling Pricing (adjust for RGB)
-      cooling: specs.cooling.includes("360mm")
+      cooling: safeIncludes(specs.cooling, "360mm")
         ? 179.99
-        : specs.cooling.includes("280mm")
+        : safeIncludes(specs.cooling, "280mm")
         ? 149.99
-        : specs.cooling.includes("240mm")
+        : safeIncludes(specs.cooling, "240mm")
         ? 109.99
-        : specs.cooling.includes("Stock")
+        : safeIncludes(specs.cooling, "Stock")
         ? 0
         : 89.99, // default
 
@@ -1382,12 +1404,15 @@ export function PCFinder({
           description:
             build.description ||
             "Professional custom build specification designed for your needs",
-          specs: build.components || {
-            cpu: "High-performance processor",
-            gpu: "Latest graphics card",
-            ram: "Fast DDR5 memory",
-            storage: "High-speed NVMe storage",
-            cooling: "Advanced cooling solution",
+          specs: {
+            cpu: build.components?.cpu || "High-performance processor",
+            gpu: build.components?.gpu || "Latest graphics card",
+            ram: build.components?.ram || "Fast DDR5 memory",
+            storage: build.components?.storage || "High-speed NVMe storage",
+            cooling: build.components?.cooling || "Advanced cooling solution",
+            motherboard: build.components?.motherboard || "Premium motherboard",
+            psu: build.components?.psu || "Reliable power supply",
+            case: build.components?.case || "Premium case",
           },
           features: [
             "Professional Assembly",
