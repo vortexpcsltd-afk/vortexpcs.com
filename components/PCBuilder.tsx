@@ -518,259 +518,209 @@ const ComponentDetailModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl w-[95vw] max-h-[92vh] bg-gradient-to-br from-slate-950 via-slate-900/98 to-slate-950 border border-white/10 text-white overflow-hidden backdrop-blur-2xl shadow-2xl">
-        {/* Header Section - More spacious */}
-        <DialogHeader className="pb-8 border-b border-white/10 space-y-4">
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex-1 space-y-4">
-              <DialogTitle className="text-4xl font-bold leading-tight bg-gradient-to-r from-white via-sky-200 to-cyan-200 bg-clip-text text-transparent pr-8">
-                {component.name}
-              </DialogTitle>
-              <DialogDescription className="text-gray-300 text-base leading-relaxed max-w-3xl">
-                {component.description}
-              </DialogDescription>
-            </div>
+      <DialogContent className="max-w-4xl max-h-[90vh] bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 border border-white/10 text-white overflow-hidden">
+        {/* Clean Header */}
+        <DialogHeader className="space-y-3 pb-4">
+          <div className="flex items-start justify-between gap-4">
+            <DialogTitle className="text-2xl font-bold text-white pr-8">
+              {component.name}
+            </DialogTitle>
 
-            {/* Rating Badge - Larger and more prominent */}
-            <div className="flex flex-col items-end gap-3">
-              <div className="flex items-center gap-2 text-yellow-400 bg-gradient-to-r from-yellow-400/20 to-amber-400/20 px-4 py-2.5 rounded-xl border border-yellow-400/30 shadow-lg">
+            {/* Compact Rating & Stock */}
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-1 text-yellow-400">
                 {[...Array(5)].map((_, i) => (
                   <Star
                     key={i}
-                    className={`w-5 h-5 ${
+                    className={`w-4 h-4 ${
                       i < Math.floor(component.rating) ? "fill-current" : ""
                     }`}
                   />
                 ))}
-                <span className="text-base font-bold ml-2">
-                  {component.rating}
-                </span>
               </div>
-
-              {/* Stock Status */}
               <Badge
-                className={`px-4 py-1.5 ${
+                className={
                   component.inStock !== false
-                    ? "bg-green-500/20 text-green-300 border-green-500/40"
-                    : "bg-red-500/20 text-red-300 border-red-500/40"
-                }`}
+                    ? "bg-green-500/20 text-green-400 border-green-500/30"
+                    : "bg-red-500/20 text-red-400 border-red-500/30"
+                }
               >
-                {component.inStock !== false ? (
-                  <>
-                    <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> In Stock
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="w-3.5 h-3.5 mr-1.5" /> Out of Stock
-                  </>
-                )}
+                {component.inStock !== false ? "In Stock" : "Out of Stock"}
               </Badge>
             </div>
           </div>
+          <DialogDescription className="text-gray-400 text-sm">
+            {component.description}
+          </DialogDescription>
         </DialogHeader>
 
-        {/* Main Content - Grid Layout with better spacing */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 overflow-y-auto max-h-[calc(92vh-240px)] pr-4 py-6 custom-scrollbar">
-          {/* Left Column - Image Gallery (2/5 width) */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Main Image Gallery Card */}
-            <div className="bg-gradient-to-br from-white/8 to-white/4 backdrop-blur-md border border-white/15 rounded-3xl p-8 shadow-xl">
+        {/* Compact 2-Column Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[calc(90vh-180px)] pr-2">
+          {/* Left - Image & Price */}
+          <div className="space-y-4">
+            {/* Image Gallery */}
+            <div className="bg-slate-800/50 rounded-lg p-4 border border-white/10">
               <ComponentImageGallery
                 images={component.images || []}
                 productName={component.name}
               />
             </div>
 
-            {/* Price Card - Prominent and clear */}
-            <div className="bg-gradient-to-br from-sky-500/15 via-blue-500/10 to-cyan-500/15 backdrop-blur-md border border-sky-400/30 rounded-3xl p-8 shadow-xl">
-              <div className="space-y-4">
-                <div className="flex items-baseline gap-3">
-                  <div className="text-5xl font-black bg-gradient-to-r from-sky-300 via-blue-300 to-cyan-300 bg-clip-text text-transparent">
-                    £{component.price.toFixed(2)}
-                  </div>
-                  <div className="text-gray-400 text-sm">inc. VAT</div>
+            {/* Price Box */}
+            <div className="bg-gradient-to-br from-sky-500/20 to-blue-500/20 rounded-lg p-5 border border-sky-500/30">
+              <div className="text-center space-y-2">
+                <div className="text-sm text-gray-300 uppercase tracking-wide">
+                  Price per unit
                 </div>
-
-                <Separator className="bg-white/10" />
-
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Price per unit</span>
-                    <span className="text-white font-semibold">
-                      £{component.price.toFixed(2)}
-                    </span>
-                  </div>
-                  {component.brand && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Brand</span>
-                      <Badge className="bg-white/10 text-white border-white/20">
-                        {component.brand}
-                      </Badge>
-                    </div>
-                  )}
+                <div className="text-4xl font-black bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                  £{component.price.toFixed(2)}
                 </div>
+                {component.brand && (
+                  <Badge className="bg-white/10 text-white border-white/20 mt-2">
+                    {component.brand}
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Right Column - Specifications (3/5 width) */}
-          <div className="lg:col-span-3 space-y-6">
-            {/* Technical Specifications - More spacious */}
-            <div className="bg-gradient-to-br from-white/8 to-white/4 backdrop-blur-md border border-white/15 rounded-3xl p-8 shadow-xl">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-sky-500/20 rounded-xl">
-                  <Settings className="w-6 h-6 text-sky-400" />
-                </div>
-                <h3 className="text-2xl font-bold text-white">
+          {/* Right - Specifications */}
+          <div className="space-y-4">
+            {/* Technical Specifications */}
+            <div className="bg-slate-800/50 rounded-lg p-5 border border-white/10">
+              <div className="flex items-center gap-2 mb-4">
+                <Settings className="w-5 h-5 text-sky-400" />
+                <h3 className="text-lg font-bold text-white">
                   Technical Specifications
                 </h3>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 {technicalSpecs.map((spec, index) => (
                   <div
                     key={index}
-                    className="bg-gradient-to-r from-white/8 to-white/4 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:border-sky-400/30 hover:bg-white/10 transition-all duration-300 group"
+                    className="bg-slate-700/30 rounded-lg p-3 border border-white/5"
                   >
-                    <div className="flex flex-col gap-2">
-                      <span className="text-xs font-medium text-gray-400 uppercase tracking-wider group-hover:text-sky-400 transition-colors">
-                        {spec.label}
-                      </span>
-                      <span className="text-base font-bold text-white group-hover:text-sky-200 transition-colors">
-                        {spec.value}
-                      </span>
+                    <div className="text-xs text-gray-400 uppercase mb-1">
+                      {spec.label}
+                    </div>
+                    <div className="text-sm font-semibold text-white">
+                      {spec.value}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Additional Information Sections - Card Layout */}
-            <div className="grid grid-cols-1 gap-6">
-              {/* Compatibility Card */}
-              {component.compatibility && (
-                <div className="bg-gradient-to-br from-blue-500/15 via-cyan-500/10 to-blue-500/15 backdrop-blur-md border border-blue-400/30 rounded-3xl p-8 shadow-xl">
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="p-3 bg-blue-500/20 rounded-xl">
-                      <CheckCircle className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <h4 className="text-xl font-bold text-blue-200">
-                      Compatibility Information
-                    </h4>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    {Array.isArray(component.compatibility) ? (
-                      component.compatibility.map(
-                        (item: string, idx: number) => (
-                          <Badge
-                            key={idx}
-                            className="bg-blue-500/25 text-blue-200 border-blue-400/40 px-4 py-2 text-sm font-medium hover:bg-blue-500/35 transition-colors"
-                          >
-                            {item.toUpperCase()}
-                          </Badge>
-                        )
-                      )
-                    ) : (
-                      <p className="text-blue-200 text-sm">
-                        {component.compatibility}
-                      </p>
-                    )}
-                  </div>
+            {/* Compatibility */}
+            {component.compatibility && (
+              <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle className="w-4 h-4 text-blue-400" />
+                  <h4 className="text-sm font-bold text-blue-300">
+                    Compatibility
+                  </h4>
                 </div>
-              )}
+                <div className="flex flex-wrap gap-2">
+                  {Array.isArray(component.compatibility) ? (
+                    component.compatibility.map((item: string, idx: number) => (
+                      <Badge
+                        key={idx}
+                        className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-xs"
+                      >
+                        {item.toUpperCase()}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-blue-200 text-xs">
+                      {component.compatibility}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
-              {/* Performance Card */}
-              {(component.performance || component.tdp || component.power) && (
-                <div className="bg-gradient-to-br from-green-500/15 via-emerald-500/10 to-green-500/15 backdrop-blur-md border border-green-400/30 rounded-3xl p-8 shadow-xl">
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="p-3 bg-green-500/20 rounded-xl">
-                      <Zap className="w-6 h-6 text-green-400" />
-                    </div>
-                    <h4 className="text-xl font-bold text-green-200">
-                      Performance Details
-                    </h4>
-                  </div>
-                  <div className="space-y-4">
-                    {component.performance && (
-                      <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
-                        <span className="text-green-300 font-medium">
-                          Performance Tier
-                        </span>
-                        <Badge className="bg-green-500/25 text-green-200 border-green-400/40 px-4 py-1.5 text-sm font-semibold uppercase">
-                          {component.performance}
-                        </Badge>
-                      </div>
-                    )}
-                    {component.tdp && (
-                      <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
-                        <span className="text-green-300 font-medium">
-                          Power Consumption
-                        </span>
-                        <span className="text-green-100 font-bold text-lg">
-                          {component.tdp}W TDP
-                        </span>
-                      </div>
-                    )}
-                    {component.power && (
-                      <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
-                        <span className="text-green-300 font-medium">
-                          Recommended PSU
-                        </span>
-                        <span className="text-green-100 font-bold text-lg">
-                          {component.power}W minimum
-                        </span>
-                      </div>
-                    )}
-                  </div>
+            {/* Performance */}
+            {(component.performance || component.tdp || component.power) && (
+              <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap className="w-4 h-4 text-green-400" />
+                  <h4 className="text-sm font-bold text-green-300">
+                    Performance
+                  </h4>
                 </div>
-              )}
+                <div className="space-y-2 text-sm">
+                  {component.performance && (
+                    <div className="flex justify-between">
+                      <span className="text-green-300">Tier:</span>
+                      <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs uppercase">
+                        {component.performance}
+                      </Badge>
+                    </div>
+                  )}
+                  {component.tdp && (
+                    <div className="flex justify-between">
+                      <span className="text-green-300">TDP:</span>
+                      <span className="text-green-100 font-semibold">
+                        {component.tdp}W
+                      </span>
+                    </div>
+                  )}
+                  {component.power && (
+                    <div className="flex justify-between">
+                      <span className="text-green-300">Min PSU:</span>
+                      <span className="text-green-100 font-semibold">
+                        {component.power}W
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-              {/* Features Card */}
-              {(component.rgb !== undefined ||
-                component.wireless !== undefined ||
-                component.modular) && (
-                <div className="bg-gradient-to-br from-purple-500/15 via-pink-500/10 to-purple-500/15 backdrop-blur-md border border-purple-400/30 rounded-3xl p-8 shadow-xl">
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="p-3 bg-purple-500/20 rounded-xl">
-                      <Sparkles className="w-6 h-6 text-purple-400" />
-                    </div>
-                    <h4 className="text-xl font-bold text-purple-200">
-                      Special Features
-                    </h4>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    {component.rgb && (
-                      <Badge className="bg-purple-500/25 text-purple-200 border-purple-400/40 px-4 py-2.5 text-sm font-medium hover:bg-purple-500/35 transition-colors">
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        RGB Lighting
-                      </Badge>
-                    )}
-                    {component.wireless && (
-                      <Badge className="bg-purple-500/25 text-purple-200 border-purple-400/40 px-4 py-2.5 text-sm font-medium hover:bg-purple-500/35 transition-colors">
-                        Wireless Connectivity
-                      </Badge>
-                    )}
-                    {component.modular && (
-                      <Badge className="bg-purple-500/25 text-purple-200 border-purple-400/40 px-4 py-2.5 text-sm font-medium hover:bg-purple-500/35 transition-colors">
-                        {component.modular} Modular
-                      </Badge>
-                    )}
-                  </div>
+            {/* Features */}
+            {(component.rgb !== undefined ||
+              component.wireless !== undefined ||
+              component.modular) && (
+              <div className="bg-purple-500/10 rounded-lg p-4 border border-purple-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-purple-400" />
+                  <h4 className="text-sm font-bold text-purple-300">
+                    Features
+                  </h4>
                 </div>
-              )}
-            </div>
+                <div className="flex flex-wrap gap-2">
+                  {component.rgb && (
+                    <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      RGB Lighting
+                    </Badge>
+                  )}
+                  {component.wireless && (
+                    <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+                      Wireless
+                    </Badge>
+                  )}
+                  {component.modular && (
+                    <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+                      {component.modular} Modular
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Footer - Action Buttons */}
-        <DialogFooter className="pt-8 border-t border-white/15 gap-4 flex-row justify-end">
+        {/* Compact Footer */}
+        <DialogFooter className="pt-4 border-t border-white/10 gap-3">
           <Button
             variant="outline"
             onClick={(e) => {
               e.stopPropagation();
               onClose();
             }}
-            className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30 px-8 py-3 text-base font-medium rounded-xl transition-all"
+            className="bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
             Close
           </Button>
@@ -779,15 +729,14 @@ const ComponentDetailModal = ({
               onSelect(category, component.id);
               onClose();
             }}
-            size="lg"
-            className={`px-10 py-3 text-base font-bold rounded-xl shadow-2xl transition-all ${
+            className={`${
               isSelected
-                ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 hover:shadow-green-500/50"
-                : "bg-gradient-to-r from-sky-600 via-blue-600 to-cyan-600 hover:from-sky-500 hover:via-blue-500 hover:to-cyan-500 hover:shadow-sky-500/50"
+                ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
+                : "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
             } text-white`}
           >
-            <ShoppingCart className="w-5 h-5 mr-2" />
-            {isSelected ? "Component Selected" : "Select This Component"}
+            <ShoppingCart className="w-4 h-4 mr-2" />
+            {isSelected ? "Selected" : "Select This Component"}
           </Button>
         </DialogFooter>
       </DialogContent>
