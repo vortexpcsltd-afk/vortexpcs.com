@@ -1,8 +1,8 @@
 {
-  "version": "2025-10-23-04",
-  "timestamp": "2025-10-23T15:05:00Z",
-  "build": "production-github-pages-enabled",
-  "description": "Complete production deployment with Strapi CMS on custom domain vortexpcs.com",
+  "version": "2025-10-25-01",
+  "timestamp": "2025-10-25T12:00:00Z",
+  "build": "modal-fixes-github-pages-redeploy",
+  "description": "ComponentDetailModal fixes: wider modal (max-w-screen-xl) and fixed close button event bubbling",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
     "HomePage": "strapi-cms-integration-v1",
@@ -14,6 +14,8 @@
     "TermsPage": "separate-component-v2",
     "PrivacyPage": "separate-component-v2",
     "CookiePolicyPage": "separate-component-v2",
+    "PCBuilder": "modal-fixes-v1",
+    "ComponentDetailModal": "wider-modal-event-handling-v1",
     "CMS": "strapi-v5-28-0-enterprise"
   },
   "theme": {
@@ -49,31 +51,13 @@
     "environmentVariables": ["VITE_STRAPI_URL", "VITE_STRAPI_API_TOKEN"]
   },
   "changes": [
-    "🚀 GITHUB PAGES ENABLED: Repository now configured for GitHub Actions deployment",
-    "✅ GitHub Pages source set to 'GitHub Actions' in repository settings",
-    "✅ Custom domain vortexpcs.com ready for production deployment",
-    "🔧 Temporary hero content test deployed to verify display mechanism",
-    "✅ package-lock.json added and committed for CI/CD dependency caching",
-    "🌐 PRODUCTION DEPLOYMENT: Custom domain vortexpcs.com configured",
-    "✅ Added CNAME file for GitHub Pages custom domain",
-    "✅ Configured GitHub Actions secrets for Strapi environment variables",
-    "✅ Production build now includes Strapi CMS integration",
-    "🔧 DNS configuration ready for vortexpcs.com → GitHub Pages",
-    "🔧 GITHUB PAGES FIX: Resolved asset loading and MIME type errors",
-    "✅ Fixed JavaScript module loading with relative base path",
-    "✅ Corrected CSS and asset references for GitHub Pages",
-    "✅ Added production environment variables to build process",
-    "🎉 STRAPI CMS INTEGRATION: Complete dynamic content management system",
-    "✅ Custom hero content now loading from Strapi CMS",
-    "✅ Hero title: 'PERFORMANCE THAT DOESN'T WAIT'",
-    "✅ Hero subtitle: 'Custom PCs built for speed, power, and precision.'",
-    "✅ Rich text description rendering with proper formatting",
-    "🔧 Fixed CORS configuration - added all localhost ports (8000-9009)",
-    "🔧 Smart caching system - content cached in localStorage when Strapi available",
-    "🔧 Auto-retry logic - reconnects every 30 seconds when Strapi down",
-    "🔧 Robust error handling - graceful fallbacks when CMS unavailable",
-    "📊 Enhanced debugging - detailed console logging for development",
-    "🚀 Production-ready CMS integration with fault tolerance",
-    "Previous navigation and responsiveness improvements maintained"
+    "� MODAL FIXES: ComponentDetailModal width increased from max-w-7xl to max-w-screen-xl",
+    "🔧 EVENT HANDLING: Fixed close button event bubbling with stopPropagation()",
+    "🔧 Z-INDEX: Added z-50 to ComponentImageGallery for proper dialog layering",
+    "� GITHUB PAGES REDEPLOY: Restored GitHub Actions workflow for automatic deployment",
+    "✅ CNAME file restored for custom domain vortexpcs.com",
+    "✅ Version bumped to 2025-10-25-01 for cache busting",
+    "🎯 MODAL IMPROVEMENTS: Better space utilization and user experience",
+    "Previous Strapi CMS integration and responsiveness improvements maintained"
   ]
 }
