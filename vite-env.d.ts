@@ -11,6 +11,12 @@ interface ImportMetaEnv {
   readonly VITE_STRIPE_BACKEND_URL: string;
   readonly VITE_STRAPI_URL: string;
   readonly VITE_STRAPI_API_TOKEN: string;
+  readonly VITE_SMTP_HOST: string;
+  readonly VITE_SMTP_PORT: string;
+  readonly VITE_SMTP_SECURE: string;
+  readonly VITE_SMTP_USER: string;
+  readonly VITE_SMTP_PASS: string;
+  readonly VITE_BUSINESS_EMAIL: string;
 }
 
 interface ImportMeta {

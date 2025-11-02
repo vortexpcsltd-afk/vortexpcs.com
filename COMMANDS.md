@@ -1,8 +1,98 @@
 # ⚡ COPY & PASTE COMMANDS
 
-## 🚀 Deploy Now (5 Minutes)
+## � Email Setup (Required for Contact Forms & Order Notifications)
+
+### 1. Configure SMTP Settings
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env file with your Spaceship email settings
+VITE_SMTP_HOST=smtp.spaceship.com
+VITE_SMTP_PORT=587
+VITE_SMTP_SECURE=false
+VITE_SMTP_USER=your-email@yourdomain.com
+VITE_SMTP_PASS=your-spaceship-password
+VITE_BUSINESS_EMAIL=your-email@yourdomain.com
+
+# For Outlook:
+VITE_SMTP_HOST=smtp-mail.outlook.com
+VITE_SMTP_PORT=587
+VITE_SMTP_SECURE=false
+VITE_SMTP_USER=your-email@outlook.com
+VITE_SMTP_PASS=your-outlook-password
+```
+
+### 2. Spaceship Email Setup
+
+```
+1. Log in to your Spaceship account
+2. Go to: Email → SMTP Settings
+3. Copy your SMTP credentials:
+   - Server: smtp.spaceship.com
+   - Port: 587 (TLS) or 465 (SSL)
+   - Username: Your full email address
+   - Password: Your Spaceship email password
+4. Add these to your .env file
+```
+
+### 3. Alternative Email Providers
+
+If you prefer a different provider:
+
+```bash
+# Gmail setup:
+VITE_SMTP_HOST=smtp.gmail.com
+VITE_SMTP_PORT=587
+VITE_SMTP_SECURE=false
+VITE_SMTP_USER=your-email@gmail.com
+VITE_SMTP_PASS=your-gmail-app-password
+
+# Outlook setup:
+VITE_SMTP_HOST=smtp-mail.outlook.com
+VITE_SMTP_PORT=587
+VITE_SMTP_SECURE=false
+VITE_SMTP_USER=your-email@outlook.com
+VITE_SMTP_PASS=your-outlook-password
+```
+
+### 4. Gmail App Password Setup (if using Gmail)
+
+```
+1. Go to: https://myaccount.google.com/security
+2. Enable: 2-Step Verification
+3. Go to: Security → App passwords
+4. Generate password for "Mail"
+5. Use this password in VITE_SMTP_PASS
+```
+
+### 5. Test Email Configuration
+
+```bash
+# Test if email works
+node test-email.js
+
+# Should output:
+# ✅ Email service is properly configured!
+```
+
+### 6. Deploy & Test
+
+```bash
+npm run build
+npm run preview
+
+# Test contact form at: http://localhost:4173/contact
+# Test order flow: Add items → Checkout → Pay
+```
+
+---
+
+## �🚀 Deploy Now (5 Minutes)
 
 ### 1. Git Commands
+
 ```bash
 git add .
 git commit -m "v20251019-04: PCFinder cache bust + blue theme + custom assets"
@@ -10,6 +100,7 @@ git push origin main
 ```
 
 ### 2. Vercel Dashboard Actions
+
 ```
 1. Open: https://vercel.com/dashboard
 2. Click: vortexpcs project
@@ -23,6 +114,7 @@ git push origin main
 ```
 
 ### 3. Verification
+
 ```bash
 # Check version
 curl https://www.vortexpcs.com/version.json
@@ -33,6 +125,7 @@ curl https://www.vortexpcs.com/version.json
 ```
 
 ### 4. Browser Test
+
 ```
 1. Press: Ctrl+Shift+N (Chrome Incognito)
 2. Go to: https://www.vortexpcs.com/
@@ -47,6 +140,7 @@ curl https://www.vortexpcs.com/version.json
 ## 🆘 If Still Not Working
 
 ### Option A: Purge Edge Cache via CLI
+
 ```bash
 # Install Vercel CLI
 npm install -g vercel
@@ -59,6 +153,7 @@ vercel --prod --force
 ```
 
 ### Option B: Local Clean Build
+
 ```bash
 # Clear local node modules
 rm -rf node_modules
@@ -74,6 +169,7 @@ npm run dev
 ```
 
 ### Option C: Contact Vercel
+
 ```
 1. Go to: https://vercel.com/support
 2. Subject: "Request CDN cache purge for vortexpcs.com"
@@ -102,24 +198,28 @@ Thank you!
 ## 📋 Quick Checks
 
 ### Check Git Status
+
 ```bash
 git status
 git log --oneline -5
 ```
 
 ### Check Version Locally
+
 ```bash
 cat public/version.json
 cat index.html | grep "cache-version"
 ```
 
 ### Check What's Deployed
+
 ```bash
 curl -I https://www.vortexpcs.com/ | grep -i cache
 curl https://www.vortexpcs.com/version.json
 ```
 
 ### Check Component
+
 ```bash
 head -20 components/PCFinder.tsx
 # Should show version comment: v20251019-04
@@ -130,6 +230,7 @@ head -20 components/PCFinder.tsx
 ## 🔧 Debug Commands
 
 ### See Recent Changes
+
 ```bash
 git diff HEAD~1 components/PCFinder.tsx
 git diff HEAD~1 public/version.json
@@ -137,12 +238,14 @@ git diff HEAD~1 index.html
 ```
 
 ### Check Build Locally
+
 ```bash
 npm run build
 ls -lh dist/
 ```
 
 ### Test Production Build Locally
+
 ```bash
 npm run build
 npm run preview
@@ -154,6 +257,7 @@ npm run preview
 ## 📱 Browser Testing Commands
 
 ### Chrome DevTools
+
 ```
 F12 → Console → Paste:
 console.log(document.querySelector('meta[name="cache-version"]').content);
@@ -162,6 +266,7 @@ Should show: 20251019-04
 ```
 
 ### Clear Browser Cache
+
 ```
 Chrome:
 Ctrl+Shift+Delete → Time range: All time → Cached images → Clear
@@ -178,6 +283,7 @@ Ctrl+Shift+Delete → Time range: All time → Cached data → Clear
 ## ✅ Success Commands
 
 ### Verify Everything
+
 ```bash
 # 1. Version check
 curl -s https://www.vortexpcs.com/version.json | grep version
@@ -196,6 +302,7 @@ ping www.vortexpcs.com -c 4
 ```
 
 ### Check Deployment Status
+
 ```bash
 # Using Vercel CLI
 vercel ls
@@ -229,7 +336,7 @@ git push origin main
 
 # 5. In Vercel Dashboard:
 # - Settings → Delete deployment protection
-# - Settings → Clear build cache  
+# - Settings → Clear build cache
 # - Deployments → Redeploy (NO CACHE)
 ```
 
@@ -238,6 +345,7 @@ git push origin main
 ## 🎯 Expected Output
 
 ### After Git Push
+
 ```
 Enumerating objects: X, done.
 Counting objects: 100% (X/X), done.
@@ -250,6 +358,7 @@ To github.com:yourusername/vortexpcs.git
 ```
 
 ### After Vercel Build
+
 ```
 Build started
 Installing dependencies
@@ -259,6 +368,7 @@ Deployment ready
 ```
 
 ### After version.json Check
+
 ```json
 {
   "version": "2025-10-19-04",
@@ -275,11 +385,13 @@ Deployment ready
 ## 📞 Emergency Contacts
 
 ### Vercel
+
 - Support: https://vercel.com/support
 - Discord: https://vercel.com/discord
 - Docs: https://vercel.com/docs
 
 ### GitHub
+
 - Status: https://www.githubstatus.com/
 - Support: https://support.github.com/
 

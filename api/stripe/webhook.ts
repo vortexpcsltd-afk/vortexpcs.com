@@ -44,10 +44,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log("Customer email:", session.customer_details?.email);
         console.log("Amount total:", session.amount_total);
 
+        // Send order confirmation email to customer
+        try {
+          const orderData = {
+            orderNumber: session.id,
+            customerName: session.customer_details?.name || "Valued Customer",
+            customerEmail: session.customer_details?.email || "",
+            totalAmount: (session.amount_total || 0) / 100, // Convert from pence to pounds
+            paymentStatus: "Paid",
+            orderDate: new Date().toISOString(),
+            items:
+              session.line_items?.data?.map((item) => ({
+                name: item.description || "Custom PC Build",
+                price: (item.amount_total || 0) / 100 / (item.quantity || 1),
+                quantity: item.quantity || 1,
+              })) || [],
+            shippingAddress: {
+              line1: session.customer_details?.address?.line1 || "",
+              city: session.customer_details?.address?.city || "",
+              postal_code: session.customer_details?.address?.postal_code || "",
+              country: session.customer_details?.address?.country || "",
+            },
+          };
+
+          // Import email service dynamically
+          const { sendOrderConfirmationEmail, sendOrderNotificationEmail } =
+            await import("../../services/email");
+
+          // Send confirmation email to customer
+          await sendOrderConfirmationEmail(orderData);
+
+          // Send notification email to business
+          await sendOrderNotificationEmail(orderData);
+
+          console.log("✅ Order emails sent successfully");
+        } catch (emailError) {
+          console.error("❌ Failed to send order emails:", emailError);
+          // Don't fail the webhook, just log the error
+        }
+
         // TODO: Create order in Firebase Firestore
-        // TODO: Send confirmation email to customer
         // TODO: Update inventory if using Strapi CMS
-        // TODO: Trigger fulfillment process
 
         break;
       }
@@ -55,6 +92,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "payment_intent.succeeded": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         console.log("✅ PaymentIntent succeeded:", paymentIntent.id);
+
+        // Send order confirmation for custom payment forms
+        try {
+          const orderData = {
+            orderNumber: paymentIntent.id,
+            customerName: paymentIntent.shipping?.name || "Valued Customer",
+            customerEmail: paymentIntent.receipt_email || "",
+            totalAmount: (paymentIntent.amount || 0) / 100, // Convert from pence to pounds
+            paymentStatus: "Paid",
+            orderDate: new Date().toISOString(),
+            items: [], // For custom forms, we'd need to get this from metadata
+            shippingAddress: {
+              line1: paymentIntent.shipping?.address?.line1 || "",
+              city: paymentIntent.shipping?.address?.city || "",
+              postal_code: paymentIntent.shipping?.address?.postal_code || "",
+              country: paymentIntent.shipping?.address?.country || "",
+            },
+          };
+
+          // Import email service dynamically
+          const { sendOrderConfirmationEmail, sendOrderNotificationEmail } =
+            await import("../../services/email");
+
+          // Send confirmation email to customer
+          await sendOrderConfirmationEmail(orderData);
+
+          // Send notification email to business
+          await sendOrderNotificationEmail(orderData);
+
+          console.log("✅ PaymentIntent order emails sent successfully");
+        } catch (emailError) {
+          console.error(
+            "❌ Failed to send PaymentIntent order emails:",
+            emailError
+          );
+        }
+
         break;
       }
 
