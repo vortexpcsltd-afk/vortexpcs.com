@@ -1,7 +1,7 @@
 {
-  "version": "2025-10-25-01",
-  "timestamp": "2025-10-25T12:00:00Z",
-  "build": "modal-fixes-github-pages-redeploy",
+  "version": "2025-10-25-02",
+  "timestamp": "2025-11-02T12:00:00Z",
+  "build": "modal-fixes-forced-redeploy",
   "description": "ComponentDetailModal fixes: wider modal (max-w-screen-xl) and fixed close button event bubbling",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
