@@ -119,7 +119,15 @@ const ComponentImageGallery = ({
       {/* Main product image */}
       <div
         className="relative group cursor-pointer"
-        onClick={() => setIsGalleryOpen(true)}
+        onClick={(e) => {
+          // Only open gallery if clicking the image itself, not buttons or overlays
+          if (
+            e.target === e.currentTarget ||
+            (e.target as HTMLElement).tagName === "IMG"
+          ) {
+            setIsGalleryOpen(true);
+          }
+        }}
       >
         <AspectRatio
           ratio={isCompact ? 4 / 3 : 16 / 10}
@@ -142,6 +150,10 @@ const ComponentImageGallery = ({
               <Button
                 size="sm"
                 variant="secondary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsGalleryOpen(true);
+                }}
                 className="bg-black/50 backdrop-blur-md text-white border-white/20 hover:bg-black/70"
               >
                 <Eye className="w-3 h-3 mr-1" />
@@ -216,8 +228,11 @@ const ComponentImageGallery = ({
       </div>
 
       {/* Full Gallery Modal */}
-      <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
-        <DialogContent className="max-w-5xl bg-black/95 border-white/10 text-white z-50">
+      <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen} modal={true}>
+        <DialogContent
+          className="max-w-5xl bg-black/95 border-white/10 text-white"
+          style={{ zIndex: 60 }}
+        >
           <DialogHeader>
             <DialogTitle className="text-2xl bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent">
               {productName} - Image Gallery
@@ -518,7 +533,10 @@ const ComponentDetailModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 border border-white/10 text-white overflow-hidden">
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 border border-white/10 text-white overflow-hidden"
+        style={{ zIndex: 50 }}
+      >
         {/* Clean Header */}
         <DialogHeader className="space-y-3 pb-4">
           <div className="flex items-start justify-between gap-4">
