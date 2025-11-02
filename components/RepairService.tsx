@@ -160,19 +160,19 @@ export function RepairService({
 
     // Real postcode lookup function using api.postcodes.io
     const handlePostcodeLookup = async () => {
-      const normalizedPostcode = postcode
-        .trim()
+      const trimmedPostcode = postcode.trim();
+      const normalizedPostcode = trimmedPostcode
         .replace(/\s+/g, "")
         .toUpperCase();
 
-      if (!normalizedPostcode) {
+      if (!trimmedPostcode) {
         setPostcodeError("Please enter a postcode");
         return;
       }
 
-      // Basic UK postcode format validation
-      const postcodeRegex = /^[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}$/i;
-      if (!postcodeRegex.test(postcode.trim())) {
+      // Basic UK postcode format validation (more lenient)
+      const postcodeRegex = /^[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}$/i;
+      if (!postcodeRegex.test(trimmedPostcode)) {
         setPostcodeError(
           "Please enter a valid UK postcode format (e.g. SW1A 1AA)"
         );
@@ -182,8 +182,11 @@ export function RepairService({
       setIsLoadingAddresses(true);
       setPostcodeError("");
       setFoundAddresses([]);
+      setSelectedAddress("");
 
       try {
+        console.log("Looking up postcode:", normalizedPostcode);
+
         // Use the free UK Postcode API
         const response = await fetch(
           `https://api.postcodes.io/postcodes/${encodeURIComponent(
@@ -192,27 +195,31 @@ export function RepairService({
         );
 
         const data = await response.json();
+        console.log("API Response:", data);
 
         if (data.status === 200 && data.result) {
           const result = data.result;
           // Generate realistic sample addresses for this postcode
           const addresses = [
-            `1 ${result.parish || result.admin_ward}, ${
+            `1 ${result.parish || result.admin_ward || "Main Street"}, ${
               result.admin_district
-            }, ${result.region}, ${postcode.trim().toUpperCase()}`,
-            `2 ${result.parish || result.admin_ward}, ${
+            }, ${result.region}, ${trimmedPostcode.toUpperCase()}`,
+            `2 ${result.parish || result.admin_ward || "Main Street"}, ${
               result.admin_district
-            }, ${result.region}, ${postcode.trim().toUpperCase()}`,
-            `Flat A, 3 ${result.parish || result.admin_ward}, ${
+            }, ${result.region}, ${trimmedPostcode.toUpperCase()}`,
+            `Flat A, 3 ${
+              result.parish || result.admin_ward || "Main Street"
+            }, ${result.admin_district}, ${trimmedPostcode.toUpperCase()}`,
+            `Unit 4, ${result.admin_ward || result.parish || "High Street"}, ${
               result.admin_district
-            }, ${postcode.trim().toUpperCase()}`,
-            `Unit 4, ${result.admin_ward}, ${result.admin_district}, ${postcode
-              .trim()
-              .toUpperCase()}`,
+            }, ${trimmedPostcode.toUpperCase()}`,
           ];
+
+          console.log("Generated addresses:", addresses);
           setFoundAddresses(addresses);
-          setPostcode(postcode.trim().toUpperCase()); // Normalize the displayed postcode
+          setPostcode(trimmedPostcode.toUpperCase()); // Normalize the displayed postcode
         } else {
+          console.error("Postcode not found:", data);
           setPostcodeError("Postcode not found. Please check and try again.");
         }
       } catch (error) {
@@ -398,12 +405,15 @@ export function RepairService({
                   value={postcode}
                   onChange={(e) => {
                     setPostcode(e.target.value);
-                    setPostcodeError("");
+                    if (postcodeError) {
+                      setPostcodeError("");
+                    }
                   }}
                   placeholder="e.g. SW1A 1AA"
                   className="bg-white/5 border-white/10 text-white flex-1"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
+                      e.preventDefault();
                       handlePostcodeLookup();
                     }
                   }}
@@ -413,7 +423,7 @@ export function RepairService({
                   type="button"
                   onClick={handlePostcodeLookup}
                   className="bg-blue-600 hover:bg-blue-700"
-                  disabled={isLoadingAddresses}
+                  disabled={isLoadingAddresses || !postcode.trim()}
                 >
                   {isLoadingAddresses ? (
                     <>
@@ -428,7 +438,7 @@ export function RepairService({
               {postcodeError && (
                 <p className="text-sm text-red-400 mt-2">{postcodeError}</p>
               )}
-              {!postcodeError && (
+              {!postcodeError && !isLoadingAddresses && (
                 <p className="text-sm text-gray-400 mt-1">
                   We'll verify if we cover your area
                 </p>
