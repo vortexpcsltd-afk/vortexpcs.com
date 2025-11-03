@@ -1,8 +1,8 @@
 {
-  "version": "2025-10-25-03",
-  "timestamp": "2025-11-02T12:15:00Z",
-  "build": "strapi-cleanup-and-modal-fixes",
-  "description": "ComponentDetailModal fixes and Strapi references cleanup",
+  "version": "2025-11-03-01",
+  "timestamp": "2025-11-03T12:20:00Z",
+  "build": "pc-builder-image-size-increase",
+  "description": "Increased product image sizes in PC Builder modal for better customer viewing",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
     "HomePage": "contentful-cms-integration-v1",
@@ -60,14 +60,12 @@
     ]
   },
   "changes": [
-    "� MODAL FIXES: ComponentDetailModal width increased from max-w-7xl to max-w-screen-xl",
-    "🔧 EVENT HANDLING: Fixed close button event bubbling with stopPropagation()",
-    "🔧 Z-INDEX: Added z-50 to ComponentImageGallery for proper dialog layering",
-    "� GITHUB PAGES REDEPLOY: Restored GitHub Actions workflow for automatic deployment",
-    "✅ CNAME file restored for custom domain vortexpcs.com",
-    "✅ Version bumped to 2025-10-25-01 for cache busting",
-    "🎯 MODAL IMPROVEMENTS: Better space utilization and user experience",
-    "Previous Contentful CMS integration and responsiveness improvements maintained",
-    "🧹 CLEANUP: Removed outdated Strapi references and files, updated to reflect Contentful CMS usage"
+    "🖼️ IMAGE SIZE: Increased modal width from max-w-4xl to max-w-6xl",
+    "�️ ASPECT RATIO: Changed from 16:10 to 1:1 (square) for larger product display",
+    "�️ IMAGE FIT: Changed from object-cover to object-contain to show full products",
+    "🖼️ PADDING: Increased image container padding from p-4 to p-6",
+    "🎯 PC BUILDER: Updated section headings (Processors, Graphics Cards (GPU), Memory (RAM), etc.)",
+    "✨ HERO SECTION: Added stunning animated hero section to PC Builder page",
+    "Previous modal fixes and Contentful CMS integration maintained"
   ]
 }
