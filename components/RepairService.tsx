@@ -999,13 +999,13 @@ function BookingForm(props: BookingFormProps) {
 
           {/* Terms of Service Modal */}
           <Dialog open={showTermsModal} onOpenChange={setShowTermsModal}>
-            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-gray-900 border-white/10">
-              <DialogHeader>
-                <DialogTitle className="text-white">
+            <DialogContent className="max-w-4xl max-h-[80vh] bg-gray-900 border-white/10 p-0 gap-0 [&>button]:bg-sky-500 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-sky-600 [&>button]:w-8 [&>button]:h-8 [&>button]:z-50">
+              <DialogHeader className="sticky top-0 z-40 bg-gray-900 border-b border-white/10 px-6 py-4">
+                <DialogTitle className="text-white text-xl">
                   Terms of Service
                 </DialogTitle>
               </DialogHeader>
-              <div className="mt-4">
+              <div className="overflow-y-auto px-6 py-4">
                 <TermsPage />
               </div>
             </DialogContent>
@@ -1013,11 +1013,13 @@ function BookingForm(props: BookingFormProps) {
 
           {/* Privacy Policy Modal */}
           <Dialog open={showPrivacyModal} onOpenChange={setShowPrivacyModal}>
-            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-gray-900 border-white/10">
-              <DialogHeader>
-                <DialogTitle className="text-white">Privacy Policy</DialogTitle>
+            <DialogContent className="max-w-4xl max-h-[80vh] bg-gray-900 border-white/10 p-0 gap-0 [&>button]:bg-sky-500 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-sky-600 [&>button]:w-8 [&>button]:h-8 [&>button]:z-50">
+              <DialogHeader className="sticky top-0 z-40 bg-gray-900 border-b border-white/10 px-6 py-4">
+                <DialogTitle className="text-white text-xl">
+                  Privacy Policy
+                </DialogTitle>
               </DialogHeader>
-              <div className="mt-4">
+              <div className="overflow-y-auto px-6 py-4">
                 <PrivacyPage />
               </div>
             </DialogContent>
