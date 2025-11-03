@@ -940,13 +940,30 @@ const ComponentCard = ({
     return (
       <>
         <Card
-          className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] ${
+          className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] relative overflow-hidden ${
             isSelected
               ? "ring-2 ring-sky-500 bg-sky-500/10 border-sky-500/50"
               : "bg-white/5 border-white/10 hover:bg-white/10"
           }`}
           onClick={() => setShowDetailModal(true)}
         >
+          {/* Featured Ribbon */}
+          {component.featured && (
+            <div className="absolute top-0 right-0 z-10">
+              <div className="relative">
+                {/* Ribbon Background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 opacity-90 blur-sm"></div>
+                {/* Ribbon Content */}
+                <div className="relative bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 text-black font-black text-xs uppercase tracking-wider px-8 py-2 shadow-2xl shadow-amber-500/50 flex items-center gap-1.5 transform translate-x-6 translate-y-2 rotate-45 origin-top-right">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Featured</span>
+                  <Sparkles className="w-3 h-3" />
+                </div>
+                {/* Shine Effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12 animate-pulse"></div>
+              </div>
+            </div>
+          )}
           <div className="p-4 sm:p-6">
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6 items-center">
               {/* Image */}
@@ -1148,13 +1165,30 @@ const ComponentCard = ({
   return (
     <>
       <Card
-        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group ${
+        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group relative overflow-hidden ${
           isSelected
             ? "ring-2 ring-sky-500 bg-sky-500/10 border-sky-500/50"
             : "bg-white/5 border-white/10 hover:bg-white/10"
         }`}
         onClick={() => setShowDetailModal(true)}
       >
+        {/* Featured Ribbon */}
+        {component.featured && (
+          <div className="absolute top-0 right-0 z-10">
+            <div className="relative">
+              {/* Ribbon Background Glow */}
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 opacity-90 blur-sm"></div>
+              {/* Ribbon Content */}
+              <div className="relative bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 text-black font-black text-xs uppercase tracking-wider px-8 py-2 shadow-2xl shadow-amber-500/50 flex items-center gap-1.5 transform translate-x-6 translate-y-2 rotate-45 origin-top-right">
+                <Sparkles className="w-3 h-3" />
+                <span>Featured</span>
+                <Sparkles className="w-3 h-3" />
+              </div>
+              {/* Shine Effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12 animate-pulse"></div>
+            </div>
+          </div>
+        )}
         <div className="p-6 space-y-4">
           {/* Image Gallery */}
           <ComponentImageGallery
@@ -2001,13 +2035,30 @@ const PeripheralCard = ({
   if (viewMode === "list") {
     return (
       <Card
-        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] ${
+        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] relative overflow-hidden ${
           isSelected
             ? "ring-2 ring-green-500 bg-green-500/10 border-green-500/50"
             : "bg-white/5 border-white/10 hover:bg-white/10"
         }`}
         onClick={() => onToggle(category, peripheral.id)}
       >
+        {/* Featured Ribbon */}
+        {peripheral.featured && (
+          <div className="absolute top-0 right-0 z-10">
+            <div className="relative">
+              {/* Ribbon Background Glow */}
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 opacity-90 blur-sm"></div>
+              {/* Ribbon Content */}
+              <div className="relative bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 text-black font-black text-xs uppercase tracking-wider px-8 py-2 shadow-2xl shadow-amber-500/50 flex items-center gap-1.5 transform translate-x-6 translate-y-2 rotate-45 origin-top-right">
+                <Sparkles className="w-3 h-3" />
+                <span>Featured</span>
+                <Sparkles className="w-3 h-3" />
+              </div>
+              {/* Shine Effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12 animate-pulse"></div>
+            </div>
+          </div>
+        )}
         <div className="p-4 sm:p-6">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6 items-center">
             {/* Image */}
@@ -2133,13 +2184,30 @@ const PeripheralCard = ({
   // Grid view (default)
   return (
     <Card
-      className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group ${
+      className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group relative overflow-hidden ${
         isSelected
           ? "ring-2 ring-green-500 bg-green-500/10 border-green-500/50"
           : "bg-white/5 border-white/10 hover:bg-white/10"
       }`}
       onClick={() => onToggle(category, peripheral.id)}
     >
+      {/* Featured Ribbon */}
+      {peripheral.featured && (
+        <div className="absolute top-0 right-0 z-10">
+          <div className="relative">
+            {/* Ribbon Background Glow */}
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 opacity-90 blur-sm"></div>
+            {/* Ribbon Content */}
+            <div className="relative bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 text-black font-black text-xs uppercase tracking-wider px-8 py-2 shadow-2xl shadow-amber-500/50 flex items-center gap-1.5 transform translate-x-6 translate-y-2 rotate-45 origin-top-right">
+              <Sparkles className="w-3 h-3" />
+              <span>Featured</span>
+              <Sparkles className="w-3 h-3" />
+            </div>
+            {/* Shine Effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12 animate-pulse"></div>
+          </div>
+        </div>
+      )}
       <div className="p-6 space-y-4">
         {/* Image Gallery */}
         <ComponentImageGallery
