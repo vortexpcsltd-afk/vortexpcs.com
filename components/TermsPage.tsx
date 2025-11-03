@@ -170,10 +170,7 @@ export function TermsPage() {
 
         {/* Company Information */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>
-            Vortex PCs Ltd • Company Registration No. 12345678 • VAT No.
-            GB123456789
-          </p>
+          <p>Vortex PCs Ltd • Company Registration No. 16474994</p>
           <p className="mt-2">Registered in England and Wales</p>
         </div>
       </div>

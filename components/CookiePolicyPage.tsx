@@ -477,10 +477,7 @@ export function CookiePolicyPage() {
 
         {/* Company Information */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>
-            Vortex PCs Ltd • Company Registration No. 12345678 • VAT No.
-            GB123456789
-          </p>
+          <p>Vortex PCs Ltd • Company Registration No. 16474994</p>
         </div>
       </div>
     </div>

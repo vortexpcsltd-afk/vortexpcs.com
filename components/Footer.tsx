@@ -344,7 +344,7 @@ export function Footer({ onNavigate }: FooterProps) {
               <div className="text-xs text-gray-500 text-center md:text-left">
                 <p>&copy; {currentYear} Vortex PCs Ltd. All rights reserved.</p>
                 <p className="mt-1 text-gray-600">
-                  Company Registration No. 12345678 • VAT No. GB123456789
+                  Company Registration No. 16474994
                 </p>
               </div>
 
