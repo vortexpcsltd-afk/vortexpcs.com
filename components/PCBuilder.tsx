@@ -35,7 +35,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "./ui/dialog";
 import { AspectRatio } from "./ui/aspect-ratio";
 import {
@@ -64,6 +63,7 @@ import {
   Server,
   AlertCircle,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 
 // Dark themed placeholder image
@@ -267,8 +267,9 @@ const ComponentImageGallery = ({
         {/* Thumbnail strip for non-compact view */}
         {!isCompact && productImages.length > 1 && (
           <div className="flex gap-3 mt-4 overflow-x-auto pb-2">
-            {productImages.slice(0, 5).map((image: any, index: number) => (
+            {productImages.slice(0, 3).map((image: any, index: number) => (
               <button
+                type="button"
                 key={index}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -325,6 +326,7 @@ const ComponentImageGallery = ({
             {productImages.length > 1 && (
               <>
                 <button
+                  type="button"
                   onClick={prevImage}
                   aria-label="Previous image"
                   className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 backdrop-blur-md text-white hover:bg-black/90 transition-all duration-300 flex items-center justify-center"
@@ -332,6 +334,7 @@ const ComponentImageGallery = ({
                   <ChevronLeft className="w-6 h-6" />
                 </button>
                 <button
+                  type="button"
                   onClick={nextImage}
                   aria-label="Next image"
                   className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 backdrop-blur-md text-white hover:bg-black/90 transition-all duration-300 flex items-center justify-center"
@@ -356,6 +359,7 @@ const ComponentImageGallery = ({
           <div className="grid grid-cols-4 gap-3 mt-4">
             {productImages.map((image: any, index: number) => (
               <button
+                type="button"
                 key={index}
                 onClick={() => setCurrentImageIndex(index)}
                 className={`aspect-video rounded-lg overflow-hidden border-2 transition-all duration-300 ${
@@ -397,6 +401,20 @@ const ComponentDetailModal = ({
   onSelect: (category: string, componentId: string) => void;
   isSelected: boolean;
 }) => {
+  // Local image gallery state for the detail modal
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Normalise images with placeholder fallback
+  const detailImages: string[] =
+    component?.images && component.images.length > 0
+      ? (component.images as string[])
+      : Array(4).fill(PLACEHOLDER_IMAGE);
+
+  // Reset index when component changes
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [component?.id]);
+
   if (!component) return null;
 
   const getSpecifications = () => {
@@ -625,32 +643,78 @@ const ComponentDetailModal = ({
           <div className="mb-8">
             <div className="relative w-full bg-slate-900/50 rounded-2xl overflow-hidden border-2 border-sky-500/20">
               <img
-                src={
-                  (component.images && component.images[0]) || PLACEHOLDER_IMAGE
-                }
+                src={detailImages[currentImageIndex]}
                 alt={component.name}
                 className="w-full h-auto object-contain"
                 style={{ minHeight: "500px", maxHeight: "600px" }}
               />
+
+              {/* Prev/Next Controls */}
+              {detailImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Previous image"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(
+                        (prev) =>
+                          (prev - 1 + detailImages.length) % detailImages.length
+                      );
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition-all duration-300 flex items-center justify-center"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next image"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(
+                        (prev) => (prev + 1) % detailImages.length
+                      );
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition-all duration-300 flex items-center justify-center"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+
+              {/* Counter */}
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+                <Badge className="bg-black/60 backdrop-blur-md text-white border-white/20">
+                  {currentImageIndex + 1}/{detailImages.length}
+                </Badge>
+              </div>
             </div>
 
             {/* Image Gallery Thumbnails */}
-            {component.images && component.images.length > 1 && (
+            {detailImages.length > 1 && (
               <div className="flex gap-3 mt-4 justify-center flex-wrap">
-                {component.images
-                  .slice(0, 4)
-                  .map((img: string, idx: number) => (
-                    <div
-                      key={idx}
-                      className="w-20 h-20 rounded-lg overflow-hidden border-2 border-sky-500/30 hover:border-sky-400 transition-colors"
-                    >
-                      <img
-                        src={img}
-                        alt={`${component.name} ${idx + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ))}
+                {detailImages.slice(0, 4).map((img: string, idx: number) => (
+                  <button
+                    type="button"
+                    key={idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(idx);
+                    }}
+                    className={`w-20 h-20 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                      idx === currentImageIndex
+                        ? "border-sky-500 ring-2 ring-sky-500/30"
+                        : "border-white/10 hover:border-white/30"
+                    }`}
+                    aria-label={`View image ${idx + 1}`}
+                  >
+                    <img
+                      src={img}
+                      alt={`${component.name} ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -784,7 +848,7 @@ const ComponentDetailModal = ({
                   Key Features
                 </h3>
                 <ul className="space-y-2">
-                  {component.features.map((feature, index) => (
+                  {component.features.map((feature: string, index: number) => (
                     <li key={index} className="flex items-start gap-3">
                       <svg
                         className="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5"
@@ -2811,6 +2875,12 @@ export function PCBuilder({
     }));
   };
 
+  const handleClearBuild = () => {
+    setSelectedComponents({});
+    setSelectedPeripherals({});
+    setCompatibilityIssues([]);
+  };
+
   const getTotalPrice = () => {
     const componentsTotal = Object.entries(selectedComponents).reduce(
       (total, [category, componentId]) => {
@@ -3802,14 +3872,27 @@ export function PCBuilder({
                   </Alert>
                 )}
 
-                <Button
-                  onClick={handleCheckoutWithCompatibility}
-                  className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white"
-                  disabled={getSelectedComponentsCount() === 0}
-                >
-                  <ShoppingCart className="w-4 h-4 mr-2" />
-                  Add to Cart
-                </Button>
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleCheckoutWithCompatibility}
+                    className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white"
+                    disabled={getSelectedComponentsCount() === 0}
+                  >
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Add to Cart
+                  </Button>
+
+                  {getSelectedComponentsCount() > 0 && (
+                    <Button
+                      onClick={handleClearBuild}
+                      variant="outline"
+                      className="w-full border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Clear Build
+                    </Button>
+                  )}
+                </div>
               </div>
             </Card>
 

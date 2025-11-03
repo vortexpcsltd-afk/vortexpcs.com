@@ -4,6 +4,14 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
+import { createLogger } from "../services/logger";
+import {
+  checkEmailRateLimit,
+  getClientId,
+  setRateLimitHeaders,
+  createRateLimitError,
+} from "../services/ratelimit";
+import { captureException, addBreadcrumb } from "../services/sentry";
 
 // CORS headers
 const corsHeaders = {
@@ -13,28 +21,61 @@ const corsHeaders = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const logger = createLogger(req);
+
   // Set CORS headers
   Object.entries(corsHeaders).forEach(([k, v]) =>
     res.setHeader(k, v as string)
   );
+  res.setHeader("X-Trace-ID", logger.getTraceId());
+
+  logger.info("Repair notification request received");
 
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
+    logger.debug("Handling OPTIONS preflight");
     return res.status(200).json({ success: true });
   }
 
   // Only allow POST
   if (req.method !== "POST") {
+    logger.warn("Invalid method attempted", { method: req.method });
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
+    // Check rate limit
+    const clientId = getClientId(req);
+    const rateLimitResult = await checkEmailRateLimit(clientId);
+    setRateLimitHeaders(res, rateLimitResult);
+
+    if (!rateLimitResult.success) {
+      logger.warn("Rate limit exceeded", {
+        clientId,
+        limit: rateLimitResult.limit,
+      });
+      addBreadcrumb("Repair notification rate limit exceeded", { clientId });
+      return res.status(429).json(createRateLimitError(rateLimitResult));
+    }
+
     const { bookingData, customerInfo, totalPrice } = req.body;
+
+    logger.info("Processing repair notification", {
+      customerEmail: customerInfo?.email,
+      urgency: bookingData?.urgency,
+      totalPrice,
+    });
 
     // Validate required fields
     if (!bookingData || !customerInfo || !totalPrice) {
+      logger.warn("Missing required fields");
       return res.status(400).json({ error: "Missing required fields" });
     }
+
+    addBreadcrumb("Repair booking validated", {
+      customerName: customerInfo.name,
+      urgency: bookingData.urgency,
+    });
 
     // Load SMTP configuration
     const smtpHost = process.env.VITE_SMTP_HOST;
@@ -51,12 +92,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!smtpPass) missing.push("VITE_SMTP_PASS");
 
     if (missing.length) {
-      console.error("Email configuration missing:", missing.join(", "));
+      logger.error("Email configuration missing", undefined, {
+        missing: missing.join(", "),
+      });
       return res.status(500).json({
         error: "Email service not configured",
         details: `Missing env vars: ${missing.join(", ")}`,
       });
     }
+
+    logger.debug("Creating SMTP transporter", {
+      host: smtpHost,
+      port: smtpPort,
+    });
 
     // Create transporter
     const transporter = nodemailer.createTransport({
@@ -69,9 +117,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Verify connection
     try {
       await transporter.verify();
+      logger.debug("SMTP connection verified");
     } catch (verifyError: any) {
       const { message, code } = verifyError || {};
-      console.error("SMTP verify failed:", { message, code });
+      logger.error("SMTP verify failed", verifyError, { code });
+      await captureException(verifyError, {
+        context: "SMTP verification - Repair",
+      });
       return res.status(500).json({
         error: "SMTP connection test failed",
         details: message || "Unknown verify error",
@@ -80,6 +132,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Generate booking reference
     const bookingRef = `VX-REP-${Date.now().toString(36).toUpperCase()}`;
+    logger.info("Generated booking reference", { bookingRef });
+    addBreadcrumb("Sending repair notification emails", {
+      bookingRef,
+      customerEmail: customerInfo.email,
+    });
 
     // Email to business
     await transporter.sendMail({
@@ -617,13 +674,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `,
     });
 
+    logger.info("Repair notifications sent successfully", {
+      bookingRef,
+      customerEmail: customerInfo.email,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Repair booking notifications sent successfully",
       bookingRef,
     });
   } catch (error: any) {
-    console.error("Repair notification error:", error);
+    logger.error("Repair notification error", error);
+    await captureException(error, {
+      context: "Repair notification",
+      customerEmail: req.body?.customerInfo?.email,
+    });
     return res.status(500).json({
       error: "Failed to send repair notifications",
       details: error.message,

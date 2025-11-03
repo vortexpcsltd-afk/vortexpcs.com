@@ -3,6 +3,7 @@ import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { CheckCircle2, Package, Mail, Home, Loader2 } from "lucide-react";
 import { verifyPayment } from "../services/payment";
+import { trackEvent } from "../services/database";
 
 interface OrderSuccessProps {
   onNavigate: (view: string) => void;
@@ -32,6 +33,26 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
 
         // TODO: Create order in Firebase Firestore
         // This should be done in the webhook, but we can also do it here as backup
+
+        // Analytics: purchase event (gated by cookie consent)
+        try {
+          const consent = localStorage.getItem("vortex_cookie_consent");
+          if (consent === "accepted") {
+            const raw = localStorage.getItem("vortex_user");
+            const user = raw ? JSON.parse(raw) : null;
+            const uid = user?.uid || null;
+            const amount = (data?.amountTotal || 0) / 100;
+            const currency = (data?.currency || "gbp").toUpperCase();
+            trackEvent(uid, "purchase", {
+              amount,
+              currency,
+              session_id: sessionId,
+              source: data?.devTest ? "dev" : "prod",
+            });
+          }
+        } catch {
+          // best-effort analytics only
+        }
       } catch (err: any) {
         console.error("Payment verification error:", err);
         setError(err.message || "Failed to verify payment");

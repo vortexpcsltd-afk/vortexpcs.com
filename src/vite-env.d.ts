@@ -11,6 +11,9 @@ interface ImportMetaEnv {
   readonly VITE_STRIPE_BACKEND_URL: string;
   readonly VITE_STRAPI_URL: string;
   readonly VITE_STRAPI_API_TOKEN: string;
+  readonly VITE_SENTRY_DSN: string;
+  readonly VITE_SENTRY_DEBUG: string;
+  readonly VITE_APP_VERSION: string;
 }
 
 interface ImportMeta {

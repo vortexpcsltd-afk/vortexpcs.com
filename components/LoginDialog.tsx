@@ -223,6 +223,7 @@ export function LoginDialog({
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
                   disabled={loading}
+                  autoComplete="email"
                 />
               </div>
 
@@ -243,6 +244,7 @@ export function LoginDialog({
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
                   disabled={loading}
+                  autoComplete="current-password"
                 />
               </div>
 
@@ -308,6 +310,7 @@ export function LoginDialog({
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
                   disabled={loading}
+                  autoComplete="name"
                 />
               </div>
 
@@ -328,6 +331,7 @@ export function LoginDialog({
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
                   disabled={loading}
+                  autoComplete="email"
                 />
               </div>
 
@@ -349,6 +353,7 @@ export function LoginDialog({
                   required
                   disabled={loading}
                   minLength={6}
+                  autoComplete="new-password"
                 />
               </div>
 

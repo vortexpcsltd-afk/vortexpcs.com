@@ -23,6 +23,7 @@ interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  role?: string;
   phone?: string;
   address?: string;
   createdAt: Date;
@@ -91,7 +92,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userProfile,
     loading,
     isAuthenticated: !!user,
-    isAdmin: userProfile?.email === "admin@vortexpcs.com" || false,
+    // Prefer role-based admin from Firestore profile; fallback to legacy email check
+    isAdmin:
+      userProfile?.role?.toLowerCase?.() === "admin" ||
+      userProfile?.email === "admin@vortexpcs.com" ||
+      false,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

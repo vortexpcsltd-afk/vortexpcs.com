@@ -1,0 +1,182 @@
+VortexPCs.com Site Audit:
+
+Kicking off a full-site audit now—here’s a comprehensive report across functionality, security, performance, accessibility, SEO, analytics, DX, and deployment, with concrete issues and a prioritized upgrade plan.
+
+executive summary
+Strengths: Modern stack (Vite 6, React 18, TypeScript, Tailwind 4), clean shadcn/ui design system, optional integrations (Firebase, Stripe, CMS), strong UX touches (glassmorphism, rich modals), and serverless backend endpoints for payments/email.
+Gaps to address:
+Routing/SEO: SPA state-based routing limits deep linking and SEO; recommend true URL routing and optional SSR/SSG.
+Type safety and maintainability: Several large components and many any-typed surfaces; extract modules and strengthen typing.
+Security and backend boundaries: Client-side admin role changes rely on Firestore rules; prefer server-side role elevation APIs.
+Analytics: Now wired to Firestore page_view events; unify with Vercel Analytics and add key events.
+CI/testing: No automated tests or CI; add minimal unit/e2e and PR checks.
+Accessibility/performance: Color contrast, keyboard focus, image optimization, and code splitting can improve.
+Quality gate status from this session
+
+Build: Not executed
+Lint/Typecheck: FAIL (numerous “Unexpected any” and a few unused symbol errors; sample listed below)
+Tests: Not present
+functionality inventory
+Routing and shell: App.tsx manages routing via in-memory state currentView, not URL-based; cookie consent, footer, header, cart modal, and login dialog are integrated here.
+Pages/components: PC Finder/Builder, Repair Service, About, Contact, FAQ, Checkout, Order Success, Member Area, Admin Panel.
+Admin Panel: Dashboards, Orders, Inventory (via Contentful—open in CMS), Customers (with role normalization and promote/demote), Content (CMS quick stats), Support Tickets, Refund Requests, Build Progress.
+Auth: Firebase optional; AuthContext infers isAdmin (role case-insensitive), with owner- and admin-specific privileges.
+Data services: Firestore for orders, users, tickets, refunds, analytics; Contentful for product/content; Stripe endpoints in stripe; email via Nodemailer in serverless; address lookup service config present.
+Analytics: Custom Firestore analytics trackPageView() instrumented for SPA navigation (gated by cookie consent). Vercel Analytics package also present.
+issues and risks
+1) routing and SEO
+SPA-only state routing (no URL state): Deep linking, back/forward browser behavior, and SEO indexing are limited. Meta tags are hydrated from CMS, but search engines generally need URL-addressable pages and SSR/SSG or prerendering.
+No sitemap.xml or robots.txt detected; no canonical URLs; no schema.org structured data.
+Recommendations
+
+Adopt React Router or TanStack Router to map views to URLs.
+Consider SSR/SSG via Remix or Next.js (or Vite SSR + Vercel) for SEO-critical pages (Home, Product listings, FAQ).
+Add sitemap.xml, robots.txt, canonical link tags.
+Add schema.org (Organization, Product, FAQ) JSON-LD.
+2) type safety and maintainability
+Many any types and very large components reduce reliability and refactor safety.
+Example findings:
+PCBuilder.tsx has many any usages (images, compatibility checks, props, internal state). Multiple lines flagged: lines ~97, 270, 357, 393, 851, 1222, 1253, 1279, 1910, 2185+, 2361+, etc.
+AdminPanel.tsx also contains any types for state and (now) role extraction.
+AdminPanel.tsx is >2,500 LOC; it’s a hub for dashboards, orders, inventory, customers, content, tickets, refunds, and modals—difficult to maintain.
+Recommendations
+
+Define shared types in services or types/:
+UserProfile, CustomerSummary, SupportTicket, RefundRequest, AnalyticsEvent, PCComponent with strong fields.
+Refactor Admin Panel into subcomponents by tab/domain:
+components/admin/Dashboard.tsx, .../Orders.tsx, .../Inventory.tsx, .../Customers.tsx, etc.
+Add ESLint rule tuning: allow transitional unknown over any, and leverage zod for runtime validation at service boundaries.
+Add small utilities for currency/date formatting.
+3) security and backend boundaries
+Client-side role changes: The Admin Panel promotes/demotes roles via updateUserProfile() from the client. Firestore rules should block non-admin changes, and self-demotion is disabled in UI, but:
+Best practice: Perform privileged role changes in secure serverless APIs that verify admin session and enforce audit logging.
+Firestore rules: Recently hardened (case-insensitive role check, restrict self-elevation), good direction. Continue to:
+Enforce server timestamps and validation on writes where possible.
+Validate Analytics creates and disallow updates/deletes except by admin if desired.
+Stripe serverless functions:
+webhook.ts verifies signatures (good), but imports ../../services/email from outside the api dir; ensure Vercel bundling resolves root imports reliably.
+Different stripe versions: package.json uses stripe ^17; root uses ^19. Version drift can cause mismatched runtime behavior.
+Email/Nodemailer:
+Ensure secrets only provided at deploy time; protect against header injection; consider rate limits.
+Recommendations
+
+Add api/admin/users/update-role.ts serverless function that:
+Verifies authenticated admin (JWT/Firebase ID token).
+Performs role change and writes an audit trail.
+Align stripe package versions between root and api to the latest (or consolidate into workspace with consistent lockfile).
+Add basic request validation (zod) in api/*.
+Consider reCAPTCHA for contact/support forms to reduce abuse.
+Add security headers via vercel.json (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy).
+4) data and integrations
+Firebase optional mode is partially enforced: some services check !db, others don’t and will throw if Firebase is unconfigured (e.g., createOrder).
+Inventory management intentionally opens Contentful for edits; good for keeping writes centralized.
+Address lookup and email services: Verify error handling, rate limits, and user feedback if external services fail.
+Recommendations
+
+Ensure every Firestore call has a graceful fallback or is gated so the app remains usable in “no backend” mode (as documented).
+Cache Contentful reads (e.g., SWR pattern or session storage) and use stale-while-revalidate to reduce latency and API usage.
+Implement a retry/backoff strategy in data services for transient errors.
+5) analytics and privacy
+Firestore page_view tracking is now instrumented on SPA view changes and gated by cookie consent.
+Vercel Analytics also included; risk of double-counting if both are enabled without clear purpose.
+Analytics currently cover page_view only; missing critical commerce events.
+Recommendations
+
+Choose a single analytics sink for admin dashboards (stick to Firestore if you want pure in-house visibility in Admin, or unify on Vercel Analytics + a scheduled export).
+Add key events: add_to_cart, begin_checkout, purchase, support_ticket_created, refund_requested.
+Persist a pseudonymous visitor ID when consent is accepted to dedupe anonymous sessions.
+Provide a cookie preferences modal with toggles (analytics/marketing) beyond Accept All vs Essential.
+6) performance and UX
+Images: Use Contentful Images API with width/format parameters; currently many images likely load at full size without srcset.
+Code splitting: The Admin Panel and PC Builder are heavy; split by route and dynamic import large sections/modals.
+CSS/tailwind: Animated backgrounds/glow are great; ensure they don’t degrade low-end devices (reduce opacity/blur on mobile).
+Caching: Vercel headers cache assets/ aggressively; add ETag and leverage preconnect for Stripe/contentful if needed.
+Recommendations
+
+Introduce React.lazy + Suspense for heavy pages and modals.
+Add a responsive srcset with the Contentful images CDN to serve WebP/AVIF and constrained widths.
+Consider deferring non-critical scripts (e.g., analytics) and using requestIdleCallback.
+Add a “Reduce motion” media query respect for animations.
+7) accessibility
+Color contrast: Glassmorphism and cyan/blue on black can have borderline contrast in some badges and secondary text—verify with tooling.
+Keyboard nav: Plenty of custom buttons; ensure all interactive elements are reachable and have focus styles (you’ve started with focus-visible ring—good).
+ARIA: Ensure modals/dialogs have correct labeling and focus trapping (Dialog from shadcn/ui helps).
+Forms: Add labels and descriptive help text where missing; you already added autocomplete attributes—nice.
+Recommendations
+
+Run axe-core (browser or in CI) and fix high-priority violations.
+Add “Skip to content” link at top.
+Ensure alt text on images (logo and hero) and mark decorative images properly.
+8) testing and CI
+No tests yet; no CI pipeline.
+Many complex workflows (builder compatibility, admin updates, orders, tickets) would benefit from smoke tests.
+Recommendations
+
+Unit: Vitest + React Testing Library for component logic and services.
+E2E: Playwright to exercise primary journeys (browse → builder → add to cart → checkout → success, admin workflows).
+CI: GitHub Actions: lint + tsc + build + unit tests on PR; optional Playwright on main or nightly.
+9) deployment and monitoring
+Vercel config is present with SPA rewrites and caching. Security headers are missing.
+No runtime monitoring/instrumentation.
+Recommendations
+
+Add Sentry (frontend + serverless) to catch errors and track release health.
+Add structured logging in APIs and trace IDs for cross-request correlation.
+Consider adding rate limiting (e.g., @upstash/ratelimit) on sensitive endpoints (email, address lookup).
+10) content and conversion
+Pages exist for Terms/Privacy/Cookies; ensure plain-language versions are complete and updated.
+Add trust signals: payment/provider logos, warranty/returns policy highlights, shipping timelines.
+Add product schema for featured builds and richer SERP results.
+Add a blog/updates page connected to CMS for fresh content.
+sample lint/type issues (not exhaustive)
+Unexpected any across many files (PCBuilder, AdminPanel, App).
+A few unused imports/symbols: e.g., Palette in AdminPanel.tsx.
+Mixed package versions between root and api (stripe, @vercel/node).
+Previously, “Cannot find module './components/CmsDiagnostics'” surfaced transiently; ensure path casing matches and file exists (it does), and that tsconfig includes components in compilation.
+These are fixable via:
+
+Define interfaces in services or types/.
+Replace any with explicit types or unknown with narrowing.
+Prune unused imports and variables.
+Consolidate package versions in a single root lockfile if possible.
+prioritized action plan
+Short-term (1–2 weeks; high impact, low/medium effort)
+
+Routing/SEO
+Introduce React Router paths for each view; preserve current UI.
+Add sitemap.xml, robots.txt, canonical URLs; inject schema.org for FAQ/Organization.
+Security
+Create serverless admin role endpoint (verify admin, update role, audit log).
+Align Stripe versions and verify webhook/email imports bundle correctly on Vercel.
+Add basic security headers in vercel.json (CSP, X-Frame-Options, etc.).
+Analytics
+Add key commerce/support events to Firestore analytics; standardize on Firestore or Vercel (one source-of-truth).
+Code quality
+Extract Admin tabs into subcomponents; add types for customers/tickets/refunds.
+Clean obvious anys and unused symbols (start with AdminPanel and PCBuilder props/state).
+Testing/CI
+Add Vitest + RTL and 3–5 smoke tests.
+GitHub Actions: lint + tsc + unit tests on PR.
+Mid-term (3–6 weeks; medium/high impact)
+
+Performance & a11y
+Lazy-load heavy pages and modals; adopt responsive images via Contentful Images API; run axe fixes.
+Data resilience
+Make all services robust in “no backend” mode (consistent guards/fallbacks for Firebase unconfigured).
+Content & conversion
+Add trust badges and policy highlights; start a CMS-backed blog.
+Long-term (6–12+ weeks; strategic)
+
+SSR/SSG
+Migrate to Next.js or Remix for SEO-critical pages; or add Vite SSR + prerendering for select routes.
+Monitoring & observability
+Add Sentry/LogRocket; structured logs and dashboards; synthetic checks for API endpoints.
+Full typing and refactor
+Complete removal of any, shared domain models, and a modularized admin suite.
+concrete next steps I can implement quickly
+Add sitemap.xml and robots.txt (static files) and canonical tags in App.tsx.
+Introduce React Router and map currentView to URLs (preserving existing components).
+Add a basic Sentry integration scaffold for frontend and API routes.
+Create api/admin/users/update-role.ts for secure role management and switch the AdminPanel to call it.
+Add Analytics events for add_to_cart and checkout, gated by cookie consent.
+If you’d like, I can start with the router + sitemap + secure role endpoint and push a PR, then move on to analytics events and typing cleanup.

@@ -5,6 +5,14 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
+import { createLogger } from "../services/logger";
+import {
+  checkEmailRateLimit,
+  getClientId,
+  setRateLimitHeaders,
+  createRateLimitError,
+} from "../services/ratelimit";
+import { captureException, addBreadcrumb } from "../services/sentry";
 
 // CORS headers for cross-origin requests
 const corsHeaders = {
@@ -14,28 +22,70 @@ const corsHeaders = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const logger = createLogger(req);
+
   // Always set CORS headers
   Object.entries(corsHeaders).forEach(([k, v]) =>
     res.setHeader(k, v as string)
   );
 
+  // Add trace ID header for debugging
+  res.setHeader("X-Trace-ID", logger.getTraceId());
+
+  logger.info("Contact form request received");
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
+    logger.debug("Handling OPTIONS preflight request");
     return res.status(200).json({ success: true });
   }
 
   // Only allow POST
   if (req.method !== "POST") {
+    logger.warn("Invalid method attempted", { method: req.method });
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
+    // Check rate limit
+    const clientId = getClientId(req);
+    logger.info("Checking rate limit", { clientId });
+
+    const rateLimitResult = await checkEmailRateLimit(clientId);
+    setRateLimitHeaders(res, rateLimitResult);
+
+    if (!rateLimitResult.success) {
+      logger.warn("Rate limit exceeded", {
+        clientId,
+        limit: rateLimitResult.limit,
+        reset: rateLimitResult.reset,
+      });
+      addBreadcrumb("Rate limit exceeded", { clientId });
+      return res.status(429).json(createRateLimitError(rateLimitResult));
+    }
+
     const { name, email, phone, subject, enquiryType, message } = req.body;
+
+    logger.info("Processing contact form", {
+      name,
+      email,
+      enquiryType,
+      hasPhone: !!phone,
+    });
 
     // Validate required fields
     if (!name || !email || !subject || !enquiryType || !message) {
+      logger.warn("Missing required fields", {
+        hasName: !!name,
+        hasEmail: !!email,
+        hasSubject: !!subject,
+        hasEnquiryType: !!enquiryType,
+        hasMessage: !!message,
+      });
       return res.status(400).json({ error: "Missing required fields" });
     }
+
+    addBreadcrumb("Contact form validated", { name, email, enquiryType });
 
     // Load and validate SMTP configuration from environment
     const smtpHost = process.env.VITE_SMTP_HOST;
@@ -53,12 +103,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (missing.length) {
       // Don't leak secrets; guide configuration via which keys are missing
-      console.error("Email configuration missing:", missing.join(", "));
+      logger.error("Email configuration missing", undefined, {
+        missing: missing.join(", "),
+      });
       return res.status(500).json({
         error: "Email service not configured",
         details: `Missing env vars: ${missing.join(", ")}`,
       });
     }
+
+    logger.debug("Creating SMTP transporter", {
+      host: smtpHost,
+      port: smtpPort,
+    });
 
     // Create transporter
     const transporter = nodemailer.createTransport({
@@ -71,9 +128,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Optional: verify connection configuration early for clearer errors
     try {
       await transporter.verify();
+      logger.debug("SMTP connection verified");
     } catch (verifyError: any) {
       const { message, code } = verifyError || {};
-      console.error("SMTP verify failed:", { message, code });
+      logger.error("SMTP verify failed", verifyError, { code });
+      await captureException(verifyError, { context: "SMTP verification" });
       let hint = "";
       if (code === "EAUTH")
         hint = "Authentication failed. Check SMTP user/pass.";
@@ -87,6 +146,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hint,
       });
     }
+
+    addBreadcrumb("Sending emails", { name, email });
+    logger.info("Sending email to business");
 
     // Email to business
     await transporter.sendMail({
@@ -581,6 +643,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `,
     });
 
+    logger.info("Email sent successfully to customer", { email });
+
     return res.status(200).json({
       success: true,
       message: "Email sent successfully",
@@ -588,7 +652,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     // Enhance error logging for faster diagnosis in Vercel function logs
     const { message, code, command, response } = error || {};
-    console.error("Email send error:", { message, code, command, response });
+    logger.error("Email send error", error, { code, command, response });
+    await captureException(error, {
+      context: "Contact form email",
+      email: req.body?.email,
+      enquiryType: req.body?.enquiryType,
+    });
     return res.status(500).json({
       error: "Failed to send email",
       details: message || "Unknown error",

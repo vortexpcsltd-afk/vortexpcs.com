@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Button } from "./components/ui/button";
 import { PCFinder } from "./components/PCFinderBlue";
@@ -38,9 +39,12 @@ import {
   Phone,
 } from "lucide-react";
 import { fetchSettings, fetchPageContent } from "./services/cms";
+import { trackPageView, trackEvent } from "./services/database";
 const vortexLogo = "/vortexpcs-logo.png";
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [currentView, setCurrentView] = useState("home");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -99,9 +103,30 @@ export default function App() {
     checkStripeRedirect();
   }, []);
 
-  // Scroll to top whenever the view changes
+  // Derive currentView from URL and scroll to top on navigation
   useEffect(() => {
+    const path = location.pathname.replace(/^\/+/, "");
+    const view = path === "" ? "home" : path;
+    setCurrentView(view);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [location.pathname]);
+
+  // Firestore Analytics: track page views on SPA navigation (gated by cookie consent)
+  useEffect(() => {
+    const consent = localStorage.getItem("vortex_cookie_consent");
+    if (consent === "accepted") {
+      try {
+        const raw = localStorage.getItem("vortex_user");
+        const user = raw ? JSON.parse(raw) : null;
+        const uid = user?.uid || null;
+        // Use a simple route identifier for pages (matches our SPA views)
+        const page = `/${currentView}`;
+        trackPageView(uid, page);
+      } catch (e) {
+        // Best-effort only
+        console.warn("Analytics tracking skipped due to parse error", e);
+      }
+    }
   }, [currentView]);
 
   // Hydrate document title, standard meta tags, Open Graph and Twitter tags from CMS (Contentful)
@@ -207,9 +232,29 @@ export default function App() {
         );
       } else {
         // Add new item with quantity 1
-        return [...prevItems, { ...item, quantity: 1 }];
+        const next = [...prevItems, { ...item, quantity: 1 }];
+        return next;
       }
     });
+
+    // Analytics: add_to_cart (gated by consent)
+    try {
+      const consent = localStorage.getItem("vortex_cookie_consent");
+      if (consent === "accepted") {
+        const raw = localStorage.getItem("vortex_user");
+        const user = raw ? JSON.parse(raw) : null;
+        const uid = user?.uid || null;
+        trackEvent(uid, "add_to_cart", {
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          category: item.category,
+          quantity: 1,
+        });
+      }
+    } catch {
+      // analytics best-effort only
+    }
   };
 
   const navigation = [
@@ -225,12 +270,18 @@ export default function App() {
     ? [...navigation, { id: "cms-diagnostics", label: "CMS", icon: Settings }]
     : navigation;
 
+  // Navigate helper for child components expecting setCurrentView
+  const onNavigate = (view: string) => {
+    const path = view === "home" ? "/" : `/${view}`;
+    navigate(path);
+  };
+
   const renderCurrentView = () => {
     switch (currentView) {
       case "pc-finder":
         return (
           <PCFinder
-            setCurrentView={setCurrentView}
+            setCurrentView={onNavigate}
             setRecommendedBuild={setRecommendedBuild}
           />
         );
@@ -243,30 +294,30 @@ export default function App() {
           />
         );
       case "repair":
-        return <RepairService onNavigate={setCurrentView} />;
+        return <RepairService onNavigate={onNavigate} />;
       case "about":
-        return <AboutUs onNavigate={setCurrentView} />;
+        return <AboutUs onNavigate={onNavigate} />;
       case "faq":
-        return <FAQPage onNavigate={setCurrentView} />;
+        return <FAQPage onNavigate={onNavigate} />;
       case "contact":
-        return <Contact onNavigate={setCurrentView} />;
+        return <Contact onNavigate={onNavigate} />;
       case "member":
         return (
           <MemberArea
             isLoggedIn={isLoggedIn}
             setIsLoggedIn={setIsLoggedIn}
-            onNavigate={setCurrentView}
+            onNavigate={onNavigate}
           />
         );
       case "admin":
         return isAdmin ? <AdminPanel /> : <div>Access Denied</div>;
       case "order-success":
-        return <OrderSuccess onNavigate={setCurrentView} />;
+        return <OrderSuccess onNavigate={onNavigate} />;
       case "checkout":
         return (
           <CheckoutPage
             cartItems={cartItems}
-            onNavigate={setCurrentView}
+            onNavigate={onNavigate}
             onBackToCart={() => setShowCartModal(true)}
           />
         );
@@ -279,7 +330,7 @@ export default function App() {
       case "cms-diagnostics":
         return <CmsDiagnostics />;
       default:
-        return <HomePage setCurrentView={setCurrentView} />;
+        return <HomePage setCurrentView={onNavigate} />;
     }
   };
 
@@ -326,7 +377,7 @@ export default function App() {
                 <div
                   className="cursor-pointer group"
                   onClick={() => {
-                    setCurrentView("home");
+                    navigate("/");
                     setIsMenuOpen(false);
                   }}
                 >
@@ -354,7 +405,7 @@ export default function App() {
                   {navItems.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => setCurrentView(item.id)}
+                      onClick={() => navigate(`/${item.id}`)}
                       className={`relative flex items-center space-x-2.5 px-6 py-3 rounded-xl transition-all duration-300 group text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
                         currentView === item.id
                           ? "bg-gradient-to-r from-sky-500/20 to-blue-500/20 text-sky-400 shadow-lg shadow-sky-500/20"
@@ -382,7 +433,7 @@ export default function App() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setCurrentView("member")}
+                        onClick={() => navigate("/member")}
                         className="text-green-400 hover:text-green-300 px-4 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                       >
                         <User className="w-5 h-5 mr-2.5" />
@@ -392,7 +443,7 @@ export default function App() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setCurrentView("admin")}
+                          onClick={() => navigate("/admin")}
                           className="text-red-400 hover:text-red-300 px-4 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                         >
                           Admin
@@ -484,7 +535,7 @@ export default function App() {
                     {/* Home Link */}
                     <button
                       onClick={() => {
-                        setCurrentView("home");
+                        navigate("/");
                         setIsMenuOpen(false);
                       }}
                       className={`flex items-center space-x-2.5 px-5 py-4 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
@@ -502,7 +553,7 @@ export default function App() {
                       <button
                         key={item.id}
                         onClick={() => {
-                          setCurrentView(item.id);
+                          navigate(`/${item.id}`);
                           setIsMenuOpen(false);
                         }}
                         className={`flex items-center space-x-2.5 px-5 py-4 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
@@ -525,7 +576,7 @@ export default function App() {
                     <div className="flex flex-col space-y-2.5">
                       <button
                         onClick={() => {
-                          setCurrentView("member");
+                          navigate("/member");
                           setIsMenuOpen(false);
                         }}
                         className="flex items-center space-x-2.5 px-5 py-4 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
@@ -536,7 +587,7 @@ export default function App() {
                       {isAdmin && (
                         <button
                           onClick={() => {
-                            setCurrentView("admin");
+                            navigate("/admin");
                             setIsMenuOpen(false);
                           }}
                           className="flex items-center space-x-2.5 px-5 py-4 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
@@ -549,7 +600,7 @@ export default function App() {
                         onClick={() => {
                           setIsLoggedIn(false);
                           setIsAdmin(false);
-                          setCurrentView("home");
+                          navigate("/");
                           setIsMenuOpen(false);
                         }}
                         className="flex items-center space-x-2.5 px-5 py-4 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
@@ -598,7 +649,7 @@ export default function App() {
           </main>
 
           {/* Footer */}
-          <Footer onNavigate={setCurrentView} />
+          <Footer onNavigate={onNavigate} />
 
           {/* Cookie Consent Banner */}
           {showCookieConsent && (
@@ -611,7 +662,7 @@ export default function App() {
                 localStorage.setItem("vortex_cookie_consent", "declined");
                 setShowCookieConsent(false);
               }}
-              onSettings={() => setCurrentView("cookies")}
+              onSettings={() => navigate("/cookies")}
             />
           )}
 
@@ -648,7 +699,7 @@ export default function App() {
 
               const targetView = isAdminUser ? "admin" : "member";
               console.log("🔐 Login - Redirecting to:", targetView);
-              setCurrentView(targetView);
+              navigate(`/${targetView}`);
             }}
             activeTab={loginTab}
           />
@@ -667,7 +718,28 @@ export default function App() {
             onRemoveItem={(id) => {
               setCartItems((items) => items.filter((item) => item.id !== id));
             }}
-            onCheckout={() => setCurrentView("checkout")}
+            onCheckout={() => {
+              // Analytics: begin_checkout (gated by consent)
+              try {
+                const consent = localStorage.getItem("vortex_cookie_consent");
+                if (consent === "accepted") {
+                  const raw = localStorage.getItem("vortex_user");
+                  const user = raw ? JSON.parse(raw) : null;
+                  const uid = user?.uid || null;
+                  const total = cartItems.reduce(
+                    (s, i) => s + i.price * i.quantity,
+                    0
+                  );
+                  trackEvent(uid, "begin_checkout", {
+                    item_count: cartItems.length,
+                    total,
+                  });
+                }
+              } catch {
+                // analytics best-effort only
+              }
+              navigate("/checkout");
+            }}
           />
 
           {/* Floating Live Chat Button */}

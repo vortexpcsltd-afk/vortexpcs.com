@@ -14,8 +14,11 @@ service cloud.firestore {
     
     // Helper function to check if user is admin
     function isAdmin() {
-      return isAuthenticated() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'admin@vortexpcs.com'
+      );
     }
     
     // Users collection
@@ -26,8 +29,8 @@ service cloud.firestore {
       // Users can create their own profile on signup
       allow create: if isAuthenticated() && request.auth.uid == userId;
       
-      // Users can update their own profile
-      allow update: if isOwner(userId);
+      // Users can update their own profile, but cannot change their role. Admins can update any field.
+      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
       
       // Only admins can delete users
       allow delete: if isAdmin();

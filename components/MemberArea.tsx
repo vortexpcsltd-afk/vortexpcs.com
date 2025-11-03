@@ -22,6 +22,10 @@ import {
   Save,
   Camera,
   Loader2,
+  AlertCircle,
+  MessageSquare,
+  XCircle,
+  Activity,
 } from "lucide-react";
 import { updateUserProfile } from "../services/auth";
 import {
@@ -29,6 +33,8 @@ import {
   getUserConfigurations,
   deleteConfiguration,
   createSupportTicket,
+  getUserSupportTickets,
+  createRefundRequest,
   Order,
   SavedConfiguration,
 } from "../services/database";
@@ -69,6 +75,12 @@ export function MemberArea({
   const [supportSubmitting, setSupportSubmitting] = useState(false);
   const [supportSuccess, setSupportSuccess] = useState(false);
 
+  // New state for support tickets and refunds
+  const [supportTickets, setSupportTickets] = useState<any[]>([]);
+  const [activeSupportTab, setActiveSupportTab] = useState<
+    "progress" | "tickets" | "orders"
+  >("progress");
+
   // Load user data on component mount
   useEffect(() => {
     const loadUserData = async () => {
@@ -104,6 +116,11 @@ export function MemberArea({
           userConfigs.length
         );
         setConfigurations(userConfigs);
+
+        // Load support tickets
+        const tickets = await getUserSupportTickets(user.uid);
+        console.log("🎫 Member Area - Support tickets loaded:", tickets.length);
+        setSupportTickets(tickets);
       } catch (err: any) {
         console.error("❌ Member Area - Error loading data:", err);
       } finally {
@@ -129,10 +146,17 @@ export function MemberArea({
   // Calculate member since date
   const getMemberSince = () => {
     if (userProfile?.createdAt) {
-      return userProfile.createdAt.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      });
+      const date =
+        userProfile.createdAt instanceof Date
+          ? userProfile.createdAt
+          : new Date(userProfile.createdAt);
+
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        });
+      }
     }
     return "N/A";
   };
@@ -196,7 +220,7 @@ export function MemberArea({
     try {
       setSupportSubmitting(true);
 
-      await createSupportTicket({
+      const ticketId = await createSupportTicket({
         userId: user?.uid,
         name: profileData.name || user?.displayName || "Member",
         email: profileData.email || user?.email || "",
@@ -204,6 +228,24 @@ export function MemberArea({
         message: supportForm.message,
         type: supportForm.type,
       });
+
+      // Analytics: support_ticket_created (gated by consent)
+      try {
+        const consent = localStorage.getItem("vortex_cookie_consent");
+        if (consent === "accepted") {
+          const raw = localStorage.getItem("vortex_user");
+          const savedUser = raw ? JSON.parse(raw) : null;
+          const uid = savedUser?.uid || null;
+          const { trackEvent } = await import("../services/database");
+          trackEvent(uid, "support_ticket_created", {
+            ticket_id: ticketId,
+            type: supportForm.type,
+            subject_length: supportForm.subject.length,
+          });
+        }
+      } catch {
+        // best-effort analytics only
+      }
 
       setSupportSuccess(true);
       setSupportForm({ subject: "", type: "general", message: "" });
@@ -214,6 +256,44 @@ export function MemberArea({
       alert("Failed to submit support ticket. Please try again.");
     } finally {
       setSupportSubmitting(false);
+    }
+  };
+
+  // Handle refund request
+  const handleRefundRequest = async (orderId: string) => {
+    if (!user) return;
+
+    const reason = prompt("Please provide a reason for the refund request:");
+    if (!reason || reason.trim() === "") return;
+
+    try {
+      await createRefundRequest(orderId, user.uid, reason);
+      alert(
+        "Refund request submitted successfully! We'll review it and contact you soon."
+      );
+
+      // Analytics: refund_requested (gated by consent)
+      try {
+        const consent = localStorage.getItem("vortex_cookie_consent");
+        if (consent === "accepted") {
+          const raw = localStorage.getItem("vortex_user");
+          const savedUser = raw ? JSON.parse(raw) : null;
+          const uid = savedUser?.uid || null;
+          const { trackEvent } = await import("../services/database");
+          trackEvent(uid, "refund_requested", { order_id: orderId });
+        }
+      } catch {
+        // best-effort analytics only
+      }
+
+      // Reload orders to show updated status
+      const userOrders = await getUserOrders(user.uid);
+      setOrders(userOrders);
+    } catch (error) {
+      console.error("Refund request error:", error);
+      alert(
+        "Failed to submit refund request. Please try again or contact support."
+      );
     }
   };
 
@@ -423,7 +503,10 @@ export function MemberArea({
                           {order.estimatedCompletion && (
                             <p className="text-sm text-gray-400 mt-2">
                               Estimated completion:{" "}
-                              {order.estimatedCompletion.toLocaleDateString()}
+                              {order.estimatedCompletion instanceof Date &&
+                              !isNaN(order.estimatedCompletion.getTime())
+                                ? order.estimatedCompletion.toLocaleDateString()
+                                : "N/A"}
                             </p>
                           )}
                         </div>
@@ -446,6 +529,8 @@ export function MemberArea({
                       <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
                         <div className="text-sm text-gray-400">
                           {order.deliveryDate &&
+                            order.deliveryDate instanceof Date &&
+                            !isNaN(order.deliveryDate.getTime()) &&
                             `Delivered: ${order.deliveryDate.toLocaleDateString()}`}
                           {order.trackingNumber && (
                             <span className="ml-4">
@@ -521,7 +606,13 @@ export function MemberArea({
                           </h3>
                           <p className="text-gray-400 text-sm">
                             Created:{" "}
-                            {config.createdAt?.toLocaleDateString?.() || "N/A"}
+                            {config.createdAt &&
+                            config.createdAt instanceof Date &&
+                            !isNaN(config.createdAt.getTime())
+                              ? config.createdAt.toLocaleDateString()
+                              : config.createdAt
+                              ? new Date(config.createdAt).toLocaleDateString()
+                              : "N/A"}
                           </p>
                         </div>
                         <div className="text-right">
@@ -771,92 +862,381 @@ export function MemberArea({
 
             {/* Support Tab */}
             <TabsContent value="support" className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
-                  <h3 className="text-xl font-bold text-white mb-4">
-                    Quick Support
-                  </h3>
-                  <div className="space-y-3">
-                    <Button
-                      className="w-full justify-start bg-blue-600 hover:bg-blue-700"
-                      onClick={() =>
-                        setSupportForm({
-                          ...supportForm,
-                          type: "order",
-                          subject: "Order Tracking",
-                        })
-                      }
-                    >
-                      <Package className="w-4 h-4 mr-3" />
-                      Track My Order
-                    </Button>
-                    <Button
-                      className="w-full justify-start bg-green-600 hover:bg-green-700"
-                      onClick={() =>
-                        setSupportForm({
-                          ...supportForm,
-                          type: "technical",
-                          subject: "Technical Support",
-                        })
-                      }
-                    >
-                      <Settings className="w-4 h-4 mr-3" />
+              {/* Support Sub-Tabs */}
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl">
+                <Tabs
+                  value={activeSupportTab}
+                  onValueChange={(v) => setActiveSupportTab(v as any)}
+                  className="w-full"
+                >
+                  <TabsList className="grid w-full grid-cols-3 bg-white/5">
+                    <TabsTrigger value="progress">
+                      <Activity className="w-4 h-4 mr-2" />
+                      Build Progress
+                    </TabsTrigger>
+                    <TabsTrigger value="tickets">
+                      <MessageSquare className="w-4 h-4 mr-2" />
                       Technical Support
-                    </Button>
-                    <Button
-                      className="w-full justify-start bg-purple-600 hover:bg-purple-700"
-                      onClick={() =>
-                        setSupportForm({
-                          ...supportForm,
-                          type: "billing",
-                          subject: "Billing & Returns",
-                        })
-                      }
-                    >
-                      <CreditCard className="w-4 h-4 mr-3" />
+                    </TabsTrigger>
+                    <TabsTrigger value="orders">
+                      <CreditCard className="w-4 h-4 mr-2" />
                       Billing & Returns
-                    </Button>
-                  </div>
-                </Card>
+                    </TabsTrigger>
+                  </TabsList>
 
-                <Card className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border-blue-500/20 backdrop-blur-xl p-6">
-                  <h3 className="text-xl font-bold text-white mb-4">
-                    Contact Information
-                  </h3>
-                  <div className="space-y-3 text-sm">
-                    <div>
-                      <span className="text-gray-400">Phone Support:</span>
-                      <div className="text-white font-medium">
-                        0800 123 4567
+                  {/* Build Progress Tab */}
+                  <TabsContent value="progress" className="p-6 space-y-4">
+                    <h3 className="text-2xl font-bold text-white mb-4">
+                      Your Build Progress
+                    </h3>
+                    {orders.filter((o) =>
+                      ["pending", "building", "testing"].includes(o.status)
+                    ).length === 0 ? (
+                      <div className="text-center py-12">
+                        <Activity className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                        <h4 className="text-xl font-bold text-white mb-2">
+                          No Active Builds
+                        </h4>
+                        <p className="text-gray-400">
+                          You don't have any builds in progress at the moment.
+                        </p>
                       </div>
-                      <div className="text-gray-400 text-xs">
-                        Mon-Fri 9AM-6PM
+                    ) : (
+                      <div className="space-y-6">
+                        {orders
+                          .filter((o) =>
+                            ["pending", "building", "testing"].includes(
+                              o.status
+                            )
+                          )
+                          .map((order) => (
+                            <Card
+                              key={order.id}
+                              className="bg-white/5 border-white/10 backdrop-blur-xl p-6"
+                            >
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <h4 className="text-lg font-bold text-white mb-1">
+                                    Order #{order.orderId}
+                                  </h4>
+                                  <p className="text-gray-400 text-sm">
+                                    {order.orderDate &&
+                                    !isNaN(new Date(order.orderDate).getTime())
+                                      ? new Date(
+                                          order.orderDate
+                                        ).toLocaleDateString()
+                                      : "N/A"}
+                                  </p>
+                                </div>
+                                <Badge
+                                  className={`${getStatusColor(
+                                    order.status
+                                  )} border`}
+                                >
+                                  {order.status.charAt(0).toUpperCase() +
+                                    order.status.slice(1)}
+                                </Badge>
+                              </div>
+
+                              {/* Progress Bar */}
+                              <div className="mb-4">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-white font-medium">
+                                    Build Progress
+                                  </span>
+                                  <span className="text-sky-400 font-bold text-lg">
+                                    {order.progress}%
+                                  </span>
+                                </div>
+                                <Progress
+                                  value={order.progress}
+                                  className="h-3"
+                                />
+                              </div>
+
+                              {/* Build Timeline */}
+                              {order.buildUpdates &&
+                                order.buildUpdates.length > 0 && (
+                                  <div className="mt-4 border-t border-white/10 pt-4">
+                                    <h5 className="text-white font-semibold mb-3">
+                                      Build Updates:
+                                    </h5>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                      {order.buildUpdates.map(
+                                        (update: any, idx: number) => (
+                                          <div
+                                            key={idx}
+                                            className="flex items-start space-x-3 text-sm"
+                                          >
+                                            <CheckCircle className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                                            <div className="flex-1">
+                                              <p className="text-white">
+                                                {update.note}
+                                              </p>
+                                              <p className="text-gray-400 text-xs">
+                                                {update.timestamp?.toDate
+                                                  ? update.timestamp
+                                                      .toDate()
+                                                      .toLocaleString()
+                                                  : "Recently"}
+                                              </p>
+                                            </div>
+                                            <span className="text-sky-400 font-semibold">
+                                              {update.progress}%
+                                            </span>
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                              {/* Products in Order */}
+                              <div className="mt-4 border-t border-white/10 pt-4">
+                                <h5 className="text-white font-semibold mb-2">
+                                  Components:
+                                </h5>
+                                <div className="space-y-1">
+                                  {order.items.map((item, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="text-sm text-gray-300"
+                                    >
+                                      • {item.productName} x{item.quantity}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </Card>
+                          ))}
                       </div>
+                    )}
+                  </TabsContent>
+
+                  {/* Technical Support Tab */}
+                  <TabsContent value="tickets" className="p-6 space-y-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-2xl font-bold text-white">
+                        Support Tickets
+                      </h3>
+                      <Button
+                        onClick={() => {
+                          setSupportForm({ ...supportForm, type: "technical" });
+                          // Scroll to form
+                          document
+                            .getElementById("ticket-form")
+                            ?.scrollIntoView({ behavior: "smooth" });
+                        }}
+                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                      >
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        New Ticket
+                      </Button>
                     </div>
-                    <div>
-                      <span className="text-gray-400">Email Support:</span>
-                      <div className="text-white font-medium">
-                        support@vortexpcs.com
+
+                    {supportTickets.length === 0 ? (
+                      <div className="text-center py-12">
+                        <MessageSquare className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                        <h4 className="text-xl font-bold text-white mb-2">
+                          No Support Tickets
+                        </h4>
+                        <p className="text-gray-400 mb-4">
+                          You haven't submitted any support tickets yet.
+                        </p>
+                        <Button
+                          onClick={() => {
+                            setSupportForm({
+                              ...supportForm,
+                              type: "technical",
+                            });
+                            document
+                              .getElementById("ticket-form")
+                              ?.scrollIntoView({ behavior: "smooth" });
+                          }}
+                          className="bg-gradient-to-r from-green-600 to-emerald-600"
+                        >
+                          Create Your First Ticket
+                        </Button>
                       </div>
-                      <div className="text-gray-400 text-xs">
-                        24-48 hour response
+                    ) : (
+                      <div className="space-y-4">
+                        {supportTickets.map((ticket) => (
+                          <Card
+                            key={ticket.id}
+                            className="bg-white/5 border-white/10 backdrop-blur-xl p-6"
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h4 className="text-lg font-bold text-white mb-1">
+                                  {ticket.subject}
+                                </h4>
+                                <p className="text-gray-400 text-sm">
+                                  {ticket.createdAt &&
+                                  !isNaN(new Date(ticket.createdAt).getTime())
+                                    ? new Date(
+                                        ticket.createdAt
+                                      ).toLocaleString()
+                                    : "Recently"}
+                                </p>
+                              </div>
+                              <Badge
+                                className={`${
+                                  ticket.status === "open"
+                                    ? "bg-green-500/20 text-green-300 border-green-500/30"
+                                    : ticket.status === "in-progress"
+                                    ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+                                    : "bg-gray-500/20 text-gray-300 border-gray-500/30"
+                                } border`}
+                              >
+                                {ticket.status}
+                              </Badge>
+                            </div>
+                            <p className="text-gray-300 text-sm mb-2">
+                              {ticket.message}
+                            </p>
+                            <div className="flex items-center text-xs text-gray-400">
+                              <Package className="w-3 h-3 mr-1" />
+                              Type: {ticket.type}
+                            </div>
+                          </Card>
+                        ))}
                       </div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Live Chat:</span>
-                      <div className="text-white font-medium">
-                        Available on website
+                    )}
+                  </TabsContent>
+
+                  {/* Billing & Returns Tab */}
+                  <TabsContent value="orders" className="p-6 space-y-4">
+                    <h3 className="text-2xl font-bold text-white mb-4">
+                      Order History & Returns
+                    </h3>
+                    {orders.length === 0 ? (
+                      <div className="text-center py-12">
+                        <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                        <h4 className="text-xl font-bold text-white mb-2">
+                          No Orders Yet
+                        </h4>
+                        <p className="text-gray-400">
+                          Your order history will appear here once you make a
+                          purchase.
+                        </p>
                       </div>
-                      <div className="text-gray-400 text-xs">
-                        Mon-Fri 9AM-6PM
+                    ) : (
+                      <div className="space-y-4">
+                        {orders.map((order) => {
+                          const canCancel =
+                            ["pending", "building"].includes(order.status) &&
+                            !order.refundRequested;
+                          const isRefundRequested = order.refundRequested;
+
+                          return (
+                            <Card
+                              key={order.id}
+                              className="bg-white/5 border-white/10 backdrop-blur-xl p-6"
+                            >
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <h4 className="text-lg font-bold text-white mb-1">
+                                    Order #{order.orderId}
+                                  </h4>
+                                  <p className="text-gray-400 text-sm">
+                                    {order.orderDate &&
+                                    !isNaN(new Date(order.orderDate).getTime())
+                                      ? new Date(
+                                          order.orderDate
+                                        ).toLocaleDateString()
+                                      : "N/A"}
+                                  </p>
+                                </div>
+                                <div className="flex flex-col items-end space-y-2">
+                                  <Badge
+                                    className={`${getStatusColor(
+                                      order.status
+                                    )} border`}
+                                  >
+                                    {order.status.charAt(0).toUpperCase() +
+                                      order.status.slice(1)}
+                                  </Badge>
+                                  {isRefundRequested && (
+                                    <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30 border">
+                                      Refund Requested
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                  <p className="text-gray-400 text-sm">
+                                    Total Amount
+                                  </p>
+                                  <p className="text-green-400 font-bold text-lg">
+                                    £{order.total.toLocaleString()}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-400 text-sm">Items</p>
+                                  <p className="text-white font-semibold">
+                                    {order.items.length} item(s)
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Order Items */}
+                              <div className="border-t border-white/10 pt-3 mb-4">
+                                <div className="space-y-1">
+                                  {order.items.map((item, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex justify-between text-sm"
+                                    >
+                                      <span className="text-gray-300">
+                                        {item.productName} x{item.quantity}
+                                      </span>
+                                      <span className="text-white font-medium">
+                                        £
+                                        {(
+                                          item.price * item.quantity
+                                        ).toLocaleString()}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Actions */}
+                              {canCancel && (
+                                <Button
+                                  onClick={() => handleRefundRequest(order.id!)}
+                                  variant="outline"
+                                  className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                >
+                                  <XCircle className="w-4 h-4 mr-2" />
+                                  Request Cancellation / Refund
+                                </Button>
+                              )}
+                              {isRefundRequested && (
+                                <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                                  <p className="text-orange-300 text-sm flex items-center">
+                                    <AlertCircle className="w-4 h-4 mr-2" />
+                                    Your refund request is being reviewed by our
+                                    team. We'll contact you within 24-48 hours.
+                                  </p>
+                                </div>
+                              )}
+                            </Card>
+                          );
+                        })}
                       </div>
-                    </div>
-                  </div>
-                </Card>
-              </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </Card>
 
               {/* Support Ticket Form */}
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-8">
+              <Card
+                id="ticket-form"
+                className="bg-white/5 border-white/10 backdrop-blur-xl p-8"
+              >
                 <h3 className="text-2xl font-bold text-white mb-6">
                   Submit Support Ticket
                 </h3>

@@ -52,6 +52,14 @@ export interface Order {
     country: string;
   };
   paymentId?: string;
+  buildUpdates?: Array<{
+    timestamp: any;
+    progress: number;
+    status: string;
+    note: string;
+  }>;
+  refundRequested?: boolean;
+  refundRequestId?: string;
 }
 
 export interface SavedConfiguration {
@@ -324,25 +332,124 @@ export const trackPageView = async (
 };
 
 /**
+ * Analytics: Track custom event (e.g., add_to_cart, begin_checkout, purchase)
+ */
+export const trackEvent = async (
+  userId: string | null,
+  event: string,
+  data?: Record<string, unknown>
+): Promise<void> => {
+  try {
+    await addDoc(collection(db, "analytics"), {
+      userId: userId || "anonymous",
+      event,
+      data: data || {},
+      timestamp: Timestamp.now(),
+    });
+  } catch (error: any) {
+    console.error("Track event error:", error);
+    // Silent fail
+  }
+};
+
+/**
+ * Get analytics data for admin dashboard
+ */
+export const getAnalytics = async (days: number = 30) => {
+  try {
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    // Get page views
+    const pageViewsQuery = query(
+      collection(db, "analytics"),
+      where("event", "==", "page_view"),
+      where("timestamp", ">=", Timestamp.fromDate(startDate)),
+      where("timestamp", "<=", Timestamp.fromDate(endDate))
+    );
+    const pageViewsSnapshot = await getDocs(pageViewsQuery);
+    const totalPageViews = pageViewsSnapshot.size;
+
+    // Get unique visitors (count unique userIds)
+    const uniqueUsers = new Set();
+    pageViewsSnapshot.forEach((doc) => {
+      const data = doc.data();
+      uniqueUsers.add(data.userId);
+    });
+    const totalVisitors = uniqueUsers.size;
+
+    // Get most visited pages
+    const pageStats: Record<string, number> = {};
+    pageViewsSnapshot.forEach((doc) => {
+      const data = doc.data();
+      pageStats[data.page] = (pageStats[data.page] || 0) + 1;
+    });
+    const topPages = Object.entries(pageStats)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([page, views]) => ({ page, views }));
+
+    // Get page views by day
+    const viewsByDay: Record<string, number> = {};
+    pageViewsSnapshot.forEach((doc) => {
+      const data = doc.data();
+      const date = data.timestamp.toDate().toLocaleDateString();
+      viewsByDay[date] = (viewsByDay[date] || 0) + 1;
+    });
+
+    return {
+      totalPageViews,
+      totalVisitors,
+      averagePageViewsPerDay: Math.round(totalPageViews / days),
+      topPages,
+      viewsByDay,
+    };
+  } catch (error: any) {
+    console.error("Get analytics error:", error);
+    return {
+      totalPageViews: 0,
+      totalVisitors: 0,
+      averagePageViewsPerDay: 0,
+      topPages: [],
+      viewsByDay: {},
+    };
+  }
+};
+
+/**
  * Get all users (admin only)
  */
 export const getAllUsers = async (): Promise<any[]> => {
+  // If Firebase is not configured, return empty array
+  if (!db) {
+    console.log("Firebase not configured - returning empty users array");
+    return [];
+  }
+
   try {
+    console.log("🔍 Fetching all users from Firestore...");
     const querySnapshot = await getDocs(collection(db, "users"));
     const users: any[] = [];
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      console.log("👤 Found user:", doc.id, data.email);
       users.push({
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate(),
+        createdAt: data.createdAt?.toDate
+          ? data.createdAt.toDate()
+          : data.createdAt,
       });
     });
 
+    console.log(`✅ Successfully loaded ${users.length} users`);
     return users;
   } catch (error: any) {
-    console.error("Get all users error:", error);
+    console.error("❌ Get all users error:", error);
+    console.error("Error details:", error.code, error.message);
     throw new Error(error.message || "Failed to get users");
   }
 };
@@ -450,5 +557,179 @@ export const updateOrder = async (
   } catch (error: any) {
     console.error("Update order error:", error);
     throw new Error(error.message || "Failed to update order");
+  }
+};
+
+/**
+ * Update build progress for a specific order (admin only)
+ */
+export const updateBuildProgress = async (
+  orderId: string,
+  progress: number,
+  status: Order["status"],
+  statusNote?: string
+): Promise<void> => {
+  try {
+    const docRef = doc(db, "orders", orderId);
+    const updateData: any = {
+      progress: Math.min(100, Math.max(0, progress)), // Clamp between 0-100
+      status,
+      updatedAt: Timestamp.now(),
+    };
+
+    if (statusNote) {
+      // Add build update to timeline
+      const buildUpdates = await getDoc(docRef);
+      const existingUpdates = buildUpdates.data()?.buildUpdates || [];
+      updateData.buildUpdates = [
+        ...existingUpdates,
+        {
+          timestamp: Timestamp.now(),
+          progress,
+          status,
+          note: statusNote,
+        },
+      ];
+    }
+
+    await updateDoc(docRef, updateData);
+  } catch (error: any) {
+    console.error("Update build progress error:", error);
+    throw new Error(error.message || "Failed to update build progress");
+  }
+};
+
+/**
+ * Get all support tickets (admin)
+ */
+export const getAllSupportTickets = async (): Promise<any[]> => {
+  try {
+    const q = query(
+      collection(db, "support_tickets"),
+      orderBy("createdAt", "desc")
+    );
+    const querySnapshot = await getDocs(q);
+    const tickets: any[] = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      tickets.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate(),
+      });
+    });
+
+    return tickets;
+  } catch (error: any) {
+    console.error("Get support tickets error:", error);
+    throw new Error(error.message || "Failed to get support tickets");
+  }
+};
+
+/**
+ * Get user's support tickets
+ */
+export const getUserSupportTickets = async (userId: string): Promise<any[]> => {
+  try {
+    const q = query(
+      collection(db, "support_tickets"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc")
+    );
+    const querySnapshot = await getDocs(q);
+    const tickets: any[] = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      tickets.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate(),
+      });
+    });
+
+    return tickets;
+  } catch (error: any) {
+    console.error("Get user support tickets error:", error);
+    throw new Error(error.message || "Failed to get support tickets");
+  }
+};
+
+/**
+ * Update support ticket status
+ */
+export const updateSupportTicket = async (
+  ticketId: string,
+  updates: any
+): Promise<void> => {
+  try {
+    const docRef = doc(db, "support_tickets", ticketId);
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error: any) {
+    console.error("Update support ticket error:", error);
+    throw new Error(error.message || "Failed to update support ticket");
+  }
+};
+
+/**
+ * Create refund request
+ */
+export const createRefundRequest = async (
+  orderId: string,
+  userId: string,
+  reason: string
+): Promise<string> => {
+  try {
+    const docRef = await addDoc(collection(db, "refund_requests"), {
+      orderId,
+      userId,
+      reason,
+      status: "pending",
+      createdAt: Timestamp.now(),
+    });
+
+    // Update order status
+    await updateDoc(doc(db, "orders", orderId), {
+      refundRequested: true,
+      refundRequestId: docRef.id,
+      updatedAt: Timestamp.now(),
+    });
+
+    return docRef.id;
+  } catch (error: any) {
+    console.error("Create refund request error:", error);
+    throw new Error(error.message || "Failed to create refund request");
+  }
+};
+
+/**
+ * Get all refund requests (admin)
+ */
+export const getAllRefundRequests = async (): Promise<any[]> => {
+  try {
+    const q = query(
+      collection(db, "refund_requests"),
+      orderBy("createdAt", "desc")
+    );
+    const querySnapshot = await getDocs(q);
+    const requests: any[] = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      requests.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate(),
+      });
+    });
+
+    return requests;
+  } catch (error: any) {
+    console.error("Get refund requests error:", error);
+    throw new Error(error.message || "Failed to get refund requests");
   }
 };

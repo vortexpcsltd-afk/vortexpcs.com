@@ -236,7 +236,7 @@ export const mockVerifyPayment = async () => {
 export const mockCreatePaymentIntent = async (
   amount: number,
   currency: string = "gbp",
-  metadata?: Record<string, string>
+  _metadata?: Record<string, string>
 ): Promise<PaymentIntent> => {
   console.warn("Using mock payment intent for development");
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,8 +22,21 @@ import {
   DollarSign,
 } from "lucide-react";
 
-export function AIAssistant({ isOpen, onClose }) {
-  const [messages, setMessages] = useState([
+interface Message {
+  id: number;
+  type: string;
+  content: string;
+  timestamp: Date;
+  suggestions?: string[];
+}
+
+interface AIAssistantProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function AIAssistant({ isOpen, onClose }: AIAssistantProps) {
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
       type: "bot",
@@ -34,7 +47,7 @@ export function AIAssistant({ isOpen, onClose }) {
   ]);
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -83,7 +96,7 @@ export function AIAssistant({ isOpen, onClose }) {
     },
   };
 
-  const getAIResponse = (userMessage) => {
+  const getAIResponse = (userMessage: string) => {
     const lowerMessage = userMessage.toLowerCase();
 
     // Specific responses for Quick Action questions
@@ -251,11 +264,11 @@ export function AIAssistant({ isOpen, onClose }) {
     }, 1000 + Math.random() * 1000);
   };
 
-  const handleSuggestionClick = (suggestion) => {
+  const handleSuggestionClick = (suggestion: string) => {
     setInputMessage(suggestion);
   };
 
-  const handleQuickActionClick = async (message) => {
+  const handleQuickActionClick = async (message: string) => {
     // Add user message
     const userMessage = {
       id: messages.length + 1,

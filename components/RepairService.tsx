@@ -308,7 +308,7 @@ function BookingForm(props: BookingFormProps) {
     manualAddress,
     setManualAddress,
     handlePostcodeLookup,
-    onNavigate,
+    onNavigate: _onNavigate,
   } = props;
 
   // Modal states for Terms and Privacy
