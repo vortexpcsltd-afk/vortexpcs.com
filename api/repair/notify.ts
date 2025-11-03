@@ -120,6 +120,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 padding: 40px 30px;
                 text-align: center;
               }
+              .logo-container {
+                background: rgba(0, 0, 0, 0.2);
+                padding: 15px;
+                border-radius: 12px;
+                display: inline-block;
+                margin-bottom: 20px;
+              }
               .urgent-badge {
                 display: inline-block;
                 background: rgba(255, 255, 255, 0.2);
@@ -254,6 +261,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             <div class="email-wrapper">
               <div class="container">
                 <div class="header">
+                  <div class="logo-container">
+                    <img src="https://vortexpcs.com/vortexpcs-logo.png" alt="VORTEX PCS" style="max-width: 180px; height: auto;" />
+                  </div>
                   <div class="urgent-badge">🔧 New Repair Booking</div>
                   <h1>PC Repair Collection Booked</h1>
                 </div>
@@ -527,7 +537,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               <div class="container">
                 <div class="header">
                   <div class="logo-container">
-                    <img src="https://vortexpcs.com/logo.png" alt="VORTEX PCS" style="max-width: 200px; height: auto;" />
+                    <img src="https://vortexpcs.com/vortexpcs-logo.png" alt="VORTEX PCS" style="max-width: 200px; height: auto;" />
                   </div>
                   <h1>Repair Collection Confirmed</h1>
                 </div>

@@ -315,7 +315,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               <div class="container">
                 <div class="header">
                   <div class="logo-container">
-                    <img src="https://vortexpcs.com/logo.png" alt="VORTEX PCS" style="max-width: 180px; height: auto;" />
+                    <img src="https://vortexpcs.com/vortexpcs-logo.png" alt="VORTEX PCS" style="max-width: 180px; height: auto;" />
                   </div>
                   <div class="urgent-badge">⚡ New Enquiry Alert</div>
                   <h1>Contact Form Submission</h1>
@@ -536,7 +536,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               <div class="container">
                 <div class="header">
                   <div class="logo-container">
-                    <img src="https://vortexpcs.com/logo.png" alt="VORTEX PCS" style="max-width: 200px; height: auto;" />
+                    <img src="https://vortexpcs.com/vortexpcs-logo.png" alt="VORTEX PCS" style="max-width: 200px; height: auto;" />
                   </div>
                   <h1>Thank You for Contacting Us</h1>
                 </div>
