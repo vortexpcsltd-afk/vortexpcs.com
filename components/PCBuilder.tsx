@@ -130,16 +130,16 @@ const ComponentImageGallery = ({
         }}
       >
         <AspectRatio
-          ratio={isCompact ? 4 / 3 : 16 / 10}
+          ratio={isCompact ? 1 : 1}
           className="overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900"
         >
           <img
             src={productImages[currentImageIndex]}
             alt={productName}
             width="800"
-            height="500"
+            height="800"
             loading="lazy"
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
@@ -536,7 +536,7 @@ const ComponentDetailModal = ({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className="max-w-4xl max-h-[90vh] bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 border border-white/10 text-white overflow-hidden"
+        className="max-w-6xl max-h-[90vh] bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 border border-white/10 text-white overflow-hidden"
         style={{ zIndex: 50 }}
       >
         {/* Clean Header */}
@@ -578,8 +578,8 @@ const ComponentDetailModal = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[calc(90vh-180px)] pr-2">
           {/* Left - Image & Price */}
           <div className="space-y-4">
-            {/* Image Gallery */}
-            <div className="bg-slate-800/50 rounded-lg p-4 border border-white/10">
+            {/* Image Gallery - LARGER */}
+            <div className="bg-slate-800/50 rounded-lg p-6 border border-white/10">
               <ComponentImageGallery
                 images={component.images || []}
                 productName={component.name}
