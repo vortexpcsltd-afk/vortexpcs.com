@@ -4,6 +4,7 @@ import {
   useCallback,
   type Dispatch,
   type SetStateAction,
+  type FormEvent,
 } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
@@ -37,6 +38,8 @@ import {
   Key,
   ArrowRight,
   Loader2,
+  CreditCard,
+  AlertCircle,
 } from "lucide-react";
 import {
   lookupAddresses,
@@ -44,6 +47,174 @@ import {
   lastAddressError,
 } from "../services/address";
 import { GETADDRESS_IO_API_KEY } from "../config/address";
+import {
+  Elements,
+  CardElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
+import { stripePromise } from "../config/stripe";
+import { createPaymentIntent } from "../services/payment";
+
+// Payment Step Component
+interface PaymentStepContentProps {
+  totalPrice: number;
+  bookingData: {
+    issueTypes: string[];
+    description: string;
+    urgency: string;
+    collectionMethod: string;
+    customerInfo: Record<string, unknown>;
+    preferredDate: string;
+    pcPassword: string;
+  };
+  onPaymentSuccess: () => void;
+}
+
+function PaymentFormInner({
+  totalPrice,
+  bookingData,
+  onPaymentSuccess,
+}: PaymentStepContentProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!stripe || !elements) {
+      setError("Stripe has not loaded yet. Please try again.");
+      return;
+    }
+
+    setProcessing(true);
+    setError(null);
+
+    try {
+      // Create payment intent for collection fee
+      const paymentIntent = await createPaymentIntent(totalPrice, "gbp", {
+        serviceType: "pc-repair-collection",
+        urgency: bookingData.urgency,
+        description: `PC Repair Collection Service - ${bookingData.urgency}`,
+      });
+
+      // Confirm payment
+      const cardElement = elements.getElement(CardElement);
+      if (!cardElement) {
+        throw new Error("Card element not found");
+      }
+
+      const { error: stripeError, paymentIntent: confirmedPaymentIntent } =
+        await stripe.confirmCardPayment(paymentIntent.clientSecret, {
+          payment_method: {
+            card: cardElement,
+          },
+        });
+
+      if (stripeError) {
+        throw new Error(stripeError.message);
+      }
+
+      if (confirmedPaymentIntent?.status === "succeeded") {
+        onPaymentSuccess();
+      } else {
+        throw new Error("Payment failed. Please try again.");
+      }
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Payment failed. Please try again.";
+      console.error("Payment error:", err);
+      setError(errorMessage);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <CreditCard className="w-5 h-5 text-sky-400" />
+          <h4 className="text-lg font-semibold text-white">Card Details</h4>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <Label className="text-white mb-2 block">Card Information</Label>
+            <div className="p-4 bg-white/5 border border-white/10 rounded-md">
+              <CardElement
+                options={{
+                  style: {
+                    base: {
+                      fontSize: "16px",
+                      color: "#ffffff",
+                      "::placeholder": {
+                        color: "#9ca3af",
+                      },
+                    },
+                  },
+                }}
+              />
+            </div>
+          </div>
+
+          {error && (
+            <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex items-center gap-2 text-sm text-gray-400 bg-white/5 p-4 rounded-lg border border-white/10">
+            <Shield className="w-4 h-4 text-green-400" />
+            <span>Your payment information is secure and encrypted</span>
+          </div>
+        </div>
+      </Card>
+
+      <Button
+        type="submit"
+        disabled={processing || !stripe}
+        className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white py-6 text-lg font-semibold"
+      >
+        {processing ? (
+          <>
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            Processing Payment...
+          </>
+        ) : (
+          <>
+            <CreditCard className="w-5 h-5 mr-2" />
+            Pay £{totalPrice.toFixed(2)}
+          </>
+        )}
+      </Button>
+    </form>
+  );
+}
+
+function PaymentStepContent(props: PaymentStepContentProps) {
+  if (!stripePromise) {
+    return (
+      <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Payment processing is not configured. Please contact support.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <Elements stripe={stripePromise}>
+      <PaymentFormInner {...props} />
+    </Elements>
+  );
+}
 
 // Stable child component to prevent remounts that interrupt typing/focus
 interface BookingFormProps {
@@ -125,9 +296,28 @@ function BookingForm(props: BookingFormProps) {
     "Issue Details",
     "Collection Method",
     "Customer Information",
+    "Payment",
     "Confirmation",
   ];
   const progress = ((bookingStep + 1) / steps.length) * 100;
+
+  // Calculate collection price based on urgency
+  const getCollectionPrice = () => {
+    switch (bookingData.urgency) {
+      case "standard":
+        return 29.99;
+      case "express":
+        return 39.99;
+      case "sameday":
+        return 49.99;
+      default:
+        return 29.99;
+    }
+  };
+
+  const collectionPrice = getCollectionPrice();
+  const vat = collectionPrice * 0.2; // 20% UK VAT
+  const totalPrice = collectionPrice + vat;
 
   return (
     <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6 md:p-8 hover:border-sky-500/30 transition-all duration-300">
@@ -756,6 +946,70 @@ function BookingForm(props: BookingFormProps) {
 
       {bookingStep === 3 && (
         <div className="space-y-6">
+          {/* Payment Summary */}
+          <Card className="bg-gradient-to-br from-sky-600/10 to-blue-600/10 border-sky-500/30 p-6">
+            <h4 className="font-bold text-white mb-4 text-lg flex items-center gap-2">
+              <CreditCard className="w-5 h-5" />
+              Payment Details
+            </h4>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                <span className="text-gray-400">Service Type:</span>
+                <span className="text-white font-medium capitalize">
+                  {bookingData.urgency === "standard" &&
+                    "Standard Collection (3-5 days)"}
+                  {bookingData.urgency === "express" &&
+                    "Express Collection (1-2 days)"}
+                  {bookingData.urgency === "sameday" && "Same Day Collection"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                <span className="text-gray-400">Collection Fee:</span>
+                <span className="text-white font-medium">
+                  £{collectionPrice.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                <span className="text-gray-400">VAT (20%):</span>
+                <span className="text-white font-medium">
+                  £{vat.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-white font-bold text-lg">Total:</span>
+                <span className="text-white font-bold text-lg">
+                  £{totalPrice.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Payment Info */}
+          <Alert className="border-blue-500/30 bg-blue-500/10">
+            <Shield className="w-4 h-4 text-blue-400" />
+            <AlertDescription className="text-blue-200 text-sm">
+              <p className="mb-2">
+                <strong>Payment for collection service only</strong>
+              </p>
+              <p>
+                This payment covers the collection and return of your PC. The
+                repair cost will be assessed after diagnosis and quoted
+                separately before any work begins.
+              </p>
+            </AlertDescription>
+          </Alert>
+
+          {/* Stripe Payment Form will go here */}
+          <PaymentStepContent
+            totalPrice={totalPrice}
+            bookingData={bookingData}
+            onPaymentSuccess={() => setBookingStep(4)}
+          />
+        </div>
+      )}
+
+      {bookingStep === 4 && (
+        <div className="space-y-6">
           <div className="text-center py-4">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-500/25">
               <CheckCircle className="w-10 h-10 text-white" />
@@ -764,7 +1018,7 @@ function BookingForm(props: BookingFormProps) {
               Booking Confirmed!
             </h3>
             <p className="text-gray-400 text-lg">
-              Your repair service has been successfully booked.
+              Your repair service has been successfully booked and paid.
             </p>
           </div>
 
@@ -825,37 +1079,35 @@ function BookingForm(props: BookingFormProps) {
         <Button
           variant="outline"
           onClick={() => setBookingStep(Math.max(0, bookingStep - 1))}
-          disabled={bookingStep === 0}
+          disabled={bookingStep === 0 || bookingStep === 4}
           className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Previous
         </Button>
 
-        <Button
-          onClick={() => {
-            if (bookingStep === 0) {
-              const desc = bookingData.description.trim();
-              const isValid = desc.length >= 10 && Boolean(bookingData.urgency);
-              if (!isValid) return;
-            }
-            if (bookingStep < 3) setBookingStep(bookingStep + 1);
-          }}
-          disabled={
-            bookingStep === 3 ||
-            (bookingStep === 0 &&
+        {bookingStep !== 3 && bookingStep !== 4 && (
+          <Button
+            onClick={() => {
+              if (bookingStep === 0) {
+                const desc = bookingData.description.trim();
+                const isValid =
+                  desc.length >= 10 && Boolean(bookingData.urgency);
+                if (!isValid) return;
+              }
+              if (bookingStep < 4) setBookingStep(bookingStep + 1);
+            }}
+            disabled={
+              bookingStep === 0 &&
               !(
                 bookingData.description.trim().length >= 10 &&
                 Boolean(bookingData.urgency)
-              ))
-          }
-          className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:from-sky-600 disabled:to-blue-600"
-        >
-          {bookingStep === 2
-            ? "Confirm Booking"
-            : bookingStep === 3
-            ? "Complete"
-            : "Next"}
-        </Button>
+              )
+            }
+            className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:from-sky-600 disabled:to-blue-600"
+          >
+            {bookingStep === 2 ? "Review & Pay" : "Next"}
+          </Button>
+        )}
       </div>
     </Card>
   );
