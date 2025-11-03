@@ -227,6 +227,7 @@ export interface PCComponent {
   images?: string[];
   inStock?: boolean;
   featured?: boolean;
+  stockLevel?: number; // Stock quantity from Contentful
 
   // Common fields
   brand?: string;
@@ -309,6 +310,7 @@ export interface PCOptionalExtra {
   images?: string[];
   inStock?: boolean;
   featured?: boolean;
+  stockLevel?: number; // Stock quantity from Contentful
 
   // Common fields
   type?: string; // Mechanical, Wireless, Gaming, etc.
@@ -1897,6 +1899,7 @@ function mapContentfulToComponent(
     images: images,
     inStock: fields.inStock !== false,
     featured: fields.featured || false,
+    stockLevel: fields.stockLevel, // Stock quantity from Contentful
 
     // Common fields across all components
     brand: fields.brand,
@@ -2064,6 +2067,7 @@ function mapContentfulToOptionalExtra(
     images: images,
     inStock: fields.inStock !== false,
     featured: fields.featured || false,
+    stockLevel: fields.stockLevel, // Stock quantity from Contentful
 
     // Common fields
     type: fields.type,

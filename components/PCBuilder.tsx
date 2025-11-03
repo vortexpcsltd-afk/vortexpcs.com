@@ -747,13 +747,19 @@ const ComponentDetailModal = ({
                   </span>
                   <Badge
                     className={
-                      component.inStock !== false
-                        ? "bg-green-500/20 text-green-400 border-green-500/40"
+                      component.inStock !== false &&
+                      (component.stockLevel ?? 0) > 0
+                        ? (component.stockLevel ?? 0) <= 5
+                          ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/40"
+                          : "bg-green-500/20 text-green-400 border-green-500/40"
                         : "bg-red-500/20 text-red-400 border-red-500/40"
                     }
                   >
-                    {component.inStock !== false
-                      ? "✓ In Stock"
+                    {component.inStock !== false &&
+                    (component.stockLevel ?? 0) > 0
+                      ? (component.stockLevel ?? 0) <= 5
+                        ? `Low Stock (${component.stockLevel})`
+                        : `✓ In Stock (${component.stockLevel ?? "∞"})`
                       : "Out of Stock"}
                   </Badge>
                 </div>

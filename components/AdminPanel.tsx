@@ -267,11 +267,11 @@ export function AdminPanel() {
 
   // Get inventory status based on stock
   const getInventoryStatus = (item: PCComponent) => {
-    const stock = (item as PCComponent & { stock?: number }).stock;
-    if (!item.inStock || stock === 0) {
+    const stockLevel = item.stockLevel;
+    if (!item.inStock || stockLevel === 0) {
       return "out-of-stock";
     }
-    if (typeof stock === "number" && stock <= 5) {
+    if (typeof stockLevel === "number" && stockLevel <= 5) {
       return "low-stock";
     }
     return "in-stock";
@@ -991,6 +991,7 @@ export function AdminPanel() {
                         <TableHead className="text-white">Category</TableHead>
                         <TableHead className="text-white">Brand</TableHead>
                         <TableHead className="text-white">Price</TableHead>
+                        <TableHead className="text-white">Stock Qty</TableHead>
                         <TableHead className="text-white">Status</TableHead>
                         <TableHead className="text-white">Actions</TableHead>
                       </TableRow>
@@ -998,6 +999,7 @@ export function AdminPanel() {
                     <TableBody>
                       {getFilteredInventory().map((product) => {
                         const status = getInventoryStatus(product);
+                        const stockQty = product.stockLevel ?? "N/A";
                         return (
                           <TableRow
                             key={product.id}
@@ -1026,6 +1028,25 @@ export function AdminPanel() {
                             </TableCell>
                             <TableCell className="text-green-400 font-bold">
                               £{product.price.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-white font-semibold">
+                              {typeof stockQty === "number" ? (
+                                <span
+                                  className={
+                                    stockQty === 0
+                                      ? "text-red-400"
+                                      : stockQty <= 5
+                                      ? "text-yellow-400"
+                                      : "text-green-400"
+                                  }
+                                >
+                                  {stockQty}
+                                </span>
+                              ) : (
+                                <span className="text-gray-500">
+                                  {stockQty}
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Badge
