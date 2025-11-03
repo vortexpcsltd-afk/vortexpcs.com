@@ -379,7 +379,9 @@ const ComponentDetailModal = ({
         if (component.compatibility)
           specs.push({
             label: "Compatibility",
-            value: component.compatibility.join(", "),
+            value: Array.isArray(component.compatibility)
+              ? component.compatibility.join(", ")
+              : String(component.compatibility || ""),
           });
         break;
 
@@ -2149,6 +2151,7 @@ const checkCompatibility = (selectedComponents: any, componentData: any) => {
   if (
     cpu &&
     motherboard &&
+    Array.isArray(motherboard.compatibility) &&
     !motherboard.compatibility.includes(cpu.generation)
   ) {
     issues.push({
@@ -2165,7 +2168,9 @@ const checkCompatibility = (selectedComponents: any, componentData: any) => {
   if (ram && motherboard) {
     const ramSupported = Array.isArray(motherboard.ramSupport)
       ? motherboard.ramSupport.includes(ram.type)
-      : motherboard.ramSupport.includes(ram.type);
+      : typeof motherboard.ramSupport === "string"
+      ? motherboard.ramSupport.includes(ram.type)
+      : true; // unknown => don't flag as incompatible
     if (!ramSupported) {
       issues.push({
         severity: "critical",
@@ -2182,6 +2187,8 @@ const checkCompatibility = (selectedComponents: any, componentData: any) => {
   if (
     motherboard &&
     pcCase &&
+    Array.isArray(pcCase.compatibility) &&
+    motherboard.formFactor &&
     !pcCase.compatibility.includes(motherboard.formFactor.toLowerCase())
   ) {
     issues.push({
@@ -3313,9 +3320,11 @@ export function PCBuilder({
           issues.push(
             `Form factor mismatch: ${
               motherboard.formFactor
-            } motherboard won't fit in this case (supports: ${component.compatibility.join(
-              ", "
-            )})`
+            } motherboard won't fit in this case (supports: ${
+              Array.isArray(component.compatibility)
+                ? component.compatibility.join(", ")
+                : String(component.compatibility || "unknown")
+            })`
           );
         }
       }

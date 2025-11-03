@@ -70,7 +70,11 @@ export function Contact({ onNavigate }: ContactProps = {}) {
         // Reset success message after 5 seconds
         setTimeout(() => setIsSubmitted(false), 5000);
       } else {
-        throw new Error(data.error || "Failed to send message");
+        const errMsg = [data?.error, data?.hint, data?.details]
+          .filter(Boolean)
+          .join(" – ")
+          .slice(0, 300);
+        throw new Error(errMsg || "Failed to send message");
       }
     } catch (error) {
       console.error("Contact form submission error:", error);

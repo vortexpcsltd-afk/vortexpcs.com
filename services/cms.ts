@@ -618,6 +618,12 @@ export const fetchCategories = async (): Promise<Category[]> => {
  * Fetch site settings
  */
 export const fetchSettings = async (): Promise<Settings | null> => {
+  // Allow disabling settings fetch explicitly to avoid noisy 400s during setup
+  const disableSettings = import.meta.env.VITE_CMS_DISABLE_SETTINGS === "true";
+  if (disableSettings) {
+    return getMockSettings();
+  }
+
   if (!isContentfulEnabled) {
     return getMockSettings();
   }
@@ -634,12 +640,8 @@ export const fetchSettings = async (): Promise<Settings | null> => {
           limit: 1,
         });
         if (response && response.items && response.items.length > 0) break;
-      } catch (innerErr) {
-        // Continue to next content type if this one fails
-        console.warn(
-          `Contentful lookup for ${ct} failed:`,
-          (innerErr as any)?.message || innerErr
-        );
+      } catch {
+        // Silently continue to next content type to reduce noisy logs
       }
     }
 

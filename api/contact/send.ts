@@ -14,6 +14,11 @@ const corsHeaders = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Always set CORS headers
+  Object.entries(corsHeaders).forEach(([k, v]) =>
+    res.setHeader(k, v as string)
+  );
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return res.status(200).json({ success: true });
@@ -32,23 +37,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Create transporter
-    const transporter = nodemailer.createTransport({
-      host: process.env.VITE_SMTP_HOST || "smtp.gmail.com",
-      port: parseInt(process.env.VITE_SMTP_PORT || "587"),
-      secure: process.env.VITE_SMTP_SECURE === "true",
-      auth: {
-        user: process.env.VITE_SMTP_USER,
-        pass: process.env.VITE_SMTP_PASS,
-      },
-    });
-
+    // Load and validate SMTP configuration from environment
+    const smtpHost = process.env.VITE_SMTP_HOST;
+    const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "587", 10);
+    const smtpSecure = process.env.VITE_SMTP_SECURE === "true";
+    const smtpUser = process.env.VITE_SMTP_USER;
+    const smtpPass = process.env.VITE_SMTP_PASS;
     const businessEmail =
       process.env.VITE_BUSINESS_EMAIL || "info@vortexpcs.com";
 
+    const missing: string[] = [];
+    if (!smtpHost) missing.push("VITE_SMTP_HOST");
+    if (!smtpUser) missing.push("VITE_SMTP_USER");
+    if (!smtpPass) missing.push("VITE_SMTP_PASS");
+
+    if (missing.length) {
+      // Don't leak secrets; guide configuration via which keys are missing
+      console.error("Email configuration missing:", missing.join(", "));
+      return res.status(500).json({
+        error: "Email service not configured",
+        details: `Missing env vars: ${missing.join(", ")}`,
+      });
+    }
+
+    // Create transporter
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    // Optional: verify connection configuration early for clearer errors
+    try {
+      await transporter.verify();
+    } catch (verifyError: any) {
+      const { message, code } = verifyError || {};
+      console.error("SMTP verify failed:", { message, code });
+      let hint = "";
+      if (code === "EAUTH")
+        hint = "Authentication failed. Check SMTP user/pass.";
+      if (code === "ENOTFOUND")
+        hint = "SMTP host not found. Check VITE_SMTP_HOST.";
+      if (code === "ECONNECTION" || code === "ETIMEDOUT")
+        hint = "Connection failed. Check port/secure and provider allows SMTP.";
+      return res.status(500).json({
+        error: "SMTP connection test failed",
+        details: message || "Unknown verify error",
+        hint,
+      });
+    }
+
     // Email to business
     await transporter.sendMail({
-      from: `"Vortex PCs Website" <${process.env.VITE_SMTP_USER}>`,
+      from: `"Vortex PCs Website" <${smtpUser}>`,
       to: businessEmail,
       replyTo: email,
       subject: `New Contact Form: ${subject}`,
@@ -106,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Auto-reply to customer
     await transporter.sendMail({
-      from: `"Vortex PCs" <${process.env.VITE_SMTP_USER}>`,
+      from: `"Vortex PCs" <${smtpUser}>`,
       to: email,
       subject: "Thank you for contacting Vortex PCs",
       html: `
@@ -143,10 +185,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message: "Email sent successfully",
     });
   } catch (error: any) {
-    console.error("Email send error:", error);
+    // Enhance error logging for faster diagnosis in Vercel function logs
+    const { message, code, command, response } = error || {};
+    console.error("Email send error:", { message, code, command, response });
     return res.status(500).json({
       error: "Failed to send email",
-      details: error.message,
+      details: message || "Unknown error",
     });
   }
 }

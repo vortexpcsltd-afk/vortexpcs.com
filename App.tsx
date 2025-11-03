@@ -17,6 +17,7 @@ import { OrderSuccess } from "./components/OrderSuccess";
 import { CheckoutPage } from "./components/CheckoutPage";
 import { HomePage } from "./components/HomePage";
 import { TermsPage } from "./components/TermsPage";
+import { CmsDiagnostics } from "./components/CmsDiagnostics";
 import { PrivacyPage } from "./components/PrivacyPage";
 import { CookiePolicyPage } from "./components/CookiePolicyPage";
 import {
@@ -131,9 +132,15 @@ export default function App() {
 
     (async () => {
       try {
+        const disablePages = import.meta.env.VITE_CMS_DISABLE_PAGES === "true";
+        const settingsPromise = fetchSettings();
+        const pagePromise = disablePages
+          ? Promise.resolve(null)
+          : fetchPageContent("home");
+
         const [settings, home] = await Promise.all([
-          fetchSettings(),
-          fetchPageContent("home"),
+          settingsPromise,
+          pagePromise,
         ]);
 
         if (!mounted) return;
@@ -213,6 +220,11 @@ export default function App() {
     { id: "contact", label: "Contact", icon: Phone },
   ];
 
+  // Admin-only diagnostics shortcut
+  const navItems = isAdmin
+    ? [...navigation, { id: "cms-diagnostics", label: "CMS", icon: Settings }]
+    : navigation;
+
   const renderCurrentView = () => {
     switch (currentView) {
       case "pc-finder":
@@ -264,6 +276,8 @@ export default function App() {
         return <PrivacyPage />;
       case "cookies":
         return <CookiePolicyPage />;
+      case "cms-diagnostics":
+        return <CmsDiagnostics />;
       default:
         return <HomePage setCurrentView={setCurrentView} />;
     }
@@ -337,7 +351,7 @@ export default function App() {
 
                 {/* Desktop Navigation */}
                 <nav className="hidden md:flex items-center space-x-2.5">
-                  {navigation.map((item) => (
+                  {navItems.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => setCurrentView(item.id)}
@@ -484,7 +498,7 @@ export default function App() {
                     </button>
 
                     {/* Other Navigation Items */}
-                    {navigation.map((item) => (
+                    {navItems.map((item) => (
                       <button
                         key={item.id}
                         onClick={() => {
