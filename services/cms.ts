@@ -223,9 +223,17 @@ export interface PCComponent {
   category: string; // case, motherboard, cpu, gpu, ram, storage, psu, cooling
   rating?: number;
   description?: string;
+  mainDescription?: string; // Detailed product description from Contentful
   images?: string[];
   inStock?: boolean;
   featured?: boolean;
+
+  // Common fields
+  brand?: string;
+  model?: string;
+  colour?: string;
+  color?: string; // Alias for colour
+  features?: string[];
 
   // Case specific
   formFactor?: string;
@@ -236,6 +244,7 @@ export interface PCComponent {
   maxGpuLength?: number;
   maxCpuCoolerHeight?: number;
   maxPsuLength?: number;
+  frontPanelPorts?: string;
 
   // Motherboard specific
   socket?: string;
@@ -1884,9 +1893,17 @@ function mapContentfulToComponent(
     category: category,
     rating: fields.rating,
     description: fields.description,
+    mainDescription: fields.mainDescription,
     images: images,
     inStock: fields.inStock !== false,
     featured: fields.featured || false,
+
+    // Common fields across all components
+    brand: fields.brand,
+    model: fields.model,
+    colour: fields.colour || fields.color, // Support both spellings
+    color: fields.color || fields.colour,
+    features: fields.features,
 
     // Case fields
     formFactor: fields.formFactor,
@@ -1897,6 +1914,7 @@ function mapContentfulToComponent(
     maxGpuLength: fields.maxGpuLength,
     maxCpuCoolerHeight: fields.maxCpuCoolerHeight || fields.maxCoolerHeight,
     maxPsuLength: fields.maxPsuLength,
+    frontPanelPorts: fields.frontPanelPorts,
 
     // Motherboard fields
     socket: fields.socket,

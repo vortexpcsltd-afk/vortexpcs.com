@@ -53,9 +53,7 @@ export function ShoppingCartModal({
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const vatRate = 0.2; // 20% UK VAT
-  const vat = subtotal * vatRate;
-  const total = subtotal + vat;
+  const total = subtotal; // No VAT - not VAT registered
 
   const handleUpdateQuantity = (id: string, delta: number) => {
     const item = cartItems.find((i) => i.id === id);
@@ -191,12 +189,6 @@ export function ShoppingCartModal({
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Subtotal</span>
                 <span className="text-white">£{subtotal.toFixed(2)}</span>
-              </div>
-
-              {/* VAT */}
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">VAT (20%)</span>
-                <span className="text-white">£{vat.toFixed(2)}</span>
               </div>
 
               <Separator className="bg-white/10" />
