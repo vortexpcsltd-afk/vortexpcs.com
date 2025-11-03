@@ -228,11 +228,11 @@ export function Footer({ onNavigate }: FooterProps) {
               <ul className="space-y-4">
                 <li>
                   <a
-                    href="mailto:info@vortexpcs.co.uk"
+                    href="mailto:info@vortexpcs.com"
                     className="group flex items-start gap-3 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-colors"
                   >
                     <Mail className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
-                    <span>info@vortexpcs.co.uk</span>
+                    <span>info@vortexpcs.com</span>
                   </a>
                 </li>
                 <li>

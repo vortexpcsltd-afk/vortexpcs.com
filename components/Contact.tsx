@@ -10,6 +10,7 @@ import {
   Shield,
   Award,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -44,13 +45,18 @@ export function Contact({ onNavigate }: ContactProps = {}) {
     setIsSubmitting(true);
 
     try {
-      // Import email service dynamically
-      const { sendContactFormEmail } = await import("../services/email");
+      // Send to Vercel serverless function
+      const response = await fetch("/api/contact/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
-      // Send the contact form email
-      const success = await sendContactFormEmail(formData);
+      const data = await response.json();
 
-      if (success) {
+      if (response.ok && data.success) {
         setIsSubmitted(true);
         setFormData({
           name: "",
@@ -64,39 +70,15 @@ export function Contact({ onNavigate }: ContactProps = {}) {
         // Reset success message after 5 seconds
         setTimeout(() => setIsSubmitted(false), 5000);
       } else {
-        // Email service not configured or failed
-        console.warn(
-          "Email service not available, simulating success for development"
-        );
-        setIsSubmitted(true);
-        setFormData({
-          name: "",
-          email: "",
-          phone: "",
-          subject: "",
-          enquiryType: "",
-          message: "",
-        });
-
-        // Reset success message after 5 seconds
-        setTimeout(() => setIsSubmitted(false), 5000);
+        throw new Error(data.error || "Failed to send message");
       }
     } catch (error) {
       console.error("Contact form submission error:", error);
-      // For now, still show success to not break UX
-      // In production, you might want to show an error message
-      setIsSubmitted(true);
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        subject: "",
-        enquiryType: "",
-        message: "",
-      });
-
-      // Reset success message after 5 seconds
-      setTimeout(() => setIsSubmitted(false), 5000);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to send message. Please try again or contact us directly at info@vortexpcs.com"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -110,10 +92,9 @@ export function Contact({ onNavigate }: ContactProps = {}) {
     {
       icon: Mail,
       title: "Email Us",
-      value: "info@vortexpcs.co.uk",
+      value: "info@vortexpcs.com",
       description: "Send us an email any time",
-      href: "mailto:info@vortexpcs.co.uk",
-      color: "sky",
+      href: "mailto:info@vortexpcs.com",
     },
     {
       icon: Phone,

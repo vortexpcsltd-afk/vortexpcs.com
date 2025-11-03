@@ -91,7 +91,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userProfile,
     loading,
     isAuthenticated: !!user,
-    isAdmin: userProfile?.email === "admin@vortexpcs.co.uk" || false,
+    isAdmin: userProfile?.email === "admin@vortexpcs.com" || false,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

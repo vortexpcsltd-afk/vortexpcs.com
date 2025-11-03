@@ -5,6 +5,8 @@
   },
   "dependencies": {
     "stripe": "^17.4.0",
-    "@vercel/node": "^3.2.20"
+    "@vercel/node": "^3.2.20",
+    "nodemailer": "^6.9.7",
+    "@types/nodemailer": "^6.4.14"
   }
 }

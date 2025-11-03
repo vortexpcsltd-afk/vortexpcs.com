@@ -2401,42 +2401,260 @@ export function PCBuilder({
 
   // Import recommended build on mount or when it changes
   useEffect(() => {
-    if (recommendedBuild) {
+    if (recommendedBuild && recommendedBuild.specs) {
+      console.log(
+        "🔄 Importing recommended build to PC Builder:",
+        recommendedBuild
+      );
+
       // Parse the recommended build specs into component selections
       const importedComponents: any = {};
 
-      // This would typically map the recommendation to actual component IDs
-      // For demo purposes, we'll select some components based on the build type
-      if (recommendedBuild.name.includes("Gaming Beast")) {
-        importedComponents.gpu = "gpu-1"; // RTX 4090
-        importedComponents.cpu = "cpu-1"; // Intel Core Ultra 9
-        importedComponents.ram = "ram-1"; // 32GB DDR5-6400
-      } else if (recommendedBuild.name.includes("Gaming Master")) {
-        importedComponents.gpu = "gpu-2"; // RTX 4070 Ti Super
-        importedComponents.cpu = "cpu-3"; // Ryzen 7 9800X3D
-        importedComponents.ram = "ram-2"; // 32GB DDR5-6000
-      } else if (recommendedBuild.name.includes("Gaming Core")) {
-        importedComponents.gpu = "gpu-3"; // RTX 4060 Ti
-        importedComponents.cpu = "cpu-3"; // Ryzen 7 9800X3D
-        importedComponents.ram = "ram-2"; // 32GB DDR5-6000
+      // Helper function to find best matching component by name/specs
+      const findComponentBySpec = (category: string, specString: string) => {
+        const components = (useCmsData ? cmsComponents : componentData)[
+          category as keyof typeof componentData
+        ];
+        if (!components || !Array.isArray(components)) return null;
+
+        // Try exact name match first (case-insensitive)
+        let match = components.find(
+          (c: any) =>
+            c.name &&
+            specString &&
+            c.name
+              .toLowerCase()
+              .includes(specString.toLowerCase().substring(0, 15))
+        );
+
+        // If no match, try to match by key specs
+        if (!match && category === "cpu") {
+          // Match by cores or model number
+          if (specString.includes("9950X"))
+            match = components.find((c: any) => c.name?.includes("9950X"));
+          else if (specString.includes("9800X"))
+            match = components.find((c: any) => c.name?.includes("9800X"));
+          else if (specString.includes("9700X"))
+            match = components.find((c: any) => c.name?.includes("9700X"));
+          else if (specString.includes("9600X"))
+            match = components.find((c: any) => c.name?.includes("9600X"));
+          else if (specString.includes("285K"))
+            match = components.find((c: any) => c.name?.includes("285K"));
+          else if (specString.includes("14700K"))
+            match = components.find((c: any) => c.name?.includes("14700K"));
+          else if (
+            specString.includes("Intel") ||
+            specString.includes("i7") ||
+            specString.includes("i5")
+          ) {
+            match = components.find((c: any) => c.platform === "Intel");
+          } else if (
+            specString.includes("AMD") ||
+            specString.includes("Ryzen")
+          ) {
+            match = components.find((c: any) => c.platform === "AMD");
+          }
+        } else if (category === "gpu") {
+          // Match by GPU model
+          if (specString.includes("4090"))
+            match = components.find((c: any) => c.name?.includes("4090"));
+          else if (specString.includes("4080"))
+            match = components.find((c: any) => c.name?.includes("4080"));
+          else if (specString.includes("4070 Ti"))
+            match = components.find((c: any) => c.name?.includes("4070 Ti"));
+          else if (specString.includes("4070"))
+            match = components.find((c: any) => c.name?.includes("4070"));
+          else if (specString.includes("4060 Ti"))
+            match = components.find((c: any) => c.name?.includes("4060 Ti"));
+          else if (specString.includes("4060"))
+            match = components.find((c: any) => c.name?.includes("4060"));
+          else if (
+            specString.includes("RTX") ||
+            specString.includes("NVIDIA")
+          ) {
+            match = components[0]; // Default to first NVIDIA GPU
+          }
+        } else if (category === "ram") {
+          // Match by capacity
+          if (specString.includes("64GB"))
+            match = components.find((c: any) => c.capacity === 64);
+          else if (specString.includes("32GB"))
+            match = components.find((c: any) => c.capacity === 32);
+          else if (specString.includes("16GB"))
+            match = components.find((c: any) => c.capacity === 16);
+          else match = components[0]; // Default to first RAM
+        } else if (category === "storage") {
+          // Match by capacity and type
+          if (specString.includes("4TB"))
+            match = components.find((c: any) => c.capacity >= 4000);
+          else if (specString.includes("2TB"))
+            match = components.find(
+              (c: any) => c.capacity >= 2000 && c.capacity < 4000
+            );
+          else if (specString.includes("1TB"))
+            match = components.find(
+              (c: any) => c.capacity >= 1000 && c.capacity < 2000
+            );
+          else if (specString.includes("500GB"))
+            match = components.find(
+              (c: any) => c.capacity >= 500 && c.capacity < 1000
+            );
+          else match = components[0]; // Default to first storage
+        } else if (category === "psu") {
+          // Match by wattage
+          if (specString.includes("1000W"))
+            match = components.find((c: any) => c.wattage >= 1000);
+          else if (specString.includes("850W"))
+            match = components.find(
+              (c: any) => c.wattage >= 850 && c.wattage < 1000
+            );
+          else if (specString.includes("750W"))
+            match = components.find(
+              (c: any) => c.wattage >= 750 && c.wattage < 850
+            );
+          else match = components[0]; // Default to first PSU
+        } else if (category === "cooling") {
+          // Match by type and size
+          if (specString.includes("360mm"))
+            match = components.find(
+              (c: any) => c.radiatorSize === 360 || c.name?.includes("360mm")
+            );
+          else if (specString.includes("280mm"))
+            match = components.find(
+              (c: any) => c.radiatorSize === 280 || c.name?.includes("280mm")
+            );
+          else if (specString.includes("240mm"))
+            match = components.find(
+              (c: any) => c.radiatorSize === 240 || c.name?.includes("240mm")
+            );
+          else if (specString.includes("AIO"))
+            match = components.find(
+              (c: any) => c.type === "Liquid" || c.type === "AIO"
+            );
+          else match = components[0]; // Default to first cooler
+        } else if (category === "motherboard") {
+          // Match by socket/platform
+          if (specString.includes("Z790") || specString.includes("LGA1700")) {
+            match = components.find(
+              (c: any) => c.socket === "LGA1700" || c.chipset?.includes("Z790")
+            );
+          } else if (
+            specString.includes("B650") ||
+            specString.includes("AM5")
+          ) {
+            match = components.find(
+              (c: any) => c.socket === "AM5" || c.chipset?.includes("B650")
+            );
+          } else match = components[0]; // Default to first motherboard
+        } else if (category === "case") {
+          // Match by form factor
+          if (specString.includes("ATX"))
+            match = components.find((c: any) => c.formFactor === "ATX");
+          else if (specString.includes("MicroATX"))
+            match = components.find((c: any) => c.formFactor === "MicroATX");
+          else match = components[0]; // Default to first case
+        }
+
+        // Fallback: return first component in category
+        return match || components[0];
+      };
+
+      // Map each spec to a component
+      if (recommendedBuild.specs.cpu) {
+        const cpu = findComponentBySpec("cpu", recommendedBuild.specs.cpu);
+        if (cpu) {
+          importedComponents.cpu = cpu.id;
+          console.log(
+            `✅ Matched CPU: ${recommendedBuild.specs.cpu} → ${cpu.name}`
+          );
+
+          // Auto-select compatible motherboard
+          const motherboards = (useCmsData ? cmsComponents : componentData)
+            .motherboard;
+          const compatibleMB = motherboards?.find(
+            (mb: any) => mb.socket === (cpu as any).socket
+          );
+          if (compatibleMB) {
+            importedComponents.motherboard = compatibleMB.id;
+            console.log(
+              `✅ Auto-selected compatible motherboard: ${compatibleMB.name}`
+            );
+          }
+        }
       }
 
-      // Add compatible motherboard based on CPU
-      if (importedComponents.cpu === "cpu-1") {
-        importedComponents.motherboard = "mb-1"; // Intel Z790
-      } else {
-        importedComponents.motherboard = "mb-2"; // AMD B650
+      if (recommendedBuild.specs.gpu) {
+        const gpu = findComponentBySpec("gpu", recommendedBuild.specs.gpu);
+        if (gpu) {
+          importedComponents.gpu = gpu.id;
+          console.log(
+            `✅ Matched GPU: ${recommendedBuild.specs.gpu} → ${gpu.name}`
+          );
+        }
       }
 
-      // Add other components
-      importedComponents.case = "case-1";
-      importedComponents.storage = "storage-1";
-      importedComponents.psu = "psu-1";
-      importedComponents.cooling = "cooling-1";
+      if (recommendedBuild.specs.ram) {
+        const ram = findComponentBySpec("ram", recommendedBuild.specs.ram);
+        if (ram) {
+          importedComponents.ram = ram.id;
+          console.log(
+            `✅ Matched RAM: ${recommendedBuild.specs.ram} → ${ram.name}`
+          );
+        }
+      }
+
+      if (recommendedBuild.specs.storage) {
+        const storage = findComponentBySpec(
+          "storage",
+          recommendedBuild.specs.storage
+        );
+        if (storage) {
+          importedComponents.storage = storage.id;
+          console.log(
+            `✅ Matched Storage: ${recommendedBuild.specs.storage} → ${storage.name}`
+          );
+        }
+      }
+
+      if (recommendedBuild.specs.cooling) {
+        const cooling = findComponentBySpec(
+          "cooling",
+          recommendedBuild.specs.cooling
+        );
+        if (cooling) {
+          importedComponents.cooling = cooling.id;
+          console.log(
+            `✅ Matched Cooling: ${recommendedBuild.specs.cooling} → ${cooling.name}`
+          );
+        }
+      }
+
+      if (recommendedBuild.specs.psu) {
+        const psu = findComponentBySpec("psu", recommendedBuild.specs.psu);
+        if (psu) {
+          importedComponents.psu = psu.id;
+          console.log(
+            `✅ Matched PSU: ${recommendedBuild.specs.psu} → ${psu.name}`
+          );
+        }
+      }
+
+      // Auto-select case if not specified
+      if (!importedComponents.case) {
+        const cases = (useCmsData ? cmsComponents : componentData).case;
+        if (cases && cases.length > 0) {
+          importedComponents.case = cases[0].id;
+          console.log(`✅ Auto-selected case: ${cases[0].name}`);
+        }
+      }
 
       setSelectedComponents(importedComponents);
+      console.log(
+        "✅ Build import complete. Selected components:",
+        importedComponents
+      );
     }
-  }, [recommendedBuild]);
+  }, [recommendedBuild, useCmsData, cmsComponents]);
 
   // Merge CMS data with fallback componentData
   const activeComponentData = useCmsData ? cmsComponents : componentData;
@@ -3171,6 +3389,23 @@ export function PCBuilder({
     activeCategory,
     selectedComponents
   );
+
+  // Sort components based on selected sort option
+  const sortedComponents = [...filteredComponents].sort((a: any, b: any) => {
+    switch (sortBy) {
+      case "price":
+        return (a.price || 0) - (b.price || 0);
+      case "price-desc":
+        return (b.price || 0) - (a.price || 0);
+      case "rating":
+        return (b.rating || 0) - (a.rating || 0);
+      case "name":
+        return (a.name || "").localeCompare(b.name || "");
+      default:
+        return 0;
+    }
+  });
+
   const totalComponentsInCategory = (
     (activeComponentData as any)[activeCategory] || []
   ).length;
@@ -3554,7 +3789,7 @@ export function PCBuilder({
                   : "space-y-4"
               }
             >
-              {filteredComponents.map((component: any) => (
+              {sortedComponents.map((component: any) => (
                 <ComponentCard
                   key={component.id}
                   component={component}
@@ -3568,7 +3803,7 @@ export function PCBuilder({
               ))}
             </div>
 
-            {filteredComponents.length === 0 && (
+            {sortedComponents.length === 0 && (
               <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-12 text-center">
                 <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-white mb-2">

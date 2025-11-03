@@ -1396,7 +1396,7 @@ function getMockSettings(): Settings {
     maintenanceMessage: "",
     announcementBar: "",
     enableAnnouncementBar: false,
-    contactEmail: "info@vortexpcs.co.uk",
+    contactEmail: "info@vortexpcs.com",
     contactPhone: "+44 123 456 7890",
     whatsappNumber: "+44 123 456 7890",
   };
@@ -1524,7 +1524,7 @@ function getMockTeamMembers(): TeamMember[] {
       name: "James Wilson",
       position: "Lead PC Builder",
       bio: "10+ years of experience in custom PC building and hardware optimization",
-      email: "james@vortexpcs.co.uk",
+      email: "james@vortexpcs.com",
       specialties: ["Gaming PCs", "Workstations", "Custom Cooling"],
       order: 1,
       featured: true,
@@ -1536,7 +1536,7 @@ function getMockTeamMembers(): TeamMember[] {
       name: "Sarah Chen",
       position: "Hardware Specialist",
       bio: "Expert in component selection and compatibility analysis",
-      email: "sarah@vortexpcs.co.uk",
+      email: "sarah@vortexpcs.com",
       specialties: [
         "Component Selection",
         "Compatibility",
@@ -1598,7 +1598,7 @@ function getMockContactInformation(): ContactInformation {
   return {
     id: 1,
     companyName: "Vortex PCs Ltd",
-    email: "info@vortexpcs.co.uk",
+    email: "info@vortexpcs.com",
     phone: "+44 123 456 7890",
     whatsapp: "+44 123 456 7890",
     address: "123 Tech Street<br>London, UK<br>SW1A 1AA",
@@ -1613,7 +1613,7 @@ function getMockContactInformation(): ContactInformation {
       sunday: "Closed",
     },
     emergencyContact: "+44 123 456 7890",
-    supportEmail: "support@vortexpcs.co.uk",
+    supportEmail: "support@vortexpcs.com",
   };
 }
 

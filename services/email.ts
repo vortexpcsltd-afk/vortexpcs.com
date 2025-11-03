@@ -33,7 +33,7 @@ const getBusinessInfo = () => ({
   email:
     (import.meta as any).env?.VITE_BUSINESS_EMAIL ||
     process.env.VITE_BUSINESS_EMAIL ||
-    "info@vortexpcs.co.uk",
+    "info@vortexpcs.com",
   phone: "+44 20 1234 5678",
   address: "123 Tech Street, London, UK",
   website: "https://www.vortexpcs.com",
