@@ -1,12 +1,11 @@
 /**
- * Vercel Serverless Function - Send Contact Form Email
- * This runs on the server, so it can safely use nodemailer and SMTP credentials
+ * Vercel Serverless Function - Send Repair Service Booking Notifications
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
 
-// CORS headers for cross-origin requests
+// CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -14,7 +13,7 @@ const corsHeaders = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Always set CORS headers
+  // Set CORS headers
   Object.entries(corsHeaders).forEach(([k, v]) =>
     res.setHeader(k, v as string)
   );
@@ -30,16 +29,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { name, email, phone, subject, enquiryType, message } = req.body;
+    const { bookingData, customerInfo, totalPrice } = req.body;
 
     // Validate required fields
-    if (!name || !email || !subject || !enquiryType || !message) {
+    if (!bookingData || !customerInfo || !totalPrice) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Load and validate SMTP configuration from environment
+    // Load SMTP configuration
     const smtpHost = process.env.VITE_SMTP_HOST;
-    const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "587", 10);
+    const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "465", 10);
     const smtpSecure = process.env.VITE_SMTP_SECURE === "true";
     const smtpUser = process.env.VITE_SMTP_USER;
     const smtpPass = process.env.VITE_SMTP_PASS;
@@ -52,7 +51,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!smtpPass) missing.push("VITE_SMTP_PASS");
 
     if (missing.length) {
-      // Don't leak secrets; guide configuration via which keys are missing
       console.error("Email configuration missing:", missing.join(", "));
       return res.status(500).json({
         error: "Email service not configured",
@@ -68,32 +66,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       auth: { user: smtpUser, pass: smtpPass },
     });
 
-    // Optional: verify connection configuration early for clearer errors
+    // Verify connection
     try {
       await transporter.verify();
     } catch (verifyError: any) {
       const { message, code } = verifyError || {};
       console.error("SMTP verify failed:", { message, code });
-      let hint = "";
-      if (code === "EAUTH")
-        hint = "Authentication failed. Check SMTP user/pass.";
-      if (code === "ENOTFOUND")
-        hint = "SMTP host not found. Check VITE_SMTP_HOST.";
-      if (code === "ECONNECTION" || code === "ETIMEDOUT")
-        hint = "Connection failed. Check port/secure and provider allows SMTP.";
       return res.status(500).json({
         error: "SMTP connection test failed",
         details: message || "Unknown verify error",
-        hint,
       });
     }
 
+    // Generate booking reference
+    const bookingRef = `VX-REP-${Date.now().toString(36).toUpperCase()}`;
+
     // Email to business
     await transporter.sendMail({
-      from: `"Vortex PCs Website" <${smtpUser}>`,
+      from: `"Vortex PCs Repair Service" <${smtpUser}>`,
       to: businessEmail,
-      replyTo: email,
-      subject: `🔔 New ${enquiryType} Enquiry: ${subject}`,
+      replyTo: customerInfo.email,
+      subject: `🔧 New ${bookingData.urgency} Repair Booking - £${totalPrice}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -123,17 +116,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 border: 1px solid #e2e8f0;
               }
               .header { 
-                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
+                background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); 
                 padding: 40px 30px;
                 text-align: center;
-                position: relative;
-              }
-              .logo-container {
-                background: rgba(0, 0, 0, 0.2);
-                padding: 15px;
-                border-radius: 12px;
-                display: inline-block;
-                margin-bottom: 20px;
               }
               .urgent-badge {
                 display: inline-block;
@@ -154,18 +139,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 font-size: 28px;
                 font-weight: 700;
                 margin: 0;
-                text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
               }
               .summary-bar {
-                background: linear-gradient(135deg, #fef3c7, #fde68a);
+                background: linear-gradient(135deg, #fed7aa, #fdba74);
                 padding: 20px 30px;
-                border-bottom: 2px solid #f59e0b;
-              }
-              .summary-bar h2 {
-                color: #92400e;
-                font-size: 16px;
-                margin: 0 0 10px 0;
-                font-weight: 600;
+                border-bottom: 2px solid #f97316;
               }
               .summary-grid {
                 display: grid;
@@ -174,17 +152,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 margin-top: 10px;
               }
               .summary-item {
-                background: rgba(255, 255, 255, 0.8);
+                background: rgba(255, 255, 255, 0.9);
                 padding: 12px;
                 border-radius: 8px;
-                border: 1px solid rgba(245, 158, 11, 0.2);
               }
               .summary-item label {
                 display: block;
                 font-size: 11px;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
-                color: #92400e;
+                color: #9a3412;
                 font-weight: 600;
                 margin-bottom: 4px;
               }
@@ -194,71 +171,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 color: #1e293b;
                 font-weight: 600;
               }
-              .summary-item a {
-                color: #0ea5e9;
-                text-decoration: none;
-                word-break: break-all;
+              .price-tag {
+                font-size: 24px;
+                color: #ea580c;
+                font-weight: 800;
               }
               .content { 
                 padding: 40px 30px;
-                background: #ffffff;
               }
-              .field { 
-                margin-bottom: 25px;
-                padding-bottom: 25px;
+              .section {
+                margin-bottom: 30px;
+                padding-bottom: 30px;
                 border-bottom: 1px solid #e2e8f0;
               }
-              .field:last-child {
+              .section:last-child {
                 border-bottom: none;
                 margin-bottom: 0;
                 padding-bottom: 0;
               }
-              .label { 
-                font-weight: 700;
+              .section h3 {
                 color: #0ea5e9;
-                font-size: 13px;
+                font-size: 16px;
+                margin-bottom: 15px;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
-                margin-bottom: 8px;
-                display: block;
               }
-              .value { 
+              .info-grid {
+                display: grid;
+                gap: 12px;
+              }
+              .info-item {
                 background: #f8fafc;
-                padding: 15px;
+                padding: 12px;
                 border-radius: 8px;
                 border: 1px solid #e2e8f0;
+              }
+              .info-label {
+                font-size: 12px;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+                margin-bottom: 4px;
+              }
+              .info-value {
                 font-size: 15px;
                 color: #1e293b;
-                line-height: 1.7;
-              }
-              .value a {
-                color: #0ea5e9;
-                text-decoration: none;
                 font-weight: 600;
               }
-              .message-box {
-                background: #ffffff;
-                border: 2px solid #0ea5e9;
-                padding: 20px;
-                border-radius: 10px;
-                font-size: 15px;
-                line-height: 1.8;
-                color: #1e293b;
-                white-space: pre-wrap;
-                word-break: break-word;
-                box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
-              }
-              .quick-actions {
-                background: #f8fafc;
-                padding: 25px;
-                border-radius: 8px;
-                margin-top: 30px;
-                border: 1px solid #e2e8f0;
-              }
-              .quick-actions h3 {
-                color: #1e293b;
-                font-size: 16px;
-                margin: 0 0 15px 0;
+              .action-buttons {
+                display: flex;
+                gap: 10px;
+                margin-top: 20px;
               }
               .action-button {
                 display: inline-block;
@@ -268,14 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 border-radius: 8px;
                 text-decoration: none;
                 font-weight: 600;
-                margin-right: 10px;
-                margin-bottom: 10px;
                 box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
-                transition: all 0.2s;
-              }
-              .action-button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(14, 165, 233, 0.4);
               }
               .footer {
                 background: #f8fafc;
@@ -288,25 +244,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 font-size: 13px;
                 margin: 5px 0;
               }
-              .priority-badge {
-                display: inline-block;
-                padding: 4px 10px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.3px;
-              }
-              .priority-high { background: #fee2e2; color: #991b1b; }
-              .priority-medium { background: #fef3c7; color: #92400e; }
-              .priority-normal { background: #dbeafe; color: #1e40af; }
               @media only screen and (max-width: 600px) {
-                .email-wrapper { padding: 20px 10px; }
-                .header { padding: 30px 20px; }
-                .content { padding: 30px 20px; }
-                .summary-bar { padding: 15px 20px; }
                 .summary-grid { grid-template-columns: 1fr; }
-                .header h1 { font-size: 24px; }
+                .action-buttons { flex-direction: column; }
               }
             </style>
           </head>
@@ -314,81 +254,96 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             <div class="email-wrapper">
               <div class="container">
                 <div class="header">
-                  <div class="logo-container">
-                    <img src="https://vortexpcs.com/logo.png" alt="VORTEX PCS" style="max-width: 180px; height: auto;" />
-                  </div>
-                  <div class="urgent-badge">⚡ New Enquiry Alert</div>
-                  <h1>Contact Form Submission</h1>
+                  <div class="urgent-badge">🔧 New Repair Booking</div>
+                  <h1>PC Repair Collection Booked</h1>
                 </div>
                 
                 <div class="summary-bar">
-                  <h2>📋 Quick Summary</h2>
                   <div class="summary-grid">
                     <div class="summary-item">
                       <label>Customer Name</label>
-                      <value>${name}</value>
+                      <value>${customerInfo.name}</value>
                     </div>
                     <div class="summary-item">
-                      <label>Enquiry Type</label>
-                      <value>${enquiryType}</value>
+                      <label>Booking Reference</label>
+                      <value>${bookingRef}</value>
                     </div>
                     <div class="summary-item">
-                      <label>Email Address</label>
-                      <value><a href="mailto:${email}">${email}</a></value>
-                    </div>
-                    <div class="summary-item">
-                      <label>Phone Number</label>
-                      <value>${
-                        phone
-                          ? `<a href="tel:${phone.replace(
-                              /\s/g,
-                              ""
-                            )}">${phone}</a>`
-                          : "Not provided"
+                      <label>Urgency</label>
+                      <value style="text-transform: capitalize">${
+                        bookingData.urgency
                       }</value>
+                    </div>
+                    <div class="summary-item">
+                      <label>Collection Fee</label>
+                      <value class="price-tag">£${totalPrice}</value>
                     </div>
                   </div>
                 </div>
 
                 <div class="content">
-                  <div class="field">
-                    <div class="label">📌 Subject</div>
-                    <div class="value">${subject}</div>
+                  <div class="section">
+                    <h3>👤 Customer Information</h3>
+                    <div class="info-grid">
+                      <div class="info-item">
+                        <div class="info-label">Email</div>
+                        <div class="info-value"><a href="mailto:${
+                          customerInfo.email
+                        }" style="color: #0ea5e9; text-decoration: none;">${
+        customerInfo.email
+      }</a></div>
+                      </div>
+                      <div class="info-item">
+                        <div class="info-label">Phone</div>
+                        <div class="info-value"><a href="tel:${
+                          customerInfo.phone
+                        }" style="color: #0ea5e9; text-decoration: none;">${
+        customerInfo.phone
+      }</a></div>
+                      </div>
+                      <div class="info-item">
+                        <div class="info-label">Collection Address</div>
+                        <div class="info-value">${customerInfo.address}</div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div class="field">
-                    <div class="label">💬 Customer Message</div>
-                    <div class="message-box">${message.replace(
-                      /\n/g,
-                      "<br>"
-                    )}</div>
-                  </div>
-
-                  <div class="quick-actions">
-                    <h3>⚡ Quick Actions</h3>
-                    <a href="mailto:${email}?subject=Re: ${encodeURIComponent(
-        subject
-      )}" class="action-button">Reply to Customer</a>
+                  <div class="section">
+                    <h3>🔧 Issue Details</h3>
+                    <div class="info-item">
+                      <div class="info-label">Reported Issues</div>
+                      <div class="info-value">${
+                        bookingData.issueTypes?.join(", ") || "Not specified"
+                      }</div>
+                    </div>
                     ${
-                      phone
-                        ? `<a href="tel:${phone.replace(
-                            /\s/g,
-                            ""
-                          )}" class="action-button">Call Customer</a>`
+                      bookingData.description
+                        ? `
+                    <div class="info-item" style="margin-top: 12px;">
+                      <div class="info-label">Additional Details</div>
+                      <div class="info-value" style="white-space: pre-wrap;">${bookingData.description}</div>
+                    </div>
+                    `
                         : ""
                     }
+                  </div>
+
+                  <div class="action-buttons">
+                    <a href="mailto:${
+                      customerInfo.email
+                    }?subject=Re: Repair Booking ${bookingRef}" class="action-button">Reply to Customer</a>
+                    <a href="tel:${
+                      customerInfo.phone
+                    }" class="action-button">Call Customer</a>
                   </div>
                 </div>
 
                 <div class="footer">
-                  <p><strong>Vortex PCs</strong> | Contact Form Notification</p>
+                  <p><strong>Vortex PCs</strong> | Repair Service Notification</p>
                   <p>Received: ${new Date().toLocaleString("en-GB", {
                     dateStyle: "full",
                     timeStyle: "short",
                   })}</p>
-                  <p style="margin-top: 10px; font-size: 11px; color: #94a3b8;">
-                    This is an automated notification from vortexpcs.com
-                  </p>
                 </div>
               </div>
             </div>
@@ -397,11 +352,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `,
     });
 
-    // Auto-reply to customer
+    // Email to customer
     await transporter.sendMail({
-      from: `"Vortex PCs" <${smtpUser}>`,
-      to: email,
-      subject: "Thank you for contacting Vortex PCs",
+      from: `"Vortex PCs Repair Service" <${smtpUser}>`,
+      to: customerInfo.email,
+      subject: "Your PC Repair Collection is Confirmed - Vortex PCs",
       html: `
         <!DOCTYPE html>
         <html>
@@ -435,7 +390,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); 
                 padding: 40px 30px;
                 text-align: center;
-                position: relative;
               }
               .logo-container {
                 background: #1e3a8a;
@@ -449,63 +403,106 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 font-size: 28px;
                 font-weight: 700;
                 margin: 0;
-                text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
               }
               .content { 
                 background: rgba(30, 41, 59, 0.4);
                 padding: 40px 30px;
                 color: #e2e8f0;
               }
-              .content p {
-                margin-bottom: 20px;
-                font-size: 16px;
-                line-height: 1.8;
+              .success-badge {
+                background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.2));
+                border: 2px solid rgba(34, 197, 94, 0.4);
+                padding: 20px;
+                border-radius: 12px;
+                text-align: center;
+                margin-bottom: 30px;
               }
-              .highlight-box { 
+              .success-badge h2 {
+                color: #22c55e;
+                font-size: 24px;
+                margin-bottom: 8px;
+              }
+              .booking-ref {
+                display: inline-block;
+                background: rgba(14, 165, 233, 0.2);
+                border: 1px solid rgba(14, 165, 233, 0.4);
+                padding: 10px 20px;
+                border-radius: 8px;
+                font-size: 18px;
+                font-weight: 700;
+                color: #0ea5e9;
+                font-family: monospace;
+                letter-spacing: 1px;
+              }
+              .info-box {
+                background: rgba(14, 165, 233, 0.05);
+                border: 1px solid rgba(14, 165, 233, 0.2);
+                padding: 20px;
+                border-radius: 8px;
+                margin: 25px 0;
+              }
+              .info-box h3 {
+                color: #0ea5e9;
+                font-size: 16px;
+                margin-bottom: 15px;
+              }
+              .info-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 10px 0;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+              }
+              .info-row:last-child {
+                border-bottom: none;
+              }
+              .info-label {
+                color: #94a3b8;
+              }
+              .info-value {
+                color: #ffffff;
+                font-weight: 600;
+              }
+              .next-steps {
                 background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(37, 99, 235, 0.1));
                 border-left: 4px solid #0ea5e9;
                 padding: 20px;
                 border-radius: 8px;
                 margin: 30px 0;
               }
-              .highlight-box strong {
+              .next-steps h3 {
                 color: #0ea5e9;
-                font-size: 18px;
-                display: block;
                 margin-bottom: 15px;
               }
-              .highlight-box p {
-                margin: 8px 0;
-                color: #cbd5e1;
+              .next-steps ul {
+                list-style: none;
+                padding: 0;
+              }
+              .next-steps li {
+                padding: 8px 0;
+                padding-left: 25px;
+                position: relative;
+              }
+              .next-steps li:before {
+                content: "✓";
+                position: absolute;
+                left: 0;
+                color: #22c55e;
+                font-weight: bold;
               }
               .contact-info {
                 background: rgba(14, 165, 233, 0.05);
                 border: 1px solid rgba(14, 165, 233, 0.2);
-                padding: 25px;
+                padding: 20px;
                 border-radius: 8px;
-                margin: 30px 0;
+                margin-top: 30px;
               }
               .contact-info p {
-                margin: 10px 0;
-                font-size: 15px;
+                margin: 8px 0;
               }
               .contact-info a {
                 color: #0ea5e9;
                 text-decoration: none;
                 font-weight: 600;
-                transition: color 0.2s;
-              }
-              .contact-info a:hover {
-                color: #06b6d4;
-              }
-              .signature {
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid rgba(148, 163, 184, 0.2);
-              }
-              .signature p {
-                margin: 5px 0;
-                color: #94a3b8;
               }
               .footer {
                 background: rgba(15, 23, 42, 0.8);
@@ -518,15 +515,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 font-size: 13px;
                 margin: 5px 0;
               }
-              .footer a {
-                color: #0ea5e9;
-                text-decoration: none;
-              }
               @media only screen and (max-width: 600px) {
-                .email-wrapper { padding: 20px 10px; }
                 .header { padding: 30px 20px; }
                 .content { padding: 30px 20px; }
-                .header h1 { font-size: 24px; }
                 .logo { font-size: 28px; }
               }
             </style>
@@ -538,41 +529,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   <div class="logo-container">
                     <img src="https://vortexpcs.com/logo.png" alt="VORTEX PCS" style="max-width: 200px; height: auto;" />
                   </div>
-                  <h1>Thank You for Contacting Us</h1>
+                  <h1>Repair Collection Confirmed</h1>
                 </div>
+                
                 <div class="content">
-                  <p>Dear ${name},</p>
-
-                  <p>Thank you for reaching out to Vortex PCs. We have received your message and appreciate you taking the time to contact us.</p>
-
-                  <div class="highlight-box">
-                    <strong>Your Enquiry Details</strong>
-                    <p><strong>Subject:</strong> ${subject}</p>
-                    <p><strong>Enquiry Type:</strong> ${enquiryType}</p>
+                  <div class="success-badge">
+                    <h2>✓ Booking Confirmed</h2>
+                    <p style="color: #94a3b8; margin-top: 8px;">Your PC repair collection has been successfully booked and paid</p>
                   </div>
 
-                  <p>Our expert team will carefully review your message and get back to you within 24 hours during business hours (Monday-Friday, 9AM-6PM GMT).</p>
+                  <p style="font-size: 16px; margin-bottom: 20px;">Dear ${
+                    customerInfo.name
+                  },</p>
+                  
+                  <p>Thank you for choosing Vortex PCs for your repair needs. Your booking has been confirmed and payment processed.</p>
+
+                  <div class="info-box">
+                    <h3>📋 Booking Details</h3>
+                    <div class="info-row">
+                      <span class="info-label">Booking Reference</span>
+                      <span class="booking-ref">${bookingRef}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">Service Type</span>
+                      <span class="info-value">${
+                        bookingData.urgency
+                      } Collection & Return</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">Collection Fee</span>
+                      <span class="info-value">£${totalPrice}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">Issues Reported</span>
+                      <span class="info-value">${
+                        bookingData.issueTypes?.join(", ") || "Not specified"
+                      }</span>
+                    </div>
+                  </div>
+
+                  <div class="next-steps">
+                    <h3>📍 What Happens Next</h3>
+                    <ul>
+                      <li>Our team will contact you within 2 hours to arrange a convenient collection time</li>
+                      <li>We'll collect your PC from: ${
+                        customerInfo.address
+                      }</li>
+                      <li>You'll receive diagnostic results and a quote within 24 hours</li>
+                      <li>Once approved, repairs will be completed and your PC returned</li>
+                      <li>All work comes with a 12-month warranty</li>
+                    </ul>
+                  </div>
 
                   <div class="contact-info">
-                    <p><strong>Need immediate assistance?</strong></p>
-                    <p>📞 Call us: <a href="tel:+441603975440">01603 975440</a></p>
+                    <p><strong>Need to contact us?</strong></p>
+                    <p>📞 Phone: <a href="tel:+441603975440">01603 975440</a></p>
                     <p>✉️ Email: <a href="mailto:info@vortexpcs.com">info@vortexpcs.com</a></p>
                     <p>🌐 Website: <a href="https://vortexpcs.com">vortexpcs.com</a></p>
                   </div>
 
-                  <div class="signature">
-                    <p><strong>Best regards,</strong></p>
-                    <p><strong>The Vortex PCs Team</strong></p>
-                    <p style="color: #0ea5e9;">Building Your Perfect PC</p>
-                  </div>
+                  <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(148, 163, 184, 0.2);">
+                    <strong>Best regards,</strong><br>
+                    <strong>The Vortex PCs Team</strong><br>
+                    <span style="color: #0ea5e9;">Expert PC Repairs & Building</span>
+                  </p>
                 </div>
+
                 <div class="footer">
                   <p><strong>Vortex PCs Ltd</strong></p>
                   <p>info@vortexpcs.com | 01603 975440</p>
-                  <p><a href="https://vortexpcs.com">www.vortexpcs.com</a></p>
-                  <p style="margin-top: 15px; font-size: 11px;">
-                    This is an automated response. Please do not reply directly to this email.
-                  </p>
+                  <p><a href="https://vortexpcs.com" style="color: #0ea5e9; text-decoration: none;">www.vortexpcs.com</a></p>
                 </div>
               </div>
             </div>
@@ -583,15 +609,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       success: true,
-      message: "Email sent successfully",
+      message: "Repair booking notifications sent successfully",
+      bookingRef,
     });
   } catch (error: any) {
-    // Enhance error logging for faster diagnosis in Vercel function logs
-    const { message, code, command, response } = error || {};
-    console.error("Email send error:", { message, code, command, response });
+    console.error("Repair notification error:", error);
     return res.status(500).json({
-      error: "Failed to send email",
-      details: message || "Unknown error",
+      error: "Failed to send repair notifications",
+      details: error.message,
     });
   }
 }

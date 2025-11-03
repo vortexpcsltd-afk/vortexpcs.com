@@ -121,6 +121,22 @@ function PaymentFormInner({
       }
 
       if (confirmedPaymentIntent?.status === "succeeded") {
+        // Send email notifications (async, non-blocking)
+        try {
+          await fetch("/api/repair/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bookingData,
+              customerInfo: bookingData.customerInfo,
+              totalPrice,
+            }),
+          });
+        } catch (emailError) {
+          console.error("Email notification failed:", emailError);
+          // Don't block success flow if email fails
+        }
+
         onPaymentSuccess();
       } else {
         throw new Error("Payment failed. Please try again.");
