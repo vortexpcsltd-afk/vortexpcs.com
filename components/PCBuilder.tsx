@@ -2680,31 +2680,31 @@ export function PCBuilder({
   const categories = [
     {
       id: "case",
-      label: "Case",
+      label: "PC Cases",
       icon: Package,
       count: activeComponentData.case?.length || 0,
     },
     {
       id: "motherboard",
-      label: "Motherboard",
+      label: "Motherboards",
       icon: Server,
       count: activeComponentData.motherboard?.length || 0,
     },
     {
       id: "cpu",
-      label: "CPU",
+      label: "Processors",
       icon: Cpu,
       count: activeComponentData.cpu?.length || 0,
     },
     {
       id: "gpu",
-      label: "Graphics Card",
+      label: "Graphics Cards (GPU)",
       icon: Monitor,
       count: activeComponentData.gpu?.length || 0,
     },
     {
       id: "ram",
-      label: "RAM",
+      label: "Memory (RAM)",
       icon: HardDrive,
       count: activeComponentData.ram?.length || 0,
     },
@@ -2716,7 +2716,7 @@ export function PCBuilder({
     },
     {
       id: "psu",
-      label: "PSU",
+      label: "Power Supply Units (PSU)",
       icon: Zap,
       count: activeComponentData.psu?.length || 0,
     },
@@ -3423,22 +3423,114 @@ export function PCBuilder({
   return (
     <div className="min-h-screen py-20">
       <div className="container mx-auto px-4">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20 mb-4">
-            <Settings className="w-4 h-4 text-sky-400 mr-2" />
-            <span className="text-sm text-sky-300">Custom PC Builder</span>
+        {/* Stunning Hero Section */}
+        <div className="relative mb-20 overflow-hidden">
+          {/* Animated Background Elements */}
+          <div className="absolute inset-0 -z-10">
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-sky-500/20 rounded-full blur-3xl animate-float"></div>
+            <div
+              className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-float"
+              style={{ animationDelay: "2s" }}
+            ></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-3xl animate-pulse"></div>
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent">
-            Build Your Dream PC
-          </h1>
-          <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-            Configure every component to create the perfect PC for your needs
-          </p>
+
+          <div className="relative">
+            {/* Top Badge */}
+            <div className="flex justify-center mb-8 animate-shimmer">
+              <div className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-sky-500/20 via-blue-500/20 to-cyan-500/20 border border-sky-500/30 backdrop-blur-xl shadow-[0_0_30px_rgba(14,165,233,0.3)]">
+                <Settings className="w-5 h-5 text-sky-400 mr-3 animate-spin-slow" />
+                <span className="text-sm font-semibold text-sky-300 tracking-wide">
+                  CUSTOM PC BUILDER
+                </span>
+              </div>
+            </div>
+
+            {/* Main Heading */}
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-center mb-6 leading-tight">
+              <span className="block bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(14,165,233,0.5)]">
+                Build Your
+              </span>
+              <span className="block bg-gradient-to-r from-sky-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent animate-gradient drop-shadow-[0_0_50px_rgba(14,165,233,0.8)]">
+                Dream PC
+              </span>
+            </h1>
+
+            {/* Subtitle */}
+            <p className="text-xl md:text-2xl text-gray-300 text-center max-w-3xl mx-auto mb-8 leading-relaxed">
+              Configure every component to create the{" "}
+              <span className="text-sky-400 font-semibold">perfect PC</span> for
+              your needs. From gaming powerhouses to workstation beasts.
+            </p>
+
+            {/* Feature Pills */}
+            <div className="flex flex-wrap justify-center gap-4 mb-12">
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
+                <CheckCircle className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
+                <span className="text-sm text-gray-300">
+                  Real-time Compatibility Check
+                </span>
+              </div>
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
+                <Cpu className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+                <span className="text-sm text-gray-300">
+                  Premium Components
+                </span>
+              </div>
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
+                <Zap className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+                <span className="text-sm text-gray-300">
+                  Performance Optimized
+                </span>
+              </div>
+            </div>
+
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+              <Button
+                onClick={() => setActiveCategory("case")}
+                className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-6 text-lg rounded-xl shadow-[0_0_30px_rgba(14,165,233,0.4)] hover:shadow-[0_0_50px_rgba(14,165,233,0.6)] transition-all duration-300 transform hover:scale-105"
+              >
+                <Settings className="w-5 h-5 mr-2" />
+                Start Building
+              </Button>
+              <Button
+                variant="outline"
+                className="border-2 border-sky-500/50 hover:border-sky-400 bg-sky-500/5 hover:bg-sky-500/10 backdrop-blur-xl text-white px-8 py-6 text-lg rounded-xl transition-all duration-300"
+              >
+                <Monitor className="w-5 h-5 mr-2" />
+                View Prebuilt PCs
+              </Button>
+            </div>
+
+            {/* Stats Bar */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+              <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
+                <div className="text-3xl font-bold text-sky-400 mb-1">
+                  {categories.reduce((sum, cat) => sum + cat.count, 0)}+
+                </div>
+                <div className="text-sm text-gray-400">Components</div>
+              </div>
+              <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
+                <div className="text-3xl font-bold text-blue-400 mb-1">8</div>
+                <div className="text-sm text-gray-400">Categories</div>
+              </div>
+              <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
+                <div className="text-3xl font-bold text-cyan-400 mb-1">
+                  100%
+                </div>
+                <div className="text-sm text-gray-400">Compatible</div>
+              </div>
+              <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
+                <div className="text-3xl font-bold text-sky-400 mb-1">Free</div>
+                <div className="text-sm text-gray-400">Building</div>
+              </div>
+            </div>
+          </div>
 
           {/* Loading CMS Data */}
           {isLoadingCms && (
-            <div className="mt-6 p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20 max-w-2xl mx-auto">
+            <div className="mt-8 p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20 max-w-2xl mx-auto">
               <div className="flex items-center justify-center gap-3">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-400"></div>
                 <p className="text-sky-300">Loading components from CMS...</p>
@@ -3448,7 +3540,7 @@ export function PCBuilder({
 
           {/* Import notification */}
           {recommendedBuild && (
-            <div className="mt-6 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 max-w-2xl mx-auto">
+            <div className="mt-8 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 max-w-2xl mx-auto">
               <div className="flex items-center gap-3">
                 <CheckCircle className="w-5 h-5 text-green-400" />
                 <div>
