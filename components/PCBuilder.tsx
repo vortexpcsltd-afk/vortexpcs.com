@@ -2680,31 +2680,31 @@ export function PCBuilder({
   const categories = [
     {
       id: "case",
-      label: "PC Cases",
+      label: "Case",
       icon: Package,
       count: activeComponentData.case?.length || 0,
     },
     {
       id: "motherboard",
-      label: "Motherboards",
+      label: "Motherboard",
       icon: Server,
       count: activeComponentData.motherboard?.length || 0,
     },
     {
       id: "cpu",
-      label: "Processors",
+      label: "CPU",
       icon: Cpu,
       count: activeComponentData.cpu?.length || 0,
     },
     {
       id: "gpu",
-      label: "Graphics Cards (GPU)",
+      label: "GPU",
       icon: Monitor,
       count: activeComponentData.gpu?.length || 0,
     },
     {
       id: "ram",
-      label: "Memory (RAM)",
+      label: "RAM",
       icon: HardDrive,
       count: activeComponentData.ram?.length || 0,
     },
@@ -2716,7 +2716,7 @@ export function PCBuilder({
     },
     {
       id: "psu",
-      label: "Power Supply Units (PSU)",
+      label: "PSU",
       icon: Zap,
       count: activeComponentData.psu?.length || 0,
     },
@@ -3786,27 +3786,35 @@ export function PCBuilder({
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-bold text-white capitalize">
-                  {activeCategory === "cpu"
-                    ? "CPU"
+                  {activeCategory === "case"
+                    ? "PC Cases"
+                    : activeCategory === "motherboard"
+                    ? "Motherboards"
+                    : activeCategory === "cpu"
+                    ? "Processors"
                     : activeCategory === "gpu"
-                    ? "GPU"
+                    ? "Graphics Cards (GPU)"
                     : activeCategory === "ram"
-                    ? "RAM"
+                    ? "Memory (RAM)"
                     : activeCategory === "psu"
-                    ? "PSU"
+                    ? "Power Supply Units (PSU)"
                     : activeCategory.charAt(0).toUpperCase() +
                       activeCategory.slice(1)}
                 </h2>
                 <p className="text-gray-400 mt-1 text-sm sm:text-base">
                   Choose the perfect{" "}
-                  {activeCategory === "cpu"
-                    ? "CPU"
+                  {activeCategory === "case"
+                    ? "PC case"
+                    : activeCategory === "motherboard"
+                    ? "motherboard"
+                    : activeCategory === "cpu"
+                    ? "processor"
                     : activeCategory === "gpu"
-                    ? "GPU"
+                    ? "graphics card"
                     : activeCategory === "ram"
-                    ? "RAM"
+                    ? "memory"
                     : activeCategory === "psu"
-                    ? "PSU"
+                    ? "power supply"
                     : activeCategory}{" "}
                   for your build
                 </p>
