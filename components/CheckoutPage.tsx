@@ -71,9 +71,7 @@ function PaymentForm({
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const vatRate = 0.2; // 20% UK VAT
-  const vat = subtotal * vatRate;
-  const total = subtotal + vat;
+  const total = subtotal; // No VAT - not VAT registered
 
   const handleShippingChange = (field: string, value: string) => {
     setShippingInfo((prev) => ({ ...prev, [field]: value }));
@@ -173,9 +171,13 @@ function PaymentForm({
       } else {
         throw new Error("Payment failed. Please try again.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Payment failed. Please try again.";
       console.error("Payment error:", err);
-      setError(err.message || "Payment failed. Please try again.");
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -420,15 +422,6 @@ function PaymentForm({
 
               {/* Totals */}
               <div className="space-y-3 mt-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Subtotal</span>
-                  <span className="text-white">£{subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">VAT (20%)</span>
-                  <span className="text-white">£{vat.toFixed(2)}</span>
-                </div>
-                <Separator className="bg-white/10" />
                 <div className="flex justify-between text-lg font-semibold">
                   <span className="text-white">Total</span>
                   <span className="text-white">£{total.toFixed(2)}</span>

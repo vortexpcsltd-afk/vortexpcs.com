@@ -24,6 +24,7 @@ import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Progress } from "./ui/progress";
 import { Separator } from "./ui/separator";
 import { Alert, AlertDescription } from "./ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import {
   Wrench,
   Truck,
@@ -55,6 +56,8 @@ import {
 } from "@stripe/react-stripe-js";
 import { stripePromise } from "../config/stripe";
 import { createPaymentIntent } from "../services/payment";
+import { TermsPage } from "./TermsPage";
+import { PrivacyPage } from "./PrivacyPage";
 
 // Payment Step Component
 interface PaymentStepContentProps {
@@ -292,6 +295,10 @@ function BookingForm(props: BookingFormProps) {
     onNavigate,
   } = props;
 
+  // Modal states for Terms and Privacy
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
   const steps = [
     "Issue Details",
     "Collection Method",
@@ -316,8 +323,7 @@ function BookingForm(props: BookingFormProps) {
   };
 
   const collectionPrice = getCollectionPrice();
-  const vat = collectionPrice * 0.2; // 20% UK VAT
-  const totalPrice = collectionPrice + vat;
+  const totalPrice = collectionPrice; // No VAT - not VAT registered
 
   return (
     <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6 md:p-8 hover:border-sky-500/30 transition-all duration-300">
@@ -457,7 +463,7 @@ function BookingForm(props: BookingFormProps) {
                 >
                   <div>Same Day Service - £49.99</div>
                   <div className="text-sm text-gray-400">
-                    Book before 10am for same day collection and return
+                    Book before 12pm for same day collection and return
                   </div>
                 </Label>
               </div>
@@ -629,19 +635,68 @@ function BookingForm(props: BookingFormProps) {
             <Label htmlFor="preferredDate" className="text-white">
               Preferred collection date
             </Label>
-            <Input
-              id="preferredDate"
-              type="date"
-              value={bookingData.preferredDate}
-              onChange={(e) =>
-                setBookingData((prev) => ({
-                  ...prev,
-                  preferredDate: e.target.value,
-                }))
-              }
-              className="bg-white/5 border-white/10 text-white mt-2"
-              min={new Date().toISOString().split("T")[0]}
-            />
+            <div className="relative">
+              <Input
+                id="preferredDate"
+                type="date"
+                value={bookingData.preferredDate}
+                onChange={(e) =>
+                  setBookingData((prev) => ({
+                    ...prev,
+                    preferredDate: e.target.value,
+                  }))
+                }
+                className="bg-white/5 border-white/10 text-white mt-2 [color-scheme:dark]"
+                min={(() => {
+                  const today = new Date();
+                  let daysToAdd = 0;
+
+                  // Calculate minimum date based on urgency
+                  if (bookingData.urgency === "standard") {
+                    daysToAdd = 3; // At least 3 days from now
+                  } else if (bookingData.urgency === "express") {
+                    daysToAdd = 1; // At least 1 day from now
+                  } else if (bookingData.urgency === "sameday") {
+                    // Same day only if before 12pm
+                    const currentHour = today.getHours();
+                    if (currentHour >= 12) {
+                      daysToAdd = 1; // Too late for today, earliest is tomorrow
+                    } else {
+                      daysToAdd = 0; // Can book for today
+                    }
+                  } else {
+                    daysToAdd = 0; // Default to today if no urgency selected
+                  }
+
+                  const minDate = new Date(today);
+                  minDate.setDate(minDate.getDate() + daysToAdd);
+                  return minDate.toISOString().split("T")[0];
+                })()}
+                max={(() => {
+                  // For same day service, max is also today (if before 12pm) or tomorrow (if after 12pm)
+                  if (bookingData.urgency === "sameday") {
+                    const today = new Date();
+                    const currentHour = today.getHours();
+                    if (currentHour >= 12) {
+                      const tomorrow = new Date(today);
+                      tomorrow.setDate(tomorrow.getDate() + 1);
+                      return tomorrow.toISOString().split("T")[0];
+                    } else {
+                      return today.toISOString().split("T")[0];
+                    }
+                  }
+                  return undefined;
+                })()}
+              />
+              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 w-4 h-4 text-white pointer-events-none" />
+            </div>
+            {bookingData.urgency === "sameday" &&
+              new Date().getHours() >= 12 && (
+                <p className="text-xs text-yellow-400 mt-2">
+                  It's after 12pm - same day service is no longer available for
+                  today. Earliest collection: tomorrow.
+                </p>
+              )}
           </div>
 
           <Alert className="border-yellow-500/30 bg-yellow-500/10">
@@ -926,7 +981,7 @@ function BookingForm(props: BookingFormProps) {
               I agree to the{" "}
               <button
                 type="button"
-                onClick={() => onNavigate?.("terms")}
+                onClick={() => setShowTermsModal(true)}
                 className="text-blue-400 underline hover:text-blue-300"
               >
                 Terms of Service
@@ -934,13 +989,39 @@ function BookingForm(props: BookingFormProps) {
               and{" "}
               <button
                 type="button"
-                onClick={() => onNavigate?.("privacy")}
+                onClick={() => setShowPrivacyModal(true)}
                 className="text-blue-400 underline hover:text-blue-300"
               >
                 Privacy Policy
               </button>
             </Label>
           </div>
+
+          {/* Terms of Service Modal */}
+          <Dialog open={showTermsModal} onOpenChange={setShowTermsModal}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-gray-900 border-white/10">
+              <DialogHeader>
+                <DialogTitle className="text-white">
+                  Terms of Service
+                </DialogTitle>
+              </DialogHeader>
+              <div className="mt-4">
+                <TermsPage />
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Privacy Policy Modal */}
+          <Dialog open={showPrivacyModal} onOpenChange={setShowPrivacyModal}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-gray-900 border-white/10">
+              <DialogHeader>
+                <DialogTitle className="text-white">Privacy Policy</DialogTitle>
+              </DialogHeader>
+              <div className="mt-4">
+                <PrivacyPage />
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 
@@ -967,12 +1048,6 @@ function BookingForm(props: BookingFormProps) {
                 <span className="text-gray-400">Collection Fee:</span>
                 <span className="text-white font-medium">
                   £{collectionPrice.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-white/10">
-                <span className="text-gray-400">VAT (20%):</span>
-                <span className="text-white font-medium">
-                  £{vat.toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between items-center pt-2">
