@@ -237,11 +237,11 @@ export function Footer({ onNavigate }: FooterProps) {
                 </li>
                 <li>
                   <a
-                    href="tel:+442012345678"
+                    href="tel:+441603975440"
                     className="group flex items-start gap-3 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-colors"
                   >
                     <Phone className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
-                    <span>+44 20 1234 5678</span>
+                    <span>01603 975440</span>
                   </a>
                 </li>
                 <li className="flex items-start gap-3 text-xs sm:text-sm text-gray-400">

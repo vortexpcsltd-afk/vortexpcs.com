@@ -103,9 +103,9 @@ export function Contact({ onNavigate }: ContactProps = {}) {
     {
       icon: Phone,
       title: "Call Us",
-      value: "+44 20 1234 5678",
+      value: "01603 975440",
       description: "Mon-Fri 9AM-6PM, Sat 10AM-4PM GMT",
-      href: "tel:+442012345678",
+      href: "tel:+441603975440",
       color: "blue",
     },
   ];
@@ -440,11 +440,11 @@ export function Contact({ onNavigate }: ContactProps = {}) {
                       and speak directly with our team.
                     </p>
                     <a
-                      href="tel:+442012345678"
+                      href="tel:+441603975440"
                       className="inline-flex items-center gap-2 px-4 py-2 bg-sky-500/20 border border-sky-500/30 rounded-lg text-sky-400 hover:bg-sky-500/30 transition-colors text-sm"
                     >
                       <Phone className="w-4 h-4" />
-                      +44 20 1234 5678
+                      01603 975440
                     </a>
                   </div>
                 </Card>

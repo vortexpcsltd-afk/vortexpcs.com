@@ -9,8 +9,8 @@
 ### Spaceship Email SMTP Settings:
 
 ```
-Host: mail.privateemail.com
-Port: 587
+Host: mail.spacemail.com
+Port: 465
 User: info@vortexpcs.com
 Pass: [Your Spaceship email password]
 ```
@@ -31,13 +31,13 @@ Pass: [Your Spaceship email password]
 
 ```
 Name: VITE_SMTP_HOST
-Value: mail.privateemail.com
+Value: mail.spacemail.com
 
 Name: VITE_SMTP_PORT
-Value: 587
+Value: 465
 
 Name: VITE_SMTP_SECURE
-Value: false
+Value: true
 
 Name: VITE_SMTP_USER
 Value: info@vortexpcs.com
@@ -73,24 +73,24 @@ Vercel will automatically redeploy.
 
 1. Use your regular Spaceship email password (no app password needed)
 2. If you don't remember it, reset it at: https://www.spaceship.com/
-3. The SMTP host is `mail.privateemail.com` (Spaceship's SMTP server)
-4. Port 587 with TLS/STARTTLS encryption
+3. The SMTP host is `mail.spacemail.com` (Spaceship's SMTP server)
+4. Port 465 with SSL encryption
 
 ## 🆘 Troubleshooting
 
 **Emails not sending?**
 
-- ✅ Verify SMTP host is exactly: `mail.privateemail.com`
-- ✅ Verify port is: `587`
-- ✅ Verify SMTP_SECURE is: `false` (uses STARTTLS instead)
+- ✅ Verify SMTP host is exactly: `mail.spacemail.com`
+- ✅ Verify port is: `465`
+- ✅ Verify SMTP_SECURE is: `true` (uses SSL encryption)
 - ✅ Check your Spaceship email password is correct
 - ✅ Make sure you saved ALL 6 environment variables in Vercel
 - ✅ Check Vercel → Deployments → Functions → Look for errors
 - ✅ Check spam folder
 
-**Alternative Spaceship SMTP ports if 587 doesn't work:**
+**Alternative Spaceship SMTP ports if 465 doesn't work:**
 
-- Port 465 (requires `VITE_SMTP_SECURE=true`)
+- Port 587 (requires `VITE_SMTP_SECURE=false` for STARTTLS)
 - Port 25 (not recommended, often blocked)
 
 **Still stuck?**

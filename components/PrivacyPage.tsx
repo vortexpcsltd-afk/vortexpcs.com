@@ -255,10 +255,10 @@ export function PrivacyPage() {
                 <p>
                   Phone:{" "}
                   <a
-                    href="tel:+442012345678"
+                    href="tel:+441603975440"
                     className="text-sky-400 hover:text-sky-300 transition-colors"
                   >
-                    +44 20 1234 5678
+                    01603 975440
                   </a>
                 </p>
                 <p>
