@@ -93,51 +93,289 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       from: `"Vortex PCs Website" <${smtpUser}>`,
       to: businessEmail,
       replyTo: email,
-      subject: `New Contact Form: ${subject}`,
+      subject: `🔔 New ${enquiryType} Enquiry: ${subject}`,
       html: `
         <!DOCTYPE html>
         <html>
           <head>
             <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, #0ea5e9, #2563eb); color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-              .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px; }
-              .field { margin-bottom: 15px; }
-              .label { font-weight: bold; color: #2563eb; }
-              .value { background: white; padding: 8px; border-radius: 4px; border: 1px solid #e5e7eb; }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+                line-height: 1.6; 
+                color: #1e293b;
+                background: #f8fafc;
+              }
+              .email-wrapper {
+                width: 100%;
+                background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+                padding: 40px 20px;
+              }
+              .container { 
+                max-width: 650px; 
+                margin: 0 auto; 
+                background: #ffffff;
+                border-radius: 16px;
+                overflow: hidden;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+                border: 1px solid #e2e8f0;
+              }
+              .header { 
+                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
+                padding: 40px 30px;
+                text-align: center;
+                position: relative;
+              }
+              .urgent-badge {
+                display: inline-block;
+                background: rgba(255, 255, 255, 0.2);
+                backdrop-filter: blur(10px);
+                color: #ffffff;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 13px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 15px;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+              }
+              .header h1 { 
+                color: #ffffff; 
+                font-size: 28px;
+                font-weight: 700;
+                margin: 0;
+                text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+              }
+              .summary-bar {
+                background: linear-gradient(135deg, #fef3c7, #fde68a);
+                padding: 20px 30px;
+                border-bottom: 2px solid #f59e0b;
+              }
+              .summary-bar h2 {
+                color: #92400e;
+                font-size: 16px;
+                margin: 0 0 10px 0;
+                font-weight: 600;
+              }
+              .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                margin-top: 10px;
+              }
+              .summary-item {
+                background: rgba(255, 255, 255, 0.8);
+                padding: 12px;
+                border-radius: 8px;
+                border: 1px solid rgba(245, 158, 11, 0.2);
+              }
+              .summary-item label {
+                display: block;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: #92400e;
+                font-weight: 600;
+                margin-bottom: 4px;
+              }
+              .summary-item value {
+                display: block;
+                font-size: 15px;
+                color: #1e293b;
+                font-weight: 600;
+              }
+              .summary-item a {
+                color: #0ea5e9;
+                text-decoration: none;
+                word-break: break-all;
+              }
+              .content { 
+                padding: 40px 30px;
+                background: #ffffff;
+              }
+              .field { 
+                margin-bottom: 25px;
+                padding-bottom: 25px;
+                border-bottom: 1px solid #e2e8f0;
+              }
+              .field:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+              }
+              .label { 
+                font-weight: 700;
+                color: #0ea5e9;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 8px;
+                display: block;
+              }
+              .value { 
+                background: #f8fafc;
+                padding: 15px;
+                border-radius: 8px;
+                border: 1px solid #e2e8f0;
+                font-size: 15px;
+                color: #1e293b;
+                line-height: 1.7;
+              }
+              .value a {
+                color: #0ea5e9;
+                text-decoration: none;
+                font-weight: 600;
+              }
+              .message-box {
+                background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+                border-left: 4px solid #0ea5e9;
+                padding: 20px;
+                border-radius: 8px;
+                font-size: 15px;
+                line-height: 1.8;
+                color: #1e293b;
+              }
+              .quick-actions {
+                background: #f8fafc;
+                padding: 25px;
+                border-radius: 8px;
+                margin-top: 30px;
+                border: 1px solid #e2e8f0;
+              }
+              .quick-actions h3 {
+                color: #1e293b;
+                font-size: 16px;
+                margin: 0 0 15px 0;
+              }
+              .action-button {
+                display: inline-block;
+                background: linear-gradient(135deg, #0ea5e9, #0284c7);
+                color: #ffffff;
+                padding: 12px 24px;
+                border-radius: 8px;
+                text-decoration: none;
+                font-weight: 600;
+                margin-right: 10px;
+                margin-bottom: 10px;
+                box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+                transition: all 0.2s;
+              }
+              .action-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(14, 165, 233, 0.4);
+              }
+              .footer {
+                background: #f8fafc;
+                padding: 25px 30px;
+                text-align: center;
+                border-top: 1px solid #e2e8f0;
+              }
+              .footer p {
+                color: #64748b;
+                font-size: 13px;
+                margin: 5px 0;
+              }
+              .priority-badge {
+                display: inline-block;
+                padding: 4px 10px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+              }
+              .priority-high { background: #fee2e2; color: #991b1b; }
+              .priority-medium { background: #fef3c7; color: #92400e; }
+              .priority-normal { background: #dbeafe; color: #1e40af; }
+              @media only screen and (max-width: 600px) {
+                .email-wrapper { padding: 20px 10px; }
+                .header { padding: 30px 20px; }
+                .content { padding: 30px 20px; }
+                .summary-bar { padding: 15px 20px; }
+                .summary-grid { grid-template-columns: 1fr; }
+                .header h1 { font-size: 24px; }
+              }
             </style>
           </head>
           <body>
-            <div class="container">
-              <div class="header">
-                <h1>New Contact Form Submission</h1>
-              </div>
-              <div class="content">
-                <div class="field">
-                  <div class="label">Name:</div>
-                  <div class="value">${name}</div>
+            <div class="email-wrapper">
+              <div class="container">
+                <div class="header">
+                  <div class="urgent-badge">⚡ New Enquiry Alert</div>
+                  <h1>Contact Form Submission</h1>
                 </div>
-                <div class="field">
-                  <div class="label">Email:</div>
-                  <div class="value">${email}</div>
+                
+                <div class="summary-bar">
+                  <h2>📋 Quick Summary</h2>
+                  <div class="summary-grid">
+                    <div class="summary-item">
+                      <label>Customer Name</label>
+                      <value>${name}</value>
+                    </div>
+                    <div class="summary-item">
+                      <label>Enquiry Type</label>
+                      <value>${enquiryType}</value>
+                    </div>
+                    <div class="summary-item">
+                      <label>Email Address</label>
+                      <value><a href="mailto:${email}">${email}</a></value>
+                    </div>
+                    <div class="summary-item">
+                      <label>Phone Number</label>
+                      <value>${
+                        phone
+                          ? `<a href="tel:${phone.replace(
+                              /\s/g,
+                              ""
+                            )}">${phone}</a>`
+                          : "Not provided"
+                      }</value>
+                    </div>
+                  </div>
                 </div>
-                <div class="field">
-                  <div class="label">Phone:</div>
-                  <div class="value">${phone || "Not provided"}</div>
+
+                <div class="content">
+                  <div class="field">
+                    <div class="label">📌 Subject</div>
+                    <div class="value">${subject}</div>
+                  </div>
+
+                  <div class="field">
+                    <div class="label">💬 Customer Message</div>
+                    <div class="message-box">${message.replace(
+                      /\n/g,
+                      "<br>"
+                    )}</div>
+                  </div>
+
+                  <div class="quick-actions">
+                    <h3>⚡ Quick Actions</h3>
+                    <a href="mailto:${email}?subject=Re: ${encodeURIComponent(
+        subject
+      )}" class="action-button">Reply to Customer</a>
+                    ${
+                      phone
+                        ? `<a href="tel:${phone.replace(
+                            /\s/g,
+                            ""
+                          )}" class="action-button">Call Customer</a>`
+                        : ""
+                    }
+                  </div>
                 </div>
-                <div class="field">
-                  <div class="label">Enquiry Type:</div>
-                  <div class="value">${enquiryType}</div>
-                </div>
-                <div class="field">
-                  <div class="label">Subject:</div>
-                  <div class="value">${subject}</div>
-                </div>
-                <div class="field">
-                  <div class="label">Message:</div>
-                  <div class="value">${message.replace(/\n/g, "<br>")}</div>
+
+                <div class="footer">
+                  <p><strong>Vortex PCs</strong> | Contact Form Notification</p>
+                  <p>Received: ${new Date().toLocaleString("en-GB", {
+                    dateStyle: "full",
+                    timeStyle: "short",
+                  })}</p>
+                  <p style="margin-top: 10px; font-size: 11px; color: #94a3b8;">
+                    This is an automated notification from vortexpcs.com
+                  </p>
                 </div>
               </div>
             </div>
