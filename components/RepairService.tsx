@@ -1427,7 +1427,7 @@ export function RepairService({
                 className="bg-white/5 backdrop-blur-sm border-white/20 text-white hover:bg-white/10 hover:border-white/30 px-8 py-6 text-lg font-semibold transition-all duration-300"
               >
                 <Phone className="w-5 h-5 mr-2" />
-                Call: 0800 123 4567
+                Call: 01603 975440
               </Button>
             </div>
 
@@ -1674,7 +1674,8 @@ export function RepairService({
                           Nationwide Collection
                         </h4>
                         <p className="text-sm text-gray-400">
-                          Free collection and return anywhere in the UK
+                          Prices start from £29.99 for collection and delivery
+                          via DPD
                         </p>
                       </div>
                     </div>
@@ -1708,7 +1709,7 @@ export function RepairService({
                     Collection & Return from £29.99
                   </p>
                   <p className="text-sm text-gray-400">
-                    We serve all UK postcodes. Book online or call 0800 123 4567
+                    We serve all UK postcodes. Book online or call 01603 975440
                     for a quote.
                   </p>
                 </div>
