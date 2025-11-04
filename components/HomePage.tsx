@@ -336,7 +336,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
         ></div>
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/70"></div>
 
-        <div className="relative z-10 text-center max-w-6xl mx-auto px-2">
+        <div className="relative z-10 text-center max-w-6xl mx-auto px-4 sm:px-6">
           <Badge className="mb-6 sm:mb-12 lg:mb-32 bg-transparent border-sky-500/40 text-sky-400 px-3 sm:px-4 py-2 text-sm sm:text-base font-normal inline-flex items-center gap-2 animate-fade-in">
             <Star
               className="fill-transparent stroke-yellow-500 border-yellow-500"
