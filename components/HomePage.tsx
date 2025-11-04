@@ -318,7 +318,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
   };
 
   return (
-    <div className="min-h-screen text-white overflow-hidden">
+    <div className="min-h-screen text-white overflow-x-hidden">
       {/* Animated Background */}
       <div className="fixed inset-0 bg-gradient-to-br from-blue-900/20 via-cyan-900/10 to-sky-900/20 animate-gradient"></div>
       <div
@@ -329,14 +329,14 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       ></div>
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
+      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 safe-px">
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
           style={{ backgroundImage: `url(${heroBackground})` }}
         ></div>
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/70"></div>
 
-        <div className="relative z-10 text-center max-w-6xl mx-auto">
+        <div className="relative z-10 text-center max-w-6xl mx-auto px-2">
           <Badge className="mb-6 sm:mb-12 lg:mb-32 bg-transparent border-sky-500/40 text-sky-400 px-3 sm:px-4 py-2 text-sm sm:text-base font-normal inline-flex items-center gap-2 animate-fade-in">
             <Star
               className="fill-transparent stroke-yellow-500 border-yellow-500"
@@ -347,7 +347,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
               "Custom PCs built for speed, power, and precision"}
           </Badge>
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 sm:mb-6 animate-float">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 sm:mb-6 animate-float break-words">
             <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
               {pageContent?.heroTitle || "Build Your Dream PC with Vortex"}
             </span>
