@@ -82,9 +82,26 @@ const ProductImageGallery = ({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
 
-  // Check if we have real images
-  const hasRealImages = images && images.length > 0;
-  const productImages = hasRealImages ? images : [];
+  // Determine if provided images are real (exclude common placeholder URLs)
+  const isPlaceholderImage = (src: unknown) => {
+    if (typeof src !== "string") return true;
+    const s = src.toLowerCase();
+    return (
+      s.includes("placeholder") ||
+      s.includes("placehold.co") ||
+      s.includes("dummyimage") ||
+      s.includes("coming-soon") ||
+      s.includes("image-coming-soon") ||
+      s.startsWith("data:image/svg+xml") ||
+      s.startsWith("about:blank")
+    );
+  };
+
+  const filteredImages = (images ?? []).filter(
+    (src) => !isPlaceholderImage(src)
+  );
+  const hasRealImages = filteredImages.length > 0;
+  const productImages = hasRealImages ? filteredImages : [];
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % productImages.length);
