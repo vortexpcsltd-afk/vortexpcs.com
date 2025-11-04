@@ -479,8 +479,7 @@ function BookingForm(props: BookingFormProps) {
                 >
                   <div>Same Day Service - £49.99</div>
                   <div className="text-sm text-gray-400">
-                    Book before 12pm for same day collection. Price includes
-                    collection & return
+                    Book before 12pm for same day collection via DPD
                   </div>
                 </Label>
               </div>
