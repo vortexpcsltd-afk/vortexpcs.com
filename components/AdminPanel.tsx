@@ -448,7 +448,7 @@ export function AdminPanel() {
                 </p>
               </div>
             </div>
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500">
               <Download className="w-4 h-4 mr-2" />
               Export Report
             </Button>
@@ -553,7 +553,7 @@ export function AdminPanel() {
                           <Button
                             size="sm"
                             onClick={() => setActiveTab("orders")}
-                            className="bg-red-600 hover:bg-red-700"
+                            className="bg-red-600 hover:bg-red-500"
                           >
                             Review Requests
                           </Button>
@@ -587,7 +587,7 @@ export function AdminPanel() {
                           <Button
                             size="sm"
                             onClick={() => setActiveTab("customers")}
-                            className="bg-blue-600 hover:bg-blue-700"
+                            className="bg-blue-600 hover:bg-blue-500"
                           >
                             View Tickets
                           </Button>
@@ -860,7 +860,7 @@ export function AdminPanel() {
                                   <div className="flex flex-col space-y-2">
                                     <Button
                                       size="sm"
-                                      className="bg-green-600 hover:bg-green-700"
+                                      className="bg-green-600 hover:bg-green-500"
                                       onClick={() => {
                                         // Here you would call an approve refund function
                                         alert(
@@ -946,7 +946,7 @@ export function AdminPanel() {
                         alert("Contentful is not configured.");
                       }
                     }}
-                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Add in Contentful
@@ -1695,7 +1695,7 @@ export function AdminPanel() {
                               <>
                                 <Button
                                   size="sm"
-                                  className="bg-yellow-600 hover:bg-yellow-700"
+                                  className="bg-yellow-600 hover:bg-yellow-500"
                                   onClick={async () => {
                                     try {
                                       await updateSupportTicket(ticket.id, {
@@ -1714,7 +1714,7 @@ export function AdminPanel() {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  className="bg-green-600 hover:bg-green-700"
+                                  className="bg-green-600 hover:bg-green-500"
                                   onClick={async () => {
                                     try {
                                       await updateSupportTicket(ticket.id, {
@@ -1736,7 +1736,7 @@ export function AdminPanel() {
                             {ticket.status === "in-progress" && (
                               <Button
                                 size="sm"
-                                className="bg-green-600 hover:bg-green-700"
+                                className="bg-green-600 hover:bg-green-500"
                                 onClick={async () => {
                                   try {
                                     await updateSupportTicket(ticket.id, {
@@ -1872,7 +1872,7 @@ export function AdminPanel() {
                     <Button
                       onClick={() => setActiveTab("inventory")}
                       size="sm"
-                      className="flex-1 bg-sky-600 hover:bg-sky-700"
+                      className="flex-1 bg-sky-600 hover:bg-sky-500"
                     >
                       <Edit className="w-4 h-4 mr-2" />
                       Manage
@@ -1915,7 +1915,7 @@ export function AdminPanel() {
                     <Button
                       onClick={() => window.open("/", "_blank")}
                       size="sm"
-                      className="flex-1 bg-purple-600 hover:bg-purple-700"
+                      className="flex-1 bg-purple-600 hover:bg-purple-500"
                     >
                       <Globe className="w-4 h-4 mr-2" />
                       Preview
@@ -1965,7 +1965,7 @@ export function AdminPanel() {
                         )
                       }
                       size="sm"
-                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      className="flex-1 bg-green-600 hover:bg-green-500"
                     >
                       <Edit className="w-4 h-4 mr-2" />
                       Edit
@@ -2015,7 +2015,7 @@ export function AdminPanel() {
                         )
                       }
                       size="sm"
-                      className="flex-1 bg-orange-600 hover:bg-orange-700"
+                      className="flex-1 bg-orange-600 hover:bg-orange-500"
                     >
                       <Upload className="w-4 h-4 mr-2" />
                       Upload
@@ -2058,7 +2058,7 @@ export function AdminPanel() {
                     <Button
                       onClick={() => setShowSettingsModal(true)}
                       size="sm"
-                      className="flex-1 bg-yellow-600 hover:bg-yellow-700"
+                      className="flex-1 bg-yellow-600 hover:bg-yellow-500"
                     >
                       <Settings className="w-4 h-4 mr-2" />
                       Configure
@@ -2103,7 +2103,7 @@ export function AdminPanel() {
                     <Button
                       onClick={() => setShowAnalyticsModal(true)}
                       size="sm"
-                      className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-500"
                     >
                       <BarChart3 className="w-4 h-4 mr-2" />
                       View Stats
@@ -2252,7 +2252,7 @@ export function AdminPanel() {
                   >
                     Cancel
                   </Button>
-                  <Button className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
+                  <Button className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500">
                     Add Product
                   </Button>
                 </div>
@@ -2455,7 +2455,7 @@ export function AdminPanel() {
                         "_blank"
                       )
                     }
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500"
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
                     Open Firebase Console
@@ -2703,7 +2703,7 @@ export function AdminPanel() {
                       );
                       alert("META tags copied to clipboard!");
                     }}
-                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Copy META Tags
@@ -2717,7 +2717,7 @@ export function AdminPanel() {
                         "_blank"
                       )
                     }
-                    className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700"
+                    className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500"
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
                     Open in Contentful
@@ -2895,7 +2895,7 @@ export function AdminPanel() {
                   </Button>
                   <Button
                     onClick={handleUpdateBuildProgress}
-                    className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700"
+                    className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
                   >
                     <Edit className="w-4 h-4 mr-2" />
                     Update Progress

@@ -461,7 +461,7 @@ export function AIAssistant({ isOpen, onClose }: AIAssistantProps) {
                 <Button
                   onClick={sendMessage}
                   disabled={!inputMessage.trim() || isTyping}
-                  className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700"
+                  className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
                 >
                   <Send className="w-4 h-4" />
                 </Button>

@@ -555,7 +555,7 @@ function BookingForm(props: BookingFormProps) {
                   handlePostcodeLookup();
                   console.log("handlePostcodeLookup called");
                 }}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-500"
                 disabled={isLoadingAddresses || postcode.trim().length === 0}
               >
                 {isLoadingAddresses ? (
@@ -805,7 +805,7 @@ function BookingForm(props: BookingFormProps) {
                     e.stopPropagation();
                     handlePostcodeLookup();
                   }}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-blue-600 hover:bg-blue-500"
                   disabled={isLoadingAddresses || postcode.trim().length === 0}
                 >
                   {isLoadingAddresses ? (

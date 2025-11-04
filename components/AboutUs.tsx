@@ -102,17 +102,15 @@ export function AboutUs({ onNavigate }: AboutUsProps = {}) {
           <div className="max-w-5xl mx-auto">
             <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-12">
               <div className="grid md:grid-cols-2 gap-12 items-center">
-                {/* Image placeholder */}
+                {/* Kevin's Photo */}
                 <div className="relative group">
                   <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 to-blue-500/20 rounded-2xl blur-2xl group-hover:blur-3xl transition-all duration-500"></div>
-                  <div className="relative aspect-square bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
-                    <div className="text-center space-y-4 p-8">
-                      <Cpu className="w-24 h-24 text-sky-400 mx-auto" />
-                      <div className="space-y-2">
-                        <h3 className="text-2xl text-white">Kevin Mackay</h3>
-                        <p className="text-sky-400">Founder & Master Builder</p>
-                      </div>
-                    </div>
+                  <div className="relative aspect-square rounded-2xl border border-white/10 overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800">
+                    <img
+                      src="/kevin-mackay.webp"
+                      alt="Kevin Mackay - Founder & Master Builder"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
                   </div>
                 </div>
 

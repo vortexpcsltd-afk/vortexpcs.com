@@ -82,9 +82,9 @@ const ProductImageGallery = ({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
 
-  // Use placeholder images for now (up to 6)
-  const productImages =
-    images && images.length > 0 ? images : Array(6).fill(PLACEHOLDER_IMAGE);
+  // Check if we have real images
+  const hasRealImages = images && images.length > 0;
+  const productImages = hasRealImages ? images : [];
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % productImages.length);
@@ -100,72 +100,87 @@ const ProductImageGallery = ({
     <>
       {/* Main product image */}
       <div
-        className="relative group cursor-pointer"
-        onClick={() => setIsGalleryOpen(true)}
+        className={`relative group ${hasRealImages ? "cursor-pointer" : ""}`}
+        onClick={() => hasRealImages && setIsGalleryOpen(true)}
       >
         <AspectRatio
           ratio={16 / 10}
           className="overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900"
         >
-          <img
-            src={productImages[currentImageIndex]}
-            alt={productName}
-            width="800"
-            height="500"
-            loading="lazy"
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-          {/* View Gallery Button */}
-          <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <Button
-              size="sm"
-              variant="secondary"
-              className="bg-black/50 backdrop-blur-md text-white border-white/20 hover:bg-black/70"
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              View Gallery
-            </Button>
-          </div>
-
-          {/* Image Counter */}
-          <div className="absolute bottom-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <Badge
-              variant="secondary"
-              className="bg-black/50 backdrop-blur-md text-white border-white/20"
-            >
-              {currentImageIndex + 1} / {productImages.length}
-            </Badge>
-          </div>
-
-          {/* Navigation arrows */}
-          {productImages.length > 1 && (
+          {hasRealImages ? (
             <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  prevImage();
-                }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md text-white opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-black/70 flex items-center justify-center"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  nextImage();
-                }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md text-white opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-black/70 flex items-center justify-center"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+              <img
+                src={productImages[currentImageIndex]}
+                alt={productName}
+                width="800"
+                height="500"
+                loading="lazy"
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+              {/* View Gallery Button */}
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="bg-white/10 backdrop-blur-md text-white border-white/20 hover:bg-white/20"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  View Gallery
+                </Button>
+              </div>
+
+              {/* Image Counter */}
+              <div className="absolute bottom-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <Badge
+                  variant="secondary"
+                  className="bg-white/10 backdrop-blur-md text-white border-white/20"
+                >
+                  {currentImageIndex + 1} / {productImages.length}
+                </Badge>
+              </div>
+
+              {/* Navigation arrows */}
+              {productImages.length > 1 && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      prevImage();
+                    }}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md text-white opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white/20 flex items-center justify-center"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      nextImage();
+                    }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md text-white opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white/20 flex items-center justify-center"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
             </>
+          ) : (
+            /* Placeholder with large PC icon */
+            <div className="w-full h-full flex flex-col items-center justify-center p-8">
+              <div className="relative">
+                <div className="absolute inset-0 bg-sky-500/20 blur-3xl rounded-full"></div>
+                <Monitor className="w-32 h-32 text-sky-400/60 relative z-10" />
+              </div>
+              <p className="mt-6 text-gray-400 text-sm">
+                Product images coming soon
+              </p>
+            </div>
           )}
         </AspectRatio>
 
-        {/* Thumbnail strip */}
-        {productImages.length > 1 && (
+        {/* Thumbnail strip - only show if we have real images */}
+        {hasRealImages && productImages.length > 1 && (
           <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
             {productImages.slice(0, 6).map((image: any, index: number) => (
               <button
@@ -194,86 +209,91 @@ const ProductImageGallery = ({
         )}
       </div>
 
-      {/* Full Gallery Modal */}
-      <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
-        <DialogContent className="max-w-4xl bg-black/95 border-white/10 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-2xl bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent">
-              {productName} - Gallery
-            </DialogTitle>
-            <DialogDescription className="text-gray-400">
-              View detailed images of this recommended PC build
-            </DialogDescription>
-          </DialogHeader>
+      {/* Full Gallery Modal - only show if we have real images */}
+      {hasRealImages && (
+        <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
+          <DialogContent className="max-w-4xl bg-black/95 border-white/10 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-2xl bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent">
+                {productName} - Gallery
+              </DialogTitle>
+              <DialogDescription className="text-gray-400">
+                View detailed images of this recommended PC build
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="relative">
-            <AspectRatio ratio={16 / 10} className="overflow-hidden rounded-xl">
-              <img
-                src={productImages[currentImageIndex]}
-                alt={productName}
-                width="1200"
-                height="750"
-                loading="eager"
-                className="w-full h-full object-cover"
-              />
-            </AspectRatio>
-
-            {/* Modal Navigation */}
-            {productImages.length > 1 && (
-              <>
-                <button
-                  onClick={prevImage}
-                  aria-label="Previous image"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 backdrop-blur-md text-white hover:bg-black/90 transition-all duration-300 flex items-center justify-center"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-                <button
-                  onClick={nextImage}
-                  aria-label="Next image"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 backdrop-blur-md text-white hover:bg-black/90 transition-all duration-300 flex items-center justify-center"
-                >
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-              </>
-            )}
-
-            {/* Image counter */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-              <Badge
-                variant="secondary"
-                className="bg-black/70 backdrop-blur-md text-white border-white/20"
-              >
-                {currentImageIndex + 1} / {productImages.length}
-              </Badge>
-            </div>
-          </div>
-
-          {/* Gallery thumbnails */}
-          <div className="grid grid-cols-6 gap-3 mt-4">
-            {productImages.map((image: any, index: number) => (
-              <button
-                key={index}
-                onClick={() => setCurrentImageIndex(index)}
-                className={`aspect-video rounded-lg overflow-hidden border-2 transition-all duration-300 ${
-                  index === currentImageIndex
-                    ? "border-sky-500 shadow-lg shadow-sky-500/25"
-                    : "border-white/10 hover:border-white/30"
-                }`}
+            <div className="relative">
+              <AspectRatio
+                ratio={16 / 10}
+                className="overflow-hidden rounded-xl"
               >
                 <img
-                  src={image}
-                  alt={`${productName} view ${index + 1}`}
-                  width="200"
-                  height="112"
-                  loading="lazy"
+                  src={productImages[currentImageIndex]}
+                  alt={productName}
+                  width="1200"
+                  height="750"
+                  loading="eager"
                   className="w-full h-full object-cover"
                 />
-              </button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+              </AspectRatio>
+
+              {/* Modal Navigation */}
+              {productImages.length > 1 && (
+                <>
+                  <button
+                    onClick={prevImage}
+                    aria-label="Previous image"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 backdrop-blur-md text-white hover:bg-white/30 transition-all duration-300 flex items-center justify-center"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                  <button
+                    onClick={nextImage}
+                    aria-label="Next image"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 backdrop-blur-md text-white hover:bg-white/30 transition-all duration-300 flex items-center justify-center"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                </>
+              )}
+
+              {/* Image counter */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+                <Badge
+                  variant="secondary"
+                  className="bg-white/15 backdrop-blur-md text-white border-white/20"
+                >
+                  {currentImageIndex + 1} / {productImages.length}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Gallery thumbnails */}
+            <div className="grid grid-cols-6 gap-3 mt-4">
+              {productImages.map((image: any, index: number) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentImageIndex(index)}
+                  className={`aspect-video rounded-lg overflow-hidden border-2 transition-all duration-300 ${
+                    index === currentImageIndex
+                      ? "border-sky-500 shadow-lg shadow-sky-500/25"
+                      : "border-white/10 hover:border-white/30"
+                  }`}
+                >
+                  <img
+                    src={image}
+                    alt={`${productName} thumbnail ${index + 1}`}
+                    width="150"
+                    height="100"
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 };
@@ -1517,7 +1537,7 @@ export function PCFinder({
                     <div className="flex flex-col sm:flex-row gap-3">
                       <Button
                         onClick={() => setCurrentView("pc-builder")}
-                        className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white border-0"
+                        className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white border-0"
                       >
                         <Settings className="w-4 h-4 mr-2" />
                         Customise Build
@@ -1717,7 +1737,7 @@ export function PCFinder({
             </Button>
             <Button
               onClick={() => setCurrentView("pc-builder")}
-              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white px-8 py-3"
+              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-3"
             >
               <Settings className="w-4 h-4 mr-2" />
               Build from Scratch
@@ -1859,7 +1879,7 @@ export function PCFinder({
                             currentQuestion.defaultValue
                         )
                       }
-                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white px-8 py-3 w-full sm:w-auto"
+                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-3 w-full sm:w-auto"
                     >
                       Continue
                       <ArrowRight className="w-4 h-4 ml-2" />

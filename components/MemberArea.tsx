@@ -345,7 +345,7 @@ export function MemberArea({
 
               <Button
                 onClick={() => setIsLoggedIn(true)}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
               >
                 Login to Continue
               </Button>
@@ -549,7 +549,7 @@ export function MemberArea({
                           {order.status === "delivered" && (
                             <Button
                               size="sm"
-                              className="bg-yellow-600 hover:bg-yellow-700"
+                              className="bg-yellow-600 hover:bg-yellow-500"
                             >
                               <Star className="w-4 h-4 mr-1" />
                               Review
@@ -643,7 +643,7 @@ export function MemberArea({
                       <div className="flex space-x-2">
                         <Button
                           size="sm"
-                          className="flex-1 bg-blue-600 hover:bg-blue-700"
+                          className="flex-1 bg-blue-600 hover:bg-blue-500"
                         >
                           Load in Builder
                         </Button>
@@ -1027,7 +1027,7 @@ export function MemberArea({
                             .getElementById("ticket-form")
                             ?.scrollIntoView({ behavior: "smooth" });
                         }}
-                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
                       >
                         <MessageSquare className="w-4 h-4 mr-2" />
                         New Ticket

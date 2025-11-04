@@ -11,6 +11,7 @@ Your Vortex PCs website now supports real-time stock level tracking for all prod
 You need to add a `stockLevel` field to each product content type in Contentful:
 
 1. **PC Component Content Types** (add to each):
+
    - `pcCase`
    - `pcMotherboard`
    - `pcCpu`
@@ -28,7 +29,8 @@ You need to add a `stockLevel` field to each product content type in Contentful:
 **Field ID**: `stockLevel`
 **Field Name**: Stock Level
 **Field Type**: Number (Integer)
-**Validation**: 
+**Validation**:
+
 - Minimum value: 0
 - Required: No (optional - products without this field show as "N/A")
 
@@ -41,10 +43,12 @@ You need to add a `stockLevel` field to each product content type in Contentful:
 The system automatically categorizes products based on stock levels:
 
 - **Out of Stock**: `stockLevel = 0` or `inStock = false`
+
   - Badge: Red background
   - Display: "Out of Stock"
 
 - **Low Stock**: `stockLevel > 0` and `stockLevel <= 5`
+
   - Badge: Yellow background
   - Display: "Low Stock (X)" where X is the actual quantity
 
@@ -57,15 +61,17 @@ The system automatically categorizes products based on stock levels:
 Navigate to **Admin Panel → Inventory Tab** to see:
 
 - **Stock Qty Column**: Color-coded quantities
+
   - Red (0): Out of stock
   - Yellow (1-5): Low stock warning
   - Green (6+): Healthy stock
   - Gray: No stock tracking (N/A)
 
 - **Status Column**: Simplified status badge
+
   - Out of Stock / Low Stock / In Stock
 
-- **Actions**: 
+- **Actions**:
   - "Edit in Contentful" - Opens product directly in Contentful for editing
   - Filter by category
   - Sort by various fields
@@ -75,6 +81,7 @@ Navigate to **Admin Panel → Inventory Tab** to see:
 Stock information appears in:
 
 1. **Component Detail Modal** (large view when clicking a product):
+
    - Stock badge next to rating
    - Shows exact quantity for low stock items
    - Color-coded for quick visual feedback
@@ -100,10 +107,12 @@ Changes will appear on your website within a few minutes (based on cache setting
 For bulk updates, you can use:
 
 1. **Contentful Web App**:
+
    - Filter products by content type
    - Edit multiple entries
 
 2. **Contentful Management API**:
+
    - Automate stock updates via API
    - See: https://www.contentful.com/developers/docs/references/content-management-api/
 
@@ -116,7 +125,7 @@ For bulk updates, you can use:
 
 ### Automatic Stock Deduction (Future Enhancement)
 
-Currently, stock levels are **display-only** and must be manually updated in Contentful. 
+Currently, stock levels are **display-only** and must be manually updated in Contentful.
 
 For automatic stock deduction on purchase:
 
@@ -129,20 +138,20 @@ For automatic stock deduction on purchase:
 
 ```typescript
 // In your order completion handler (e.g., Stripe webhook)
-import { createClient } from 'contentful-management';
+import { createClient } from "contentful-management";
 
 const updateStock = async (componentId: string, quantity: number) => {
   const client = createClient({
-    accessToken: process.env.CONTENTFUL_MANAGEMENT_TOKEN
+    accessToken: process.env.CONTENTFUL_MANAGEMENT_TOKEN,
   });
-  
+
   const space = await client.getSpace(process.env.CONTENTFUL_SPACE_ID);
-  const environment = await space.getEnvironment('master');
+  const environment = await space.getEnvironment("master");
   const entry = await environment.getEntry(componentId);
-  
-  const currentStock = entry.fields.stockLevel['en-US'] || 0;
-  entry.fields.stockLevel['en-US'] = Math.max(0, currentStock - quantity);
-  
+
+  const currentStock = entry.fields.stockLevel["en-US"] || 0;
+  entry.fields.stockLevel["en-US"] = Math.max(0, currentStock - quantity);
+
   await entry.update();
   await entry.publish();
 };
@@ -188,7 +197,7 @@ const updateStock = async (componentId: string, quantity: number) => {
 
 ### Admin Panel Not Showing Stock
 
-1. Check environment variables (VITE_CONTENTFUL_*)
+1. Check environment variables (VITE*CONTENTFUL*\*)
 2. Verify Contentful is enabled and configured
 3. Check browser console for CMS errors
 4. Ensure product content types include stockLevel field
@@ -208,6 +217,7 @@ Potential additions for stock management:
 ## Support
 
 For issues or questions:
+
 - Check Contentful documentation
 - Review admin panel inventory tab
 - Contact development team for API integration help

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -87,6 +87,281 @@ const PLACEHOLDER_IMAGE =
 </svg>
 `);
 
+// Compact corner tag for "Featured" items (gold outline, slightly larger)
+const FeaturedTag = ({ label = "Featured" }: { label?: string }) => (
+  <div className="rounded-full bg-black/30 backdrop-blur-xl border-2 border-amber-400/70 text-amber-300 text-xs font-semibold tracking-wide px-3 py-1 shadow-[0_0_20px_rgba(251,191,36,0.25)]">
+    {label}
+  </div>
+);
+
+// Build Details Modal Component
+const BuildDetailsModal = ({
+  isOpen,
+  onClose,
+  recommendedBuild,
+  selectedComponents,
+  componentData,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  recommendedBuild: any;
+  selectedComponents: any;
+  componentData: any;
+}) => {
+  if (!recommendedBuild) return null;
+
+  const buildComponents = Object.entries(selectedComponents)
+    .filter(([_, componentId]) => componentId !== null)
+    .map(([category, componentId]: [string, any]) => {
+      const component = componentData[category]?.find(
+        (c: any) => c.id === componentId
+      );
+      if (!component) return null;
+      return {
+        category,
+        component,
+      };
+    })
+    .filter((item) => item !== null);
+
+  const totalPrice = buildComponents.reduce(
+    (sum, item) => sum + (item?.component?.price || 0),
+    0
+  );
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "case":
+        return Package;
+      case "motherboard":
+        return Server;
+      case "cpu":
+        return Cpu;
+      case "gpu":
+        return Monitor;
+      case "ram":
+        return HardDrive;
+      case "storage":
+        return HardDrive;
+      case "psu":
+        return Zap;
+      case "cooling":
+        return Fan;
+      default:
+        return Package;
+    }
+  };
+
+  const getCategoryLabel = (category: string) => {
+    const labels: { [key: string]: string } = {
+      case: "Case",
+      motherboard: "Motherboard",
+      cpu: "Processor (CPU)",
+      gpu: "Graphics Card (GPU)",
+      ram: "Memory (RAM)",
+      storage: "Storage",
+      psu: "Power Supply (PSU)",
+      cooling: "Cooling System",
+    };
+    return labels[category] || category;
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-black/95 border-white/10 text-white">
+        <DialogHeader>
+          <DialogTitle className="text-3xl font-bold bg-gradient-to-r from-sky-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent flex items-center gap-3">
+            <Eye className="w-8 h-8 text-sky-400" />
+            {recommendedBuild.name}
+          </DialogTitle>
+          <DialogDescription className="text-gray-400 text-lg">
+            Complete build specification from PC Finder recommendation
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 mt-6">
+          {/* Build Overview */}
+          <div className="p-6 rounded-xl bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-white mb-2">
+                  Recommended Build
+                </h3>
+                <p className="text-gray-300">
+                  {recommendedBuild.description ||
+                    "Custom configuration optimized for your needs"}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-gray-400 mb-1">Total Price</div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                  £{totalPrice.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Components List */}
+          <div className="space-y-4">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <Settings className="w-5 h-5 text-sky-400" />
+              Build Components
+            </h3>
+
+            <div className="grid gap-4">
+              {buildComponents.map((item: any, index: number) => {
+                const Icon = getCategoryIcon(item.category);
+                return (
+                  <div
+                    key={index}
+                    className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-sky-500/30 transition-all duration-300"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-6 h-6 text-sky-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-gray-400 mb-1">
+                              {getCategoryLabel(item.category)}
+                            </div>
+                            <h4 className="text-lg font-bold text-white mb-1 break-words">
+                              {item.component.name}
+                            </h4>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-xl font-bold text-sky-400">
+                              £{item.component.price?.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Component Specs */}
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {item.category === "cpu" && (
+                            <>
+                              {item.component.cores && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.cores} Cores
+                                </Badge>
+                              )}
+                              {item.component.speed && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.speed}
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                          {item.category === "gpu" && (
+                            <>
+                              {item.component.vram && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.vram}GB VRAM
+                                </Badge>
+                              )}
+                              {item.component.chipset && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.chipset}
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                          {item.category === "ram" && (
+                            <>
+                              {item.component.capacity && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.capacity}GB
+                                </Badge>
+                              )}
+                              {item.component.speed && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.speed}
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                          {item.category === "storage" && (
+                            <>
+                              {item.component.capacity && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.capacity}GB
+                                </Badge>
+                              )}
+                              {item.component.type && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.type}
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                          {item.category === "psu" && (
+                            <>
+                              {item.component.wattage && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.wattage}W
+                                </Badge>
+                              )}
+                              {item.component.efficiency && (
+                                <Badge className="bg-white/10 text-gray-300 border-white/20">
+                                  {item.component.efficiency}
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                          {item.component.rating && (
+                            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 flex items-center gap-1">
+                              <Star className="w-3 h-3 fill-amber-300" />
+                              {item.component.rating.toFixed(1)}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Summary */}
+          <div className="p-6 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="w-6 h-6 text-green-400" />
+                <div>
+                  <h4 className="text-lg font-bold text-white">
+                    Build Imported Successfully
+                  </h4>
+                  <p className="text-sm text-gray-400">
+                    {buildComponents.length} components configured
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-gray-400 mb-1">Total</div>
+                <div className="text-2xl font-bold text-green-400">
+                  £{totalPrice.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <Button
+              onClick={onClose}
+              className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
+            >
+              Continue Building
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // Enhanced Image Gallery Component
 const ComponentImageGallery = ({
   images,
@@ -152,7 +427,7 @@ const ComponentImageGallery = ({
                     e.stopPropagation();
                     setIsGalleryOpen(true);
                   }}
-                  className="bg-black/50 backdrop-blur-md text-white border-white/20 hover:bg-black/70"
+                  className="bg-white/10 backdrop-blur-md text-white border-white/20 hover:bg-white/20"
                 >
                   <Eye className="w-3 h-3 mr-1" />
                   Gallery
@@ -163,7 +438,7 @@ const ComponentImageGallery = ({
               <div className="absolute bottom-3 left-3">
                 <Badge
                   variant="secondary"
-                  className="bg-black/50 backdrop-blur-md text-white border-white/20 text-xs"
+                  className="bg-white/10 backdrop-blur-md text-white border-white/20 text-xs"
                 >
                   {currentImageIndex + 1}/{productImages.length}
                 </Badge>
@@ -177,7 +452,7 @@ const ComponentImageGallery = ({
                       e.stopPropagation();
                       prevImage();
                     }}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/70 transition-all duration-300 flex items-center justify-center"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/20 transition-all duration-300 flex items-center justify-center"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -186,7 +461,7 @@ const ComponentImageGallery = ({
                       e.stopPropagation();
                       nextImage();
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/70 transition-all duration-300 flex items-center justify-center"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/20 transition-all duration-300 flex items-center justify-center"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -220,7 +495,7 @@ const ComponentImageGallery = ({
                     e.stopPropagation();
                     setIsGalleryOpen(true);
                   }}
-                  className="bg-black/50 backdrop-blur-md text-white border-white/20 hover:bg-black/70"
+                  className="bg-white/10 backdrop-blur-md text-white border-white/20 hover:bg-white/20"
                 >
                   <Eye className="w-3 h-3 mr-1" />
                   Gallery
@@ -231,7 +506,7 @@ const ComponentImageGallery = ({
               <div className="absolute bottom-3 left-3">
                 <Badge
                   variant="secondary"
-                  className="bg-black/50 backdrop-blur-md text-white border-white/20 text-xs"
+                  className="bg-white/10 backdrop-blur-md text-white border-white/20 text-xs"
                 >
                   {currentImageIndex + 1}/{productImages.length}
                 </Badge>
@@ -245,7 +520,7 @@ const ComponentImageGallery = ({
                       e.stopPropagation();
                       prevImage();
                     }}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/70 transition-all duration-300 flex items-center justify-center"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/20 transition-all duration-300 flex items-center justify-center"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -254,7 +529,7 @@ const ComponentImageGallery = ({
                       e.stopPropagation();
                       nextImage();
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/70 transition-all duration-300 flex items-center justify-center"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/20 transition-all duration-300 flex items-center justify-center"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -329,7 +604,7 @@ const ComponentImageGallery = ({
                   type="button"
                   onClick={prevImage}
                   aria-label="Previous image"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 backdrop-blur-md text-white hover:bg-black/90 transition-all duration-300 flex items-center justify-center"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 backdrop-blur-md text-white hover:bg-white/30 transition-all duration-300 flex items-center justify-center"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
@@ -337,7 +612,7 @@ const ComponentImageGallery = ({
                   type="button"
                   onClick={nextImage}
                   aria-label="Next image"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 backdrop-blur-md text-white hover:bg-black/90 transition-all duration-300 flex items-center justify-center"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 backdrop-blur-md text-white hover:bg-white/30 transition-all duration-300 flex items-center justify-center"
                 >
                   <ChevronRight className="w-6 h-6" />
                 </button>
@@ -348,7 +623,7 @@ const ComponentImageGallery = ({
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
               <Badge
                 variant="secondary"
-                className="bg-black/70 backdrop-blur-md text-white border-white/20"
+                className="bg-white/15 backdrop-blur-md text-white border-white/20"
               >
                 {currentImageIndex + 1} / {productImages.length}
               </Badge>
@@ -649,6 +924,13 @@ const ComponentDetailModal = ({
                 style={{ minHeight: "500px", maxHeight: "600px" }}
               />
 
+              {/* Featured tag in Modal */}
+              {component.featured && (
+                <div className="absolute top-3 right-3 z-30">
+                  <FeaturedTag />
+                </div>
+              )}
+
               {/* Prev/Next Controls */}
               {detailImages.length > 1 && (
                 <>
@@ -662,7 +944,7 @@ const ComponentDetailModal = ({
                           (prev - 1 + detailImages.length) % detailImages.length
                       );
                     }}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition-all duration-300 flex items-center justify-center"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/25 transition-all duration-300 flex items-center justify-center"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
@@ -675,7 +957,7 @@ const ComponentDetailModal = ({
                         (prev) => (prev + 1) % detailImages.length
                       );
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition-all duration-300 flex items-center justify-center"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/25 transition-all duration-300 flex items-center justify-center"
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>
@@ -684,7 +966,7 @@ const ComponentDetailModal = ({
 
               {/* Counter */}
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-                <Badge className="bg-black/60 backdrop-blur-md text-white border-white/20">
+                <Badge className="bg-white/10 backdrop-blur-md text-white border-white/20">
                   {currentImageIndex + 1}/{detailImages.length}
                 </Badge>
               </div>
@@ -940,28 +1222,17 @@ const ComponentCard = ({
     return (
       <>
         <Card
-          className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] relative overflow-hidden ${
+          className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] relative overflow-visible ${
             isSelected
               ? "ring-2 ring-sky-500 bg-sky-500/10 border-sky-500/50"
               : "bg-white/5 border-white/10 hover:bg-white/10"
           }`}
           onClick={() => setShowDetailModal(true)}
         >
-          {/* Featured Ribbon */}
+          {/* Featured Tag */}
           {component.featured && (
-            <div className="absolute top-0 right-0 z-10">
-              <div className="relative">
-                {/* Ribbon Background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 opacity-90 blur-sm"></div>
-                {/* Ribbon Content */}
-                <div className="relative bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 text-black font-black text-xs uppercase tracking-wider px-8 py-2 shadow-2xl shadow-amber-500/50 flex items-center gap-1.5 transform translate-x-6 translate-y-2 rotate-45 origin-top-right">
-                  <Sparkles className="w-3 h-3" />
-                  <span>Featured</span>
-                  <Sparkles className="w-3 h-3" />
-                </div>
-                {/* Shine Effect */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12 animate-pulse"></div>
-              </div>
+            <div className="absolute top-2 right-2 z-20">
+              <FeaturedTag />
             </div>
           )}
           <div className="p-4 sm:p-6">
@@ -1165,28 +1436,17 @@ const ComponentCard = ({
   return (
     <>
       <Card
-        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group relative overflow-hidden ${
+        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group relative overflow-visible ${
           isSelected
             ? "ring-2 ring-sky-500 bg-sky-500/10 border-sky-500/50"
             : "bg-white/5 border-white/10 hover:bg-white/10"
         }`}
         onClick={() => setShowDetailModal(true)}
       >
-        {/* Featured Ribbon */}
+        {/* Featured Tag */}
         {component.featured && (
-          <div className="absolute top-0 right-0 z-10">
-            <div className="relative">
-              {/* Ribbon Background Glow */}
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 opacity-90 blur-sm"></div>
-              {/* Ribbon Content */}
-              <div className="relative bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 text-black font-black text-xs uppercase tracking-wider px-8 py-2 shadow-2xl shadow-amber-500/50 flex items-center gap-1.5 transform translate-x-6 translate-y-2 rotate-45 origin-top-right">
-                <Sparkles className="w-3 h-3" />
-                <span>Featured</span>
-                <Sparkles className="w-3 h-3" />
-              </div>
-              {/* Shine Effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12 animate-pulse"></div>
-            </div>
+          <div className="absolute top-2 right-2 z-20">
+            <FeaturedTag />
           </div>
         )}
         <div className="p-6 space-y-4">
@@ -1407,7 +1667,7 @@ const CompatibilityAlert = ({
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={onAccept}
-            className="bg-yellow-600 hover:bg-yellow-700 text-white"
+            className="bg-yellow-600 hover:bg-yellow-500 text-white"
           >
             Continue Anyway
           </AlertDialogAction>
@@ -2035,28 +2295,17 @@ const PeripheralCard = ({
   if (viewMode === "list") {
     return (
       <Card
-        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] relative overflow-hidden ${
+        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] relative overflow-visible ${
           isSelected
             ? "ring-2 ring-green-500 bg-green-500/10 border-green-500/50"
             : "bg-white/5 border-white/10 hover:bg-white/10"
         }`}
         onClick={() => onToggle(category, peripheral.id)}
       >
-        {/* Featured Ribbon */}
+        {/* Featured Tag */}
         {peripheral.featured && (
-          <div className="absolute top-0 right-0 z-10">
-            <div className="relative">
-              {/* Ribbon Background Glow */}
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 opacity-90 blur-sm"></div>
-              {/* Ribbon Content */}
-              <div className="relative bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 text-black font-black text-xs uppercase tracking-wider px-8 py-2 shadow-2xl shadow-amber-500/50 flex items-center gap-1.5 transform translate-x-6 translate-y-2 rotate-45 origin-top-right">
-                <Sparkles className="w-3 h-3" />
-                <span>Featured</span>
-                <Sparkles className="w-3 h-3" />
-              </div>
-              {/* Shine Effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12 animate-pulse"></div>
-            </div>
+          <div className="absolute top-2 right-2 z-20">
+            <FeaturedTag />
           </div>
         )}
         <div className="p-4 sm:p-6">
@@ -2191,21 +2440,10 @@ const PeripheralCard = ({
       }`}
       onClick={() => onToggle(category, peripheral.id)}
     >
-      {/* Featured Ribbon */}
+      {/* Featured Tag */}
       {peripheral.featured && (
-        <div className="absolute top-0 right-0 z-10">
-          <div className="relative">
-            {/* Ribbon Background Glow */}
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 opacity-90 blur-sm"></div>
-            {/* Ribbon Content */}
-            <div className="relative bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 text-black font-black text-xs uppercase tracking-wider px-8 py-2 shadow-2xl shadow-amber-500/50 flex items-center gap-1.5 transform translate-x-6 translate-y-2 rotate-45 origin-top-right">
-              <Sparkles className="w-3 h-3" />
-              <span>Featured</span>
-              <Sparkles className="w-3 h-3" />
-            </div>
-            {/* Shine Effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12 animate-pulse"></div>
-          </div>
+        <div className="absolute top-2 right-2 z-20">
+          <FeaturedTag />
         </div>
       )}
       <div className="p-6 space-y-4">
@@ -2509,6 +2747,7 @@ export function PCBuilder({
   const [showCompatibilityDialog, setShowCompatibilityDialog] = useState(false);
   const [showIncompatibilityModal, setShowIncompatibilityModal] =
     useState(false);
+  const [showBuildDetailsModal, setShowBuildDetailsModal] = useState(false);
 
   // CMS Integration
   const [cmsComponents, setCmsComponents] = useState<{
@@ -2545,6 +2784,21 @@ export function PCBuilder({
   });
   const [isLoadingCms, setIsLoadingCms] = useState(true);
   const [useCmsData, setUseCmsData] = useState(false);
+  // Ref to scroll into the build section when clicking CTA
+  const buildSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // CTA action: focus the user into the components area
+  const handleStartBuildingCta = () => {
+    setActiveCategory("case");
+    setViewMode("grid");
+    // Smooth scroll to the main build section
+    requestAnimationFrame(() => {
+      buildSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
 
   // Fetch components from CMS on mount
   useEffect(() => {
@@ -3700,7 +3954,7 @@ export function PCBuilder({
               <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
                 <Zap className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
                 <span className="text-sm text-gray-300">
-                  Performance Optimized
+                  Performance Optimised
                 </span>
               </div>
             </div>
@@ -3708,7 +3962,7 @@ export function PCBuilder({
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
               <Button
-                onClick={() => setActiveCategory("case")}
+                onClick={handleStartBuildingCta}
                 className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-6 text-lg rounded-xl shadow-[0_0_30px_rgba(14,165,233,0.4)] hover:shadow-[0_0_50px_rgba(14,165,233,0.6)] transition-all duration-300 transform hover:scale-105"
               >
                 <Settings className="w-5 h-5 mr-2" />
@@ -3791,9 +4045,17 @@ export function PCBuilder({
                           £{recommendedBuild.price.toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-400 mb-3">
                         {recommendedBuild.name}
                       </p>
+                      <Button
+                        onClick={() => setShowBuildDetailsModal(true)}
+                        className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/30 hover:border-green-500/50"
+                        size="sm"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Build Details
+                      </Button>
                     </div>
                     <Separator className="border-white/10" />
                   </>
@@ -3949,7 +4211,7 @@ export function PCBuilder({
                 <div className="space-y-3">
                   <Button
                     onClick={handleCheckoutWithCompatibility}
-                    className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white"
+                    className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
                     disabled={getSelectedComponentsCount() === 0}
                   >
                     <ShoppingCart className="w-4 h-4 mr-2" />
@@ -4007,7 +4269,10 @@ export function PCBuilder({
           </div>
 
           {/* Main Content */}
-          <div className="lg:col-span-3 space-y-6 order-1 lg:order-2">
+          <div
+            ref={buildSectionRef}
+            className="lg:col-span-3 space-y-6 order-1 lg:order-2"
+          >
             {/* Component Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
@@ -4483,13 +4748,22 @@ export function PCBuilder({
             <AlertDialogFooter>
               <AlertDialogAction
                 onClick={() => setShowIncompatibilityModal(false)}
-                className="bg-sky-600 hover:bg-sky-700 text-white"
+                className="bg-sky-600 hover:bg-sky-500 text-white"
               >
                 Got it, thanks!
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Build Details Modal */}
+        <BuildDetailsModal
+          isOpen={showBuildDetailsModal}
+          onClose={() => setShowBuildDetailsModal(false)}
+          recommendedBuild={recommendedBuild}
+          selectedComponents={selectedComponents}
+          componentData={activeComponentData}
+        />
       </div>
     </div>
   );
