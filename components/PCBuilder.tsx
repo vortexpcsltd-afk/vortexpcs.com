@@ -29,6 +29,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { Separator } from "./ui/separator";
+import { EnthusiastBuilder } from "./EnthusiastBuilder";
 import {
   Dialog,
   DialogContent,
@@ -2748,6 +2749,7 @@ export function PCBuilder({
   const [showIncompatibilityModal, setShowIncompatibilityModal] =
     useState(false);
   const [showBuildDetailsModal, setShowBuildDetailsModal] = useState(false);
+  const [showEnthusiastBuilder, setShowEnthusiastBuilder] = useState(false);
 
   // CMS Integration
   const [cmsComponents, setCmsComponents] = useState<{
@@ -3968,6 +3970,14 @@ export function PCBuilder({
                 <Settings className="w-5 h-5 mr-2" />
                 Start Building
               </Button>
+              <Button
+                onClick={() => setShowEnthusiastBuilder(true)}
+                variant="outline"
+                className="border border-white/20 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-6 py-6 text-base rounded-xl transition-all duration-300"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Enthusiast Builder
+              </Button>
             </div>
 
             {/* Stats Bar */}
@@ -4763,6 +4773,12 @@ export function PCBuilder({
           recommendedBuild={recommendedBuild}
           selectedComponents={selectedComponents}
           componentData={activeComponentData}
+        />
+
+        {/* Enthusiast Builder Modal */}
+        <EnthusiastBuilder
+          isOpen={showEnthusiastBuilder}
+          onClose={() => setShowEnthusiastBuilder(false)}
         />
       </div>
     </div>
