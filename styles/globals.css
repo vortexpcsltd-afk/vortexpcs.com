@@ -288,6 +288,70 @@ html {
   }
 }
 
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(14, 165, 233, 0.6),
+      0 0 60px rgba(14, 165, 233, 0.4);
+  }
+}
+
+@keyframes shimmer-bg {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes confettiFall {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) rotate(0deg);
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100vh) rotate(360deg);
+  }
+}
+
+@keyframes floatParticle {
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+  25% {
+    transform: translateY(-20px) translateX(10px);
+  }
+  50% {
+    transform: translateY(-10px) translateX(-10px);
+  }
+  75% {
+    transform: translateY(-30px) translateX(5px);
+  }
+}
+
 .animate-gradient {
   background-size: 200% 200%;
   animation: gradient 8s ease infinite;
@@ -302,7 +366,14 @@ html {
 }
 
 .animate-shimmer {
-  animation: shimmer 3s linear infinite;
+  background: linear-gradient(
+    90deg,
+    rgba(14, 165, 233, 0) 0%,
+    rgba(14, 165, 233, 0.1) 50%,
+    rgba(14, 165, 233, 0) 100%
+  );
+  background-size: 2000px 100%;
+  animation: shimmer-bg 3s linear infinite;
 }
 
 .animate-spin-slow {
@@ -311,6 +382,11 @@ html {
 
 .animate-fade-in {
   animation: fade-in 0.8s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.8s ease-out forwards;
   opacity: 0;
 }
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Button } from "./components/ui/button";
-import { PCFinder } from "./components/PCFinderBlue";
+import { PCFinderSpectacular as PCFinder } from "./components/PCFinderSpectacular";
 import { PCBuilder } from "./components/PCBuilder";
 import { AIAssistant } from "./components/AIAssistant";
 import { MemberArea } from "./components/MemberArea";
