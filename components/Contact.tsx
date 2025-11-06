@@ -359,7 +359,9 @@ export function Contact({ onNavigate }: ContactProps = {}) {
                       <Button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full md:w-auto px-8 py-6 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        variant="primary"
+                        size="lg"
+                        className="w-full md:w-auto"
                       >
                         {isSubmitting ? (
                           <span className="flex items-center gap-2">
@@ -468,13 +470,15 @@ export function Contact({ onNavigate }: ContactProps = {}) {
                 <div className="flex flex-wrap justify-center gap-4">
                   <Button
                     onClick={() => onNavigate?.("pc-builder")}
-                    className="px-8 py-6 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300"
+                    variant="primary"
+                    size="lg"
                   >
                     Start PC Builder
                   </Button>
                   <Button
                     onClick={() => onNavigate?.("pc-finder")}
-                    className="px-8 py-6 bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 text-white hover:bg-sky-500/5 transition-all duration-300"
+                    variant="ghost"
+                    size="lg"
                   >
                     Use PC Finder
                   </Button>

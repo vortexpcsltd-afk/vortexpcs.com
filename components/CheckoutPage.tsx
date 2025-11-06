@@ -441,16 +441,18 @@ function PaymentForm({
             <Button
               type="submit"
               disabled={loading || !stripe}
-              className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white py-6 text-lg font-semibold"
+              variant="primary"
+              size="xl"
+              className="w-full"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   Processing Payment...
                 </>
               ) : (
                 <>
-                  <CreditCard className="w-5 h-5 mr-2" />
+                  <CreditCard className="w-5 h-5" />
                   Pay £{total.toFixed(2)}
                 </>
               )}
@@ -482,10 +484,7 @@ export function CheckoutPage(props: CheckoutPageProps) {
               Stripe payment processing is not configured. Please check your
               environment variables.
             </p>
-            <Button
-              onClick={props.onBackToCart}
-              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
-            >
+            <Button onClick={props.onBackToCart} variant="primary" size="lg">
               Back to Cart
             </Button>
           </div>

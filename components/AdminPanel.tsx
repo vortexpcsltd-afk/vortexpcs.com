@@ -448,8 +448,8 @@ export function AdminPanel() {
                 </p>
               </div>
             </div>
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500">
-              <Download className="w-4 h-4 mr-2" />
+            <Button variant="premium" size="default">
+              <Download className="w-4 h-4" />
               Export Report
             </Button>
           </div>

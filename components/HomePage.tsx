@@ -26,7 +26,9 @@ interface HomePageProps {
 export function HomePage({ setCurrentView }: HomePageProps) {
   console.log("🏠 HomePage component rendered");
 
-  const cmsDisabled = (import.meta.env as any)?.VITE_CMS_DISABLED === "true";
+  const cmsDisabled =
+    (import.meta.env as { VITE_CMS_DISABLED?: string })?.VITE_CMS_DISABLED ===
+    "true";
   const [, setSettings] = useState<Settings | null>(null);
   const [pageContent, setPageContent] = useState<PageContent | null>(null);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
@@ -199,7 +201,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
     };
 
     loadContent();
-  }, []);
+  }, [cmsDisabled]);
 
   // Show loading state while fetching data
   if (loading) {
@@ -302,7 +304,8 @@ export function HomePage({ setCurrentView }: HomePageProps) {
     mainFeatures.length > 0 ? mainFeatures : defaultMainFeatures;
 
   const getIconComponent = (iconName: string) => {
-    const iconMap: { [key: string]: any } = {
+    type IconComponentType = typeof Zap;
+    const iconMap: { [key: string]: IconComponentType } = {
       Zap,
       Shield,
       Users,
@@ -329,72 +332,77 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       ></div>
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 safe-px">
+      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 safe-px py-12 sm:py-16">
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
           style={{ backgroundImage: `url(${heroBackground})` }}
         ></div>
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/70"></div>
 
-        <div className="relative z-10 text-center max-w-6xl mx-auto px-4 sm:px-6">
-          <Badge className="mb-6 sm:mb-12 lg:mb-32 bg-transparent border-sky-500/40 text-sky-400 px-3 sm:px-4 py-2 text-sm sm:text-base font-normal inline-flex items-center gap-2 animate-fade-in">
+        <div className="relative z-10 text-center max-w-6xl mx-auto px-4 sm:px-6 w-full">
+          <Badge className="mb-4 sm:mb-6 md:mb-8 bg-transparent border-sky-500/40 text-sky-400 px-3 sm:px-4 py-2 text-xs sm:text-sm md:text-base font-normal inline-flex items-center gap-2 animate-fade-in">
             <Star
               className="fill-transparent stroke-yellow-500 border-yellow-500"
-              style={{ width: "18px", height: "18px" }}
+              style={{ width: "16px", height: "16px" }}
               strokeWidth={1.5}
             />
             {pageContent?.heroBadgeText ||
               "Custom PCs built for speed, power, and precision"}
           </Badge>
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 sm:mb-6 animate-float break-words">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 sm:mb-6 animate-float break-words leading-tight px-2">
             <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
               {pageContent?.heroTitle || "Build Your Dream PC with Vortex"}
             </span>
           </h1>
 
-          <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl mb-6 sm:mb-8 text-gray-300 max-w-4xl mx-auto animate-float animation-delay-200">
+          <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-4 sm:mb-6 text-gray-300 max-w-4xl mx-auto animate-float animation-delay-200 px-2">
             {pageContent?.heroSubtitle ||
               "Custom PCs built for speed, power, and precision."}
           </p>
 
-          <p className="text-base sm:text-lg md:text-xl mb-8 sm:mb-12 text-gray-400 max-w-3xl mx-auto animate-fade-in animation-delay-400 px-4">
+          <p className="text-sm sm:text-base md:text-lg mb-6 sm:mb-8 md:mb-10 text-gray-400 max-w-3xl mx-auto animate-fade-in animation-delay-400 px-4 leading-relaxed">
             {pageContent?.heroDescription ||
               "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component."}
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12 sm:mb-16 animate-fade-in animation-delay-600 px-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-8 sm:mb-12 md:mb-16 animate-fade-in animation-delay-600 px-4 max-w-2xl mx-auto">
             <Button
               onClick={() => setCurrentView("pc-finder")}
-              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-xl hover:shadow-sky-500/25"
+              variant="primary"
+              size="lg"
+              className="w-full sm:w-auto text-sm sm:text-base md:text-lg"
             >
-              <Search className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+              <Search className="h-4 w-4 sm:h-5 sm:w-5" />
               Find Your Perfect PC
             </Button>
             <Button
               onClick={() => setCurrentView("pc-builder")}
               variant="outline"
-              className="border-sky-500 text-sky-400 hover:bg-sky-500 hover:text-white px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-semibold transition-all duration-300 transform hover:scale-105"
+              size="lg"
+              className="w-full sm:w-auto text-sm sm:text-base md:text-lg"
             >
-              <SettingsIcon className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+              <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5" />
               Custom Builder
             </Button>
           </div>
 
           {/* Hero Features */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8 max-w-4xl mx-auto px-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-5xl mx-auto px-4">
             {currentHeroFeatures.map((feature, index) => (
               <Card
                 key={index}
                 className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-xl hover:shadow-sky-500/10 animate-fade-in"
                 style={{ animationDelay: `${800 + index * 200}ms` }}
               >
-                <div className="p-6 text-center">
+                <div className="p-4 sm:p-6 text-center">
                   {getIconComponent(feature.icon)}
-                  <h3 className="text-xl font-semibold mb-3 text-sky-400">
+                  <h3 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-3 text-sky-400">
                     {feature.title}
                   </h3>
-                  <p className="text-gray-400">{feature.description}</p>
+                  <p className="text-sm sm:text-base text-gray-400">
+                    {feature.description}
+                  </p>
                 </div>
               </Card>
             ))}
@@ -403,34 +411,34 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 relative">
+      <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8 relative">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+          <div className="text-center mb-8 sm:mb-12 md:mb-16">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 px-4">
               <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
                 {pageContent?.featuresTitle || "Why Choose Vortex PCs?"}
               </span>
             </h2>
-            <p className="text-xl text-gray-400 max-w-3xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-3xl mx-auto px-4">
               {pageContent?.featuresDescription ||
                 "We combine cutting-edge technology with expert craftsmanship to deliver the ultimate computing experience"}
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
             {currentMainFeatures.map((feature, index) => (
               <Card
                 key={index}
                 className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 transform hover:-translate-y-2 group"
               >
-                <div className="p-6 text-center">
-                  <div className="flex justify-center mb-4">
+                <div className="p-4 sm:p-6 text-center">
+                  <div className="flex justify-center mb-3 sm:mb-4">
                     {getIconComponent(feature.icon)}
                   </div>
-                  <h3 className="text-xl font-semibold mb-3 text-white group-hover:text-sky-400 transition-colors">
+                  <h3 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-3 text-white group-hover:text-sky-400 transition-colors">
                     {feature.title}
                   </h3>
-                  <p className="text-gray-400 group-hover:text-gray-300 transition-colors">
+                  <p className="text-sm sm:text-base text-gray-400 group-hover:text-gray-300 transition-colors">
                     {feature.description}
                   </p>
                 </div>
@@ -441,39 +449,39 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       </section>
 
       {/* Track Record Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 relative">
+      <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8 relative">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 px-4">
               <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
                 Our Track Record
               </span>
             </h2>
-            <p className="text-lg text-gray-400">
+            <p className="text-base sm:text-lg text-gray-400 px-4">
               Real numbers that reflect our commitment to quality and service
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 max-w-5xl mx-auto">
             {/* Years Experience */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-4 sm:p-6">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-3 sm:p-4 md:p-6">
               <div className="flex items-center justify-center mb-2 sm:mb-3">
-                <Shield className="h-6 w-6 sm:h-7 sm:w-7 text-sky-400" />
+                <Shield className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-sky-400" />
               </div>
-              <div className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
+              <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
                 {companyStats?.yearsExperience ?? 0}+
               </div>
-              <div className="mt-1 text-sm sm:text-base text-gray-400">
+              <div className="mt-1 text-xs sm:text-sm md:text-base text-gray-400">
                 Years Experience
               </div>
             </Card>
 
             {/* Customers Served */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-4 sm:p-6">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-3 sm:p-4 md:p-6">
               <div className="flex items-center justify-center mb-2 sm:mb-3">
-                <Users className="h-6 w-6 sm:h-7 sm:w-7 text-sky-400" />
+                <Users className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-sky-400" />
               </div>
-              <div className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
+              <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
                 {(() => {
                   const n = companyStats?.customersServed ?? 0;
                   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}m`;
@@ -481,17 +489,17 @@ export function HomePage({ setCurrentView }: HomePageProps) {
                   return n;
                 })()}
               </div>
-              <div className="mt-1 text-sm sm:text-base text-gray-400">
+              <div className="mt-1 text-xs sm:text-sm md:text-base text-gray-400">
                 Customers Served
               </div>
             </Card>
 
             {/* PC Builds Completed */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-4 sm:p-6">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-3 sm:p-4 md:p-6">
               <div className="flex items-center justify-center mb-2 sm:mb-3">
-                <Wrench className="h-6 w-6 sm:h-7 sm:w-7 text-sky-400" />
+                <Wrench className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-sky-400" />
               </div>
-              <div className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
+              <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
                 {(() => {
                   const n = companyStats?.pcBuildsCompleted ?? 0;
                   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}m`;
@@ -499,20 +507,20 @@ export function HomePage({ setCurrentView }: HomePageProps) {
                   return n;
                 })()}
               </div>
-              <div className="mt-1 text-sm sm:text-base text-gray-400">
+              <div className="mt-1 text-xs sm:text-sm md:text-base text-gray-400">
                 PC Builds Completed
               </div>
             </Card>
 
             {/* Satisfaction Rate */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-4 sm:p-6">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-3 sm:p-4 md:p-6">
               <div className="flex items-center justify-center mb-2 sm:mb-3">
-                <Star className="h-6 w-6 sm:h-7 sm:w-7 text-sky-400" />
+                <Star className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-sky-400" />
               </div>
-              <div className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
+              <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
                 {companyStats?.satisfactionRate ?? 0}%
               </div>
-              <div className="mt-1 text-sm sm:text-base text-gray-400">
+              <div className="mt-1 text-xs sm:text-sm md:text-base text-gray-400">
                 Customer Satisfaction
               </div>
             </Card>
@@ -521,48 +529,48 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 relative">
+      <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8 relative">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+          <div className="text-center mb-8 sm:mb-12 md:mb-16">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 px-4">
               <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
                 What Our Customers Say
               </span>
             </h2>
-            <p className="text-xl text-gray-400">
+            <p className="text-base sm:text-lg md:text-xl text-gray-400 px-4">
               Don't just take our word for it - hear from satisfied customers
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
             {currentTestimonials.map((testimonial, index) => (
               <Card
                 key={index}
                 className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 transform hover:-translate-y-2"
               >
-                <div className="p-6">
-                  <div className="flex mb-4">
+                <div className="p-4 sm:p-6">
+                  <div className="flex mb-3 sm:mb-4">
                     {[...Array(testimonial.rating)].map((_, i) => (
                       <Star
                         key={i}
-                        className="h-5 w-5 text-yellow-400 fill-current"
+                        className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 fill-current"
                       />
                     ))}
                   </div>
-                  <p className="text-gray-300 mb-4 italic">
+                  <p className="text-sm sm:text-base text-gray-300 mb-3 sm:mb-4 italic leading-relaxed">
                     "{testimonial.review}"
                   </p>
                   <div className="flex items-center">
-                    <div className="h-10 w-10 bg-gradient-to-br from-sky-400 to-cyan-400 rounded-full flex items-center justify-center mr-3">
-                      <span className="text-black font-semibold">
+                    <div className="h-9 w-9 sm:h-10 sm:w-10 bg-gradient-to-br from-sky-400 to-cyan-400 rounded-full flex items-center justify-center mr-3">
+                      <span className="text-black font-semibold text-sm sm:text-base">
                         {testimonial.customerName?.charAt(0) || "U"}
                       </span>
                     </div>
                     <div>
-                      <p className="font-semibold text-white">
+                      <p className="font-semibold text-white text-sm sm:text-base">
                         {testimonial.customerName || "User"}
                       </p>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-xs sm:text-sm text-gray-400">
                         {testimonial.productName || "Customer"}
                       </p>
                     </div>
@@ -582,42 +590,46 @@ export function HomePage({ setCurrentView }: HomePageProps) {
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
 
             {/* Content */}
-            <div className="relative px-6 py-12 sm:px-8 sm:py-16 md:px-16 md:py-20 text-center">
+            <div className="relative px-4 py-8 sm:px-6 sm:py-12 md:px-12 md:py-16 lg:px-16 lg:py-20 text-center">
               {/* Badge */}
               {pageContent?.ctaBadgeText && (
-                <div className="flex justify-center mb-6 sm:mb-8">
-                  <Badge className="bg-sky-500/20 border border-sky-400/50 text-sky-300 px-4 sm:px-6 py-2 sm:py-2.5 text-xs font-bold uppercase tracking-wider">
+                <div className="flex justify-center mb-4 sm:mb-6 md:mb-8">
+                  <Badge className="bg-sky-500/20 border border-sky-400/50 text-sky-300 px-3 sm:px-4 md:px-6 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm font-bold uppercase tracking-wider">
                     {pageContent.ctaBadgeText}
                   </Badge>
                 </div>
               )}
 
               {/* Heading */}
-              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 text-white leading-tight">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold mb-3 sm:mb-4 md:mb-6 text-white leading-tight px-2">
                 {pageContent?.ctaTitle || "Ready to Build Your Dream PC?"}
               </h2>
 
               {/* Description */}
-              <p className="text-base sm:text-lg md:text-xl text-gray-300 mb-8 sm:mb-12 max-w-3xl mx-auto leading-relaxed px-4">
+              <p className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-300 mb-6 sm:mb-8 md:mb-12 max-w-3xl mx-auto leading-relaxed px-4">
                 {pageContent?.ctaDescription ||
                   "Get started with our AI-powered PC finder or dive into our custom builder"}
               </p>
 
               {/* Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 justify-center items-center">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 md:gap-5 justify-center items-center max-w-2xl mx-auto">
                 <Button
                   onClick={() => setCurrentView("pc-finder")}
-                  className="w-full sm:w-auto bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white px-8 sm:px-10 py-5 sm:py-6 text-base sm:text-lg font-bold rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg shadow-sky-500/30 hover:shadow-xl hover:shadow-sky-500/40"
+                  variant="primary"
+                  size="xl"
+                  className="w-full sm:w-auto text-sm sm:text-base md:text-lg"
                 >
-                  <Search className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                  <Search className="h-4 w-4 sm:h-5 sm:w-5" />
                   Start PC Finder
                 </Button>
 
                 <Button
                   onClick={() => setCurrentView("pc-builder")}
-                  className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-8 sm:px-10 py-5 sm:py-6 text-base sm:text-lg font-bold rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg shadow-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/40"
+                  variant="secondary"
+                  size="xl"
+                  className="w-full sm:w-auto text-sm sm:text-base md:text-lg"
                 >
-                  <SettingsIcon className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                  <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                   Open Builder
                 </Button>
               </div>

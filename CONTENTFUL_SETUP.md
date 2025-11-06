@@ -2,6 +2,12 @@
 
 This guide will help you set up Contentful as your headless CMS for the Vortex PCs website.
 
+## 📚 Quick Links
+
+- **[FAQ Integration Guide](./CONTENTFUL_FAQ_SETUP.md)** - Complete guide for managing FAQ content in Contentful
+- **[PC Builder CMS Setup](./PC_BUILDER_CMS_SETUP.md)** - Guide for managing PC components
+- **[Optional Extras Setup](./OPTIONAL_EXTRAS_SETUP.md)** - Guide for accessories and peripherals
+
 ## Why Contentful?
 
 ✅ **Cloud-hosted** - No server maintenance required  
@@ -142,7 +148,34 @@ You need to create these content types in Contentful. Go to **Content model** �
 
 **Icon values:** Use Lucide React icon names like `Settings`, `Shield`, `Zap`, `Award`, `Heart`, `Star`
 
-### 6️⃣ Site Settings (Optional)
+### 6️⃣ FAQ Item 📚
+
+**Content type ID:** `faqItem`
+
+> **💡 Full Setup Guide:** See [CONTENTFUL_FAQ_SETUP.md](./CONTENTFUL_FAQ_SETUP.md) for complete instructions, sample content, and best practices.
+
+| Field Name | Field ID | Type       | Required | Validations |
+| ---------- | -------- | ---------- | -------- | ----------- |
+| Question   | question | Short text | Yes      | Max 200     |
+| Answer     | answer   | Long text  | Yes      |             |
+| Category   | category | Short text | Yes      | Predefined  |
+| Order      | order    | Integer    | No       |             |
+| Featured   | featured | Boolean    | No       |             |
+| Keywords   | keywords | Short text | No       |             |
+
+**Category predefined values:**
+
+- Building Process
+- Customization
+- Warranty
+- Payment
+- Shipping
+- Support
+- General
+
+**Quick Start:** Add 8 FAQs with different categories, set Order 1-8, publish all entries. See the FAQ setup guide for complete sample content.
+
+### 7️⃣ Site Settings (Optional)
 
 **Content type ID:** `siteSettings`
 

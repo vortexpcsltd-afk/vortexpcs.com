@@ -172,20 +172,12 @@ export function CmsDiagnostics() {
               Disable Pages: {env.disablePages}
             </Badge>
             <div className="ml-auto flex gap-2">
-              <Button
-                variant="outline"
-                onClick={runChecks}
-                disabled={running}
-                className="border-white/20 text-white"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
+              <Button variant="ghost" onClick={runChecks} disabled={running}>
+                <RefreshCw className="w-4 h-4" />
                 Re-run
               </Button>
-              <Button
-                onClick={copyReport}
-                className="bg-gradient-to-r from-sky-600 to-blue-600 text-white"
-              >
-                <Copy className="w-4 h-4 mr-2" />
+              <Button onClick={copyReport} variant="primary">
+                <Copy className="w-4 h-4" />
                 Copy report
               </Button>
             </div>

@@ -514,7 +514,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   </ul>
                 </div>
 
-                <p>Our enthusiast builder service specializes in sourcing hard-to-find components and delivering premium custom builds for tech-savvy customers like you.</p>
+                <p>Our enthusiast builder service specialises in sourcing hard-to-find components and delivering premium custom builds for tech-savvy customers like you.</p>
 
                 <div class="contact-info">
                   <p><strong>Need to discuss your build?</strong></p>
