@@ -8,6 +8,7 @@ import {
   PCComponent,
   PCOptionalExtra,
 } from "../services/cms";
+import { loadPersistedRecommendation } from "../services/recommendation";
 import {
   Select,
   SelectContent,
@@ -2865,6 +2866,164 @@ export function PCBuilder({
         } else {
           console.log("ℹ️ No CMS data found, using fallback hardcoded data");
         }
+
+        // Process pending PC Finder recommendations if available
+        const finderParts = sessionStorage.getItem("finder_parts_pending");
+        if (finderParts && hasComponents) {
+          try {
+            const parts = JSON.parse(finderParts);
+            console.log(
+              "🔧 Auto-importing PC Finder recommendations...",
+              parts
+            );
+
+            const autoSelected: any = {};
+
+            // Smart matching based on recommendation tier names
+            // CPU matching - Updated for Intel 14th Gen & AMD Ryzen 9000 series
+            if (parts.cpu && componentResults.cpu?.length > 0) {
+              const cpuMatch = componentResults.cpu.find(
+                (c: any) =>
+                  // Flagship tier (24-core or 9950X/14900KS)
+                  (parts.cpu.includes("9950X") && c.name?.includes("9950X")) ||
+                  (parts.cpu.includes("14900KS") &&
+                    c.name?.includes("14900KS")) ||
+                  (parts.cpu.includes("24-Core") && c.cores >= 24) ||
+                  // High tier (16-core or 9900X/14900K)
+                  (parts.cpu.includes("9900X") && c.name?.includes("9900X")) ||
+                  (parts.cpu.includes("14900K") &&
+                    c.name?.includes("14900K")) ||
+                  (parts.cpu.includes("16-Core") &&
+                    c.cores >= 16 &&
+                    c.cores < 24) ||
+                  // Mid tier (8-12 core or 9700X/14700K)
+                  (parts.cpu.includes("9700X") && c.name?.includes("9700X")) ||
+                  (parts.cpu.includes("14700K") &&
+                    c.name?.includes("14700K")) ||
+                  ((parts.cpu.includes("8-12") ||
+                    parts.cpu.includes("12 Core")) &&
+                    c.cores >= 8 &&
+                    c.cores < 16) ||
+                  // Entry tier (6-core or 7600X/14400F)
+                  (parts.cpu.includes("7600X") && c.name?.includes("7600X")) ||
+                  (parts.cpu.includes("14400F") &&
+                    c.name?.includes("14400F")) ||
+                  (parts.cpu.includes("6-Core") && c.cores >= 6 && c.cores < 8)
+              );
+              if (cpuMatch) autoSelected.cpu = cpuMatch.id;
+            }
+
+            // GPU matching
+            if (parts.gpu && componentResults.gpu?.length > 0) {
+              const gpuMatch = componentResults.gpu.find(
+                (c: any) =>
+                  (parts.gpu.includes("5090") && c.name?.includes("5090")) ||
+                  (parts.gpu.includes("4090") && c.name?.includes("4090")) ||
+                  (parts.gpu.includes("5080") && c.name?.includes("5080")) ||
+                  (parts.gpu.includes("4080") && c.name?.includes("4080")) ||
+                  (parts.gpu.includes("5070") && c.name?.includes("5070")) ||
+                  (parts.gpu.includes("4070") && c.name?.includes("4070")) ||
+                  (parts.gpu.includes("5060") && c.name?.includes("5060")) ||
+                  (parts.gpu.includes("4060") && c.name?.includes("4060"))
+              );
+              if (gpuMatch) autoSelected.gpu = gpuMatch.id;
+            }
+
+            // RAM matching
+            if (parts.memory && componentResults.ram?.length > 0) {
+              const ramMatch = componentResults.ram.find(
+                (c: any) =>
+                  (parts.memory.includes("128GB") && c.capacity >= 128) ||
+                  (parts.memory.includes("64GB") &&
+                    c.capacity >= 64 &&
+                    c.capacity < 128) ||
+                  (parts.memory.includes("32GB") &&
+                    c.capacity >= 32 &&
+                    c.capacity < 64) ||
+                  (parts.memory.includes("16GB") &&
+                    c.capacity >= 16 &&
+                    c.capacity < 32)
+              );
+              if (ramMatch) autoSelected.ram = ramMatch.id;
+            }
+
+            // Storage matching
+            if (parts.storage && componentResults.storage?.length > 0) {
+              const storageMatch = componentResults.storage.find(
+                (c: any) =>
+                  (parts.storage.includes("4TB") && c.capacity >= 4000) ||
+                  (parts.storage.includes("2TB") &&
+                    c.capacity >= 2000 &&
+                    c.capacity < 4000) ||
+                  (parts.storage.includes("1TB") &&
+                    c.capacity >= 1000 &&
+                    c.capacity < 2000)
+              );
+              if (storageMatch) autoSelected.storage = storageMatch.id;
+            }
+
+            // PSU matching - Updated for ATX 3.0/3.1 standards
+            if (parts.psu && componentResults.psu?.length > 0) {
+              const psuMatch = componentResults.psu.find(
+                (c: any) =>
+                  (parts.psu.includes("1200W") && c.wattage >= 1200) ||
+                  (parts.psu.includes("1000W") &&
+                    c.wattage >= 1000 &&
+                    c.wattage < 1200) ||
+                  (parts.psu.includes("850W") &&
+                    c.wattage >= 850 &&
+                    c.wattage < 1000) ||
+                  (parts.psu.includes("750W") &&
+                    c.wattage >= 750 &&
+                    c.wattage < 850)
+              );
+              if (psuMatch) autoSelected.psu = psuMatch.id;
+            }
+
+            // Cooling matching - Updated for larger radiators
+            if (parts.cooling && componentResults.cooling?.length > 0) {
+              const coolingMatch = componentResults.cooling.find(
+                (c: any) =>
+                  (parts.cooling.includes("420mm") &&
+                    (c.radiatorSize === 420 || c.name?.includes("420"))) ||
+                  (parts.cooling.includes("360mm") &&
+                    (c.radiatorSize === 360 || c.name?.includes("360"))) ||
+                  (parts.cooling.includes("280mm") &&
+                    (c.radiatorSize === 280 || c.name?.includes("280"))) ||
+                  (parts.cooling.includes("140mm") &&
+                    (c.name?.toLowerCase().includes("air") ||
+                      c.name?.toLowerCase().includes("tower")))
+              );
+              if (coolingMatch) autoSelected.cooling = coolingMatch.id;
+            }
+
+            // Case matching by aesthetic preference
+            if (parts.case && componentResults.case?.length > 0) {
+              const caseMatch =
+                componentResults.case.find(
+                  (c: any) =>
+                    (parts.case.includes("RGB") &&
+                      c.name?.toLowerCase().includes("rgb")) ||
+                    (parts.case.includes("Tempered Glass") &&
+                      c.name?.toLowerCase().includes("glass")) ||
+                    (parts.case.includes("Stealth") &&
+                      c.name?.toLowerCase().includes("black"))
+                ) || componentResults.case[0]; // Fallback to first case
+              if (caseMatch) autoSelected.case = caseMatch.id;
+            }
+
+            if (Object.keys(autoSelected).length > 0) {
+              console.log(
+                "✅ Auto-selected components from PC Finder:",
+                autoSelected
+              );
+              setSelectedComponents(autoSelected);
+              sessionStorage.removeItem("finder_parts_pending"); // Clear after successful import
+            }
+          } catch (e) {
+            console.warn("⚠️ Failed to auto-import Finder recommendations:", e);
+          }
+        }
       } catch (error) {
         console.error("❌ Error loading CMS data:", error);
         setUseCmsData(false);
@@ -2874,6 +3033,22 @@ export function PCBuilder({
     };
 
     loadCmsData();
+  }, []);
+
+  // Hydrate from PC Finder recommendations on mount
+  useEffect(() => {
+    const persisted = loadPersistedRecommendation();
+    if (persisted && persisted.recommendation) {
+      console.log(
+        "🎯 Loading PC Finder recommendations into Builder:",
+        persisted
+      );
+      const { parts } = persisted.recommendation;
+
+      // Store for later processing once CMS components are loaded
+      console.log("📦 Recommended parts from Finder:", parts);
+      sessionStorage.setItem("finder_parts_pending", JSON.stringify(parts));
+    }
   }, []);
 
   // Import recommended build on mount or when it changes

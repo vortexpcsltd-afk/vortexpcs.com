@@ -4,6 +4,7 @@
  * Features: Particle effects, 3D card interactions, confetti, gamification
  * Version: 2025-11-06-UNFORGETTABLE
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
@@ -11,7 +12,6 @@ import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
 import { Slider } from "./ui/slider";
 import {
-  CheckCircle,
   ArrowRight,
   ArrowLeft,
   Monitor,
@@ -20,7 +20,6 @@ import {
   Briefcase,
   Code,
   Home,
-  HardDrive,
   Zap,
   Wifi,
   Shield,
@@ -28,7 +27,6 @@ import {
   Star,
   Settings,
   Sparkles,
-  Package,
   Rocket,
   Trophy,
   Target,
@@ -36,14 +34,12 @@ import {
   Cpu,
   MemoryStick,
   HardDriveIcon,
-  Fan,
 } from "lucide-react";
 import {
-  fetchPCBuilds,
-  fetchCategories,
-  fetchProducts,
-  type PCBuild,
-} from "../services/cms";
+  generateRecommendation,
+  persistRecommendation,
+  type RecommendationResult,
+} from "../services/recommendation";
 
 // Confetti particle component
 const ConfettiParticle = ({ delay }: { delay: number }) => {
@@ -67,7 +63,6 @@ const ConfettiParticle = ({ delay }: { delay: number }) => {
 
 export function PCFinderSpectacular({
   setCurrentView,
-  _setRecommendedBuild,
 }: {
   setCurrentView: (view: string) => void;
   _setRecommendedBuild: (build: any) => void;
@@ -78,6 +73,8 @@ export function PCFinderSpectacular({
   const [questionHistory, setQuestionHistory] = useState<number[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [score, setScore] = useState(0);
+  const [recommendation, setRecommendation] =
+    useState<RecommendationResult | null>(null);
 
   // Question flow
   const getQuestions = () => {
@@ -341,7 +338,48 @@ export function PCFinderSpectacular({
     setShowResults(false);
     setQuestionHistory([]);
     setScore(0);
+    setRecommendation(null);
   };
+
+  // When results are shown, compute recommendation once and persist
+  useEffect(() => {
+    if (showResults && !recommendation) {
+      const rec = generateRecommendation({
+        purpose: answers.purpose,
+        budget: answers.budget,
+        performance_ambition: answers.performance_ambition,
+        priority_component: answers.priority_component,
+        aesthetics: answers.aesthetics,
+        timeline: answers.timeline,
+      });
+      setRecommendation(rec);
+      // Persist journey for Builder hydration
+      try {
+        persistRecommendation(
+          {
+            purpose: answers.purpose,
+            budget: answers.budget,
+            performance_ambition: answers.performance_ambition,
+            priority_component: answers.priority_component,
+            aesthetics: answers.aesthetics,
+            timeline: answers.timeline,
+          },
+          rec
+        );
+      } catch {
+        // ignore persistence errors (e.g., SSR)
+      }
+    }
+  }, [
+    showResults,
+    recommendation,
+    answers.purpose,
+    answers.budget,
+    answers.performance_ambition,
+    answers.priority_component,
+    answers.aesthetics,
+    answers.timeline,
+  ]);
 
   if (showResults) {
     return (
@@ -391,8 +429,15 @@ export function PCFinderSpectacular({
                         Starting from
                       </div>
                       <div className="text-4xl md:text-5xl font-black bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                        £{answers.budget || 1500}
+                        £
+                        {(answers.budget || 1500) +
+                          (recommendation?.fulfilment.surcharge || 0)}
                       </div>
+                      {recommendation?.fulfilment.priorityFlag && (
+                        <div className="mt-1 text-xs text-amber-300">
+                          Includes express build surcharge
+                        </div>
+                      )}
                     </div>
                   </div>
                   <h2 className="text-3xl md:text-5xl font-black text-white mb-3">
@@ -419,7 +464,7 @@ export function PCFinderSpectacular({
                       <div>
                         <div className="text-sm text-gray-400">Processor</div>
                         <div className="text-lg font-bold text-white">
-                          Latest Gen Intel/AMD
+                          {recommendation?.parts.cpu || "Latest Gen Intel/AMD"}
                         </div>
                       </div>
                     </div>
@@ -436,7 +481,7 @@ export function PCFinderSpectacular({
                       <div>
                         <div className="text-sm text-gray-400">Graphics</div>
                         <div className="text-lg font-bold text-white">
-                          RTX 40-Series
+                          {recommendation?.parts.gpu || "RTX 40-Series"}
                         </div>
                       </div>
                     </div>
@@ -453,7 +498,7 @@ export function PCFinderSpectacular({
                       <div>
                         <div className="text-sm text-gray-400">Memory</div>
                         <div className="text-lg font-bold text-white">
-                          32GB DDR5
+                          {recommendation?.parts.memory || "32GB DDR5"}
                         </div>
                       </div>
                     </div>
@@ -468,7 +513,7 @@ export function PCFinderSpectacular({
                       <div>
                         <div className="text-sm text-gray-400">Storage</div>
                         <div className="text-lg font-bold text-white">
-                          2TB NVMe Gen5
+                          {recommendation?.parts.storage || "2TB NVMe Gen5"}
                         </div>
                       </div>
                     </div>
@@ -478,7 +523,44 @@ export function PCFinderSpectacular({
                   </div>
                 </div>
 
-                {/* Kevin's Expert Insight */}
+                {/* Additional parts summary and fulfilment info */}
+                {recommendation && (
+                  <div className="grid md:grid-cols-3 gap-4 mb-8 text-sm">
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-gray-300">
+                      <div className="font-semibold text-white mb-1">
+                        Cooling
+                      </div>
+                      <div>{recommendation.parts.cooling}</div>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-gray-300">
+                      <div className="font-semibold text-white mb-1">
+                        Power Supply
+                      </div>
+                      <div>{recommendation.parts.psu}</div>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-gray-300">
+                      <div className="font-semibold text-white mb-1">
+                        Case Style
+                      </div>
+                      <div>{recommendation.parts.case}</div>
+                    </div>
+                  </div>
+                )}
+
+                {recommendation && recommendation.notes.length > 0 && (
+                  <div className="mb-8 p-4 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-200">
+                    <div className="font-semibold text-white mb-2">
+                      Why this build?
+                    </div>
+                    <ul className="list-disc list-inside space-y-1">
+                      {recommendation.notes.map((n, i) => (
+                        <li key={i}>{n}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Kevin's Expert Insight - Enhanced Personalized Version */}
                 <div className="space-y-3 p-6 md:p-8 rounded-xl bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/30 backdrop-blur-sm hover:border-sky-400/40 transition-all duration-300 shadow-lg shadow-sky-500/10 mb-8">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-sky-500/50 animate-glow">
@@ -488,54 +570,312 @@ export function PCFinderSpectacular({
                       <h3 className="font-bold text-white text-xl mb-4">
                         Kevin's Expert Insight
                       </h3>
-                      <div className="space-y-3">
-                        {answers.purpose === "gaming" && (
-                          <p className="text-base text-gray-300 leading-relaxed">
-                            This flagship gaming configuration delivers
-                            uncompromising performance with the latest RTX GPU
-                            and high-speed DDR5 memory, creating a
-                            zero-bottleneck gaming experience with instant load
-                            times and seamless texture streaming even in the
-                            most demanding open-world games.
-                          </p>
-                        )}
+                      <div className="space-y-4">
+                        {/* Primary use case insight */}
+                        {answers.purpose === "gaming" &&
+                          answers.performance_ambition === "maximum" && (
+                            <>
+                              <p className="text-base text-gray-300 leading-relaxed">
+                                <strong className="text-white">
+                                  You're not here to compromise.
+                                </strong>{" "}
+                                This build is engineered for absolute gaming
+                                dominance. The{" "}
+                                {recommendation?.parts.gpu ||
+                                  "flagship RTX GPU"}{" "}
+                                paired with{" "}
+                                {recommendation?.parts.cpu ||
+                                  "high-core-count processor"}{" "}
+                                eliminates every bottleneck—you'll see 240+ FPS
+                                in competitive shooters and buttery-smooth
+                                ray-traced 4K in single-player masterpieces.
+                              </p>
+                              <p className="text-base text-gray-300 leading-relaxed">
+                                The{" "}
+                                {recommendation?.parts.memory ||
+                                  "high-speed DDR5"}{" "}
+                                ensures zero stuttering during asset streaming
+                                in massive open worlds like Cyberpunk 2077 or
+                                Starfield. With{" "}
+                                {recommendation?.parts.storage ||
+                                  "Gen5 NVMe storage"}
+                                , your load times will be measured in seconds,
+                                not minutes—fast travel becomes truly instant.
+                              </p>
+                            </>
+                          )}
+                        {answers.purpose === "gaming" &&
+                          answers.performance_ambition !== "maximum" && (
+                            <>
+                              <p className="text-base text-gray-300 leading-relaxed">
+                                <strong className="text-white">
+                                  Smart gaming without the unnecessary expense.
+                                </strong>{" "}
+                                This configuration hits the sweet spot—maxed
+                                settings at 1440p or high settings at 4K in
+                                virtually every modern title. The{" "}
+                                {recommendation?.parts.gpu || "RTX GPU"} brings
+                                ray tracing and DLSS 3.5 for stunning visuals
+                                without sacrificing frame rates.
+                              </p>
+                              <p className="text-base text-gray-300 leading-relaxed">
+                                I've balanced the{" "}
+                                {recommendation?.parts.cpu || "CPU"} to prevent
+                                any GPU bottlenecking whilst keeping your budget
+                                sensible. The{" "}
+                                {recommendation?.parts.memory || "DDR5 memory"}{" "}
+                                capacity means you can game with Discord,
+                                Spotify, and Chrome open without a single frame
+                                drop.
+                              </p>
+                            </>
+                          )}
+
                         {answers.purpose === "creative" && (
-                          <p className="text-base text-gray-300 leading-relaxed">
-                            This professional workstation is optimised for
-                            creative workflows with generous high-speed memory
-                            enabling smooth 4K video editing and real-time
-                            colour grading. The powerful GPU provides hardware
-                            acceleration for Adobe Creative Suite, DaVinci
-                            Resolve, and Blender, dramatically reducing export
-                            times.
-                          </p>
+                          <>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              <strong className="text-white">
+                                Built for creators who can't afford to wait.
+                              </strong>{" "}
+                              The{" "}
+                              {recommendation?.parts.cpu ||
+                                "multi-core processor"}{" "}
+                              handles 4K timeline scrubbing in DaVinci Resolve
+                              like it's child's play—real-time colour grading
+                              with multiple nodes applied, no proxy files
+                              needed.
+                            </p>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              Your {recommendation?.parts.gpu || "GPU"}{" "}
+                              accelerates Adobe After Effects renders by 3-5x
+                              compared to CPU-only systems. Combined with{" "}
+                              {recommendation?.parts.memory || "generous RAM"},
+                              you'll effortlessly work with 8K footage, complex
+                              3D renders in Blender, or massive Photoshop files
+                              with hundreds of layers. The{" "}
+                              {recommendation?.parts.storage ||
+                                "fast NVMe storage"}{" "}
+                              means exporting a 20-minute 4K video takes
+                              minutes, not hours.
+                            </p>
+                          </>
                         )}
+
                         {answers.purpose === "content_creation" && (
-                          <p className="text-base text-gray-300 leading-relaxed">
-                            Perfect for content creators, this streaming
-                            powerhouse features the NVIDIA RTX encoder for
-                            crystal-clear stream quality with minimal CPU
-                            overhead. You'll maintain 1080p60 or 1440p60 streams
-                            whilst playing demanding games without frame drops.
+                          <>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              <strong className="text-white">
+                                Stream, record, and create without compromise.
+                              </strong>{" "}
+                              The dedicated NVENC encoder in your{" "}
+                              {recommendation?.parts.gpu || "RTX GPU"} handles
+                              streaming at 1080p60 or 1440p60 with zero
+                              performance impact on your game—I'm talking sub-1%
+                              frame drops.
+                            </p>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              The{" "}
+                              {recommendation?.parts.cpu ||
+                                "high-core processor"}{" "}
+                              manages OBS, game, Discord, and browser tabs
+                              simultaneously without breaking a sweat.{" "}
+                              {recommendation?.parts.memory || "Plenty of RAM"}{" "}
+                              ensures your recordings never stutter, even during
+                              intense gameplay moments. Plus, the{" "}
+                              {recommendation?.parts.storage ||
+                                "fast storage solution"}{" "}
+                              means you can record hours of footage without
+                              worrying about write speeds causing dropped
+                              frames.
+                            </p>
+                          </>
+                        )}
+
+                        {answers.purpose === "development" && (
+                          <>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              <strong className="text-white">
+                                Code compiles, containers, and chaos—handled.
+                              </strong>{" "}
+                              The{" "}
+                              {recommendation?.parts.cpu || "multi-core CPU"}{" "}
+                              demolishes build times—full project recompiles
+                              that used to take 5 minutes now finish in under 60
+                              seconds. Running multiple Docker containers? The{" "}
+                              {recommendation?.parts.memory ||
+                                "substantial RAM allocation"}{" "}
+                              keeps everything responsive.
+                            </p>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              Your{" "}
+                              {recommendation?.parts.storage || "NVMe storage"}{" "}
+                              handles massive node_modules folders and database
+                              writes without slowing down your IDE. Perfect for
+                              running local Kubernetes clusters, multiple VMs,
+                              or heavy database operations whilst keeping 50+
+                              Chrome tabs open for documentation.
+                            </p>
+                          </>
+                        )}
+
+                        {answers.purpose === "professional" && (
+                          <>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              <strong className="text-white">
+                                Enterprise-grade reliability for serious work.
+                              </strong>{" "}
+                              This workstation is built for stability under
+                              sustained loads—whether you're running complex
+                              simulations, financial modelling, or large dataset
+                              analysis.
+                            </p>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              The{" "}
+                              {recommendation?.parts.cpu ||
+                                "professional-grade CPU"}{" "}
+                              and{" "}
+                              {recommendation?.parts.memory ||
+                                "ECC-ready memory"}{" "}
+                              ensure your calculations remain accurate during
+                              marathon work sessions.{" "}
+                              {recommendation?.parts.storage || "Fast storage"}{" "}
+                              means opening enormous Excel files, CAD drawings,
+                              or databases happens instantly, not eventually.
+                            </p>
+                          </>
+                        )}
+
+                        {answers.purpose === "home" && (
+                          <>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              <strong className="text-white">
+                                Versatility is the name of the game.
+                              </strong>{" "}
+                              This balanced build handles everything you throw
+                              at it—from casual gaming and photo editing to
+                              browsing with 40 tabs open and managing your smart
+                              home.
+                            </p>
+                            <p className="text-base text-gray-300 leading-relaxed">
+                              The{" "}
+                              {recommendation?.parts.cpu ||
+                                "efficient processor"}{" "}
+                              sips power during light tasks but accelerates when
+                              needed.{" "}
+                              {recommendation?.parts.memory || "Sufficient RAM"}{" "}
+                              means seamless multitasking, and the{" "}
+                              {recommendation?.parts.storage || "fast storage"}{" "}
+                              keeps Windows feeling snappy for years to come.
+                            </p>
+                          </>
+                        )}
+
+                        {/* Priority component insight */}
+                        {answers.priority_component === "gpu" && (
+                          <p className="text-base text-sky-200 leading-relaxed">
+                            💡{" "}
+                            <em>
+                              You prioritised graphics power, and it shows.
+                            </em>{" "}
+                            I've allocated more of your budget to the GPU—this
+                            means higher resolutions, better ray tracing, and
+                            longer-term relevance as games become more
+                            demanding.
                           </p>
                         )}
-                        {(answers.purpose === "professional" ||
-                          answers.purpose === "development" ||
-                          answers.purpose === "home") && (
-                          <p className="text-base text-gray-300 leading-relaxed">
-                            This balanced configuration delivers excellent
-                            performance for your workload whilst maintaining
-                            efficiency. The carefully selected components
-                            provide reliable performance with enough capability
-                            for both demanding tasks and future needs.
+                        {answers.priority_component === "cpu" && (
+                          <p className="text-base text-sky-200 leading-relaxed">
+                            💡 <em>CPU-focused builds age like fine wine.</em>{" "}
+                            Your extra cores mean this system stays relevant for
+                            5+ years, handling future software that hasn't even
+                            been written yet.
                           </p>
                         )}
+                        {answers.priority_component === "memory" && (
+                          <p className="text-base text-sky-200 leading-relaxed">
+                            💡 <em>RAM headroom is peace of mind.</em> You'll
+                            never see "low memory" warnings, even with dozens of
+                            applications running. Chrome can finally have all
+                            the tabs it wants.
+                          </p>
+                        )}
+                        {answers.priority_component === "storage" && (
+                          <p className="text-base text-sky-200 leading-relaxed">
+                            💡 <em>Fast storage is the unsung hero.</em> Every
+                            single thing you do—from boot to game load to file
+                            transfer—is noticeably faster. It's the upgrade you
+                            feel in every interaction.
+                          </p>
+                        )}
+
+                        {/* Budget tier specific insights */}
                         {answers.budget >= 3000 && (
-                          <p className="text-base text-gray-300 leading-relaxed">
-                            At this premium tier, we source only flagship
-                            components with proven reliability. Every part is
-                            stress-tested for 24 hours before assembly to ensure
-                            absolute stability under sustained workloads.
+                          <p className="text-base text-amber-200 leading-relaxed">
+                            ⭐ <strong>Premium Build Standard:</strong> At this
+                            investment level, every component receives 24-hour
+                            stress testing before assembly. I personally verify
+                            thermal performance and run memory stability tests.
+                            You're getting reliability that matters when
+                            deadlines loom.
+                          </p>
+                        )}
+                        {answers.budget >= 2000 && answers.budget < 3000 && (
+                          <p className="text-base text-emerald-200 leading-relaxed">
+                            ✨ <strong>Enthusiast Sweet Spot:</strong> This
+                            price range is where price-to-performance peaks.
+                            You're getting 90% of flagship performance at 60% of
+                            the cost—the smart choice for demanding users.
+                          </p>
+                        )}
+                        {answers.budget < 2000 && answers.budget >= 1200 && (
+                          <p className="text-base text-blue-200 leading-relaxed">
+                            🎯 <strong>Value Optimised:</strong> I've squeezed
+                            every ounce of performance from your budget by
+                            selecting components with proven reliability and
+                            strong real-world benchmarks—no compromises where it
+                            counts.
+                          </p>
+                        )}
+
+                        {/* Aesthetics insight */}
+                        {answers.aesthetics === "rgb_max" && (
+                          <p className="text-base text-purple-200 leading-relaxed">
+                            🌈 <strong>RGB Done Right:</strong> Your{" "}
+                            {recommendation?.parts.case || "showcase case"}{" "}
+                            features synchronized lighting that's controllable
+                            via software—create custom profiles for different
+                            moods or games. Because a beautiful PC brings joy
+                            every time you look at it.
+                          </p>
+                        )}
+                        {answers.aesthetics === "minimal" && (
+                          <p className="text-base text-gray-200 leading-relaxed">
+                            🖤 <strong>Stealth Performance:</strong> No flashy
+                            lights, just pure capability. This build looks
+                            professional in any environment whilst delivering
+                            uncompromising power. Perfect for offices or
+                            minimalist setups.
+                          </p>
+                        )}
+
+                        {/* Timeline insight */}
+                        {answers.timeline === "rush" &&
+                          recommendation?.fulfilment.priorityFlag && (
+                            <p className="text-base text-orange-200 leading-relaxed">
+                              ⚡ <strong>Express Priority:</strong> Your build
+                              jumps the queue—assembly starts within 24 hours.
+                              I'll personally oversee quality control to ensure
+                              speed doesn't compromise perfection. Expected
+                              dispatch in 2-3 working days.
+                            </p>
+                          )}
+                        {answers.timeline === "flexible" && (
+                          <p className="text-base text-green-200 leading-relaxed">
+                            🍃 <strong>Patient Perfectionism:</strong> Your
+                            flexibility lets me source optimal component batches
+                            and potentially save you money if prices drop during
+                            your wait window. Great choice for non-urgent
+                            upgrades.
                           </p>
                         )}
                       </div>
