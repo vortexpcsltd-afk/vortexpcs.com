@@ -32,16 +32,16 @@ export function Footer({ onNavigate }: FooterProps) {
 
   const supportLinks = [
     { label: "Repair Service", view: "repair" },
-    { label: "Warranty Information", view: "home" },
-    { label: "Technical Support", view: "home" },
+    { label: "Warranty Information", view: "warranty" },
+    { label: "Technical Support", view: "support" },
     { label: "FAQs", view: "faq" },
     { label: "Build Status", view: "member" },
   ];
 
   const companyLinks = [
     { label: "About Us", view: "about" },
-    { label: "Our Process", view: "home" },
-    { label: "Quality Standards", view: "home" },
+    { label: "Our Process", view: "process" },
+    { label: "Quality Standards", view: "quality" },
     { label: "Member Area", view: "member" },
     { label: "Contact Us", view: "contact" },
   ];
@@ -50,7 +50,7 @@ export function Footer({ onNavigate }: FooterProps) {
     { label: "Terms of Service", view: "terms" },
     { label: "Privacy Policy", view: "privacy" },
     { label: "Cookie Policy", view: "cookies" },
-    { label: "Returns & Refunds", view: "home" },
+    { label: "Returns & Refunds", view: "returns" },
   ];
 
   return (

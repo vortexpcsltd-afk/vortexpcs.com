@@ -18,6 +18,11 @@ import { OrderSuccess } from "./components/OrderSuccess";
 import { CheckoutPage } from "./components/CheckoutPage";
 import { HomePage } from "./components/HomePage";
 import { TermsPage } from "./components/TermsPage";
+import { WarrantyPage } from "./components/WarrantyPage";
+import { TechnicalSupportPage } from "./components/TechnicalSupportPage";
+import { ReturnsRefundsPage } from "./components/ReturnsRefundsPage";
+import { OurProcessPage } from "./components/OurProcessPage";
+import { QualityStandardsPage } from "./components/QualityStandardsPage";
 import { CmsDiagnostics } from "./components/CmsDiagnostics";
 import { PrivacyPage } from "./components/PrivacyPage";
 import { CookiePolicyPage } from "./components/CookiePolicyPage";
@@ -323,6 +328,16 @@ export default function App() {
         );
       case "terms":
         return <TermsPage />;
+      case "warranty":
+        return <WarrantyPage onNavigate={onNavigate} />;
+      case "process":
+        return <OurProcessPage onNavigate={onNavigate} />;
+      case "support":
+        return <TechnicalSupportPage onNavigate={onNavigate} />;
+      case "quality":
+        return <QualityStandardsPage onNavigate={onNavigate} />;
+      case "returns":
+        return <ReturnsRefundsPage onNavigate={onNavigate} />;
       case "privacy":
         return <PrivacyPage />;
       case "cookies":
