@@ -66,6 +66,7 @@ import {
   AlertCircle,
   Sparkles,
   Trash2,
+  Download,
 } from "lucide-react";
 
 // Dark themed placeholder image
@@ -1097,10 +1098,24 @@ const ComponentDetailModal = ({
 
             {/* Technical Specs in Clean Grid */}
             <div className="bg-slate-900/60 rounded-xl p-6 border border-sky-500/20">
-              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-sky-400" />
-                Technical Specifications
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-sky-400" />
+                  Technical Specifications
+                </h3>
+                {component.techSheet && (
+                  <a
+                    href={component.techSheet}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-sky-500/50"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Download className="w-4 h-4" />
+                    Download Full Tech Sheet
+                  </a>
+                )}
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {technicalSpecs.map((spec, index) => (
                   <div
@@ -2807,7 +2822,9 @@ export function PCBuilder({
   useEffect(() => {
     const loadCmsData = async () => {
       try {
-        console.log("🔄 Loading PC components and optional extras from CMS...");
+        console.log(
+          "🔄 Loading PC components and optional extras - please wait..."
+        );
         setIsLoadingCms(true);
 
         // Load PC components
@@ -2826,9 +2843,7 @@ export function PCBuilder({
         for (const category of categories) {
           const components = await fetchPCComponents({ category });
           componentResults[category] = components;
-          console.log(
-            `✅ Loaded ${components.length} ${category} components from CMS`
-          );
+          console.log(`✅ Loaded ${components.length} ${category} components`);
         }
 
         // Load optional extras
@@ -2844,9 +2859,7 @@ export function PCBuilder({
         for (const category of extraCategories) {
           const extras = await fetchPCOptionalExtras({ category });
           extraResults[category] = extras;
-          console.log(
-            `✅ Loaded ${extras.length} ${category} optional extras from CMS`
-          );
+          console.log(`✅ Loaded ${extras.length} ${category} optional extras`);
         }
 
         setCmsComponents(componentResults);

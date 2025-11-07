@@ -297,6 +297,9 @@ export interface PCComponent {
   tdpSupport?: number;
   radiatorSize?: string;
   rgbLighting?: boolean;
+
+  // Technical documentation
+  techSheet?: string; // URL to downloadable PDF tech sheet
 }
 
 // PC Optional Extra Interface
@@ -1969,6 +1972,11 @@ function mapContentfulToComponent(
     tdpSupport: fields.tdpSupport,
     radiatorSize: fields.radiatorSize,
     rgbLighting: fields.rgbLighting,
+
+    // Technical documentation
+    techSheet: fields.techSheet?.fields?.file?.url
+      ? `https:${fields.techSheet.fields.file.url}`
+      : undefined,
   };
 }
 
