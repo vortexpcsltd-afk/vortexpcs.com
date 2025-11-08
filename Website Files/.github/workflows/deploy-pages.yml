@@ -64,6 +64,11 @@ jobs:
             sed -i -E "s|(href=\"https://www.vortexpcs.com/vortexpcs-logo.png\?v=)[^\"]+(\")|\1$VERSION\2|g" dist/index.html || true
           fi
 
+      - name: SPA fallback (copy index.html to 404.html)
+        working-directory: ./Website Files
+        run: |
+          cp dist/index.html dist/404.html || echo "404 fallback copy skipped"
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
