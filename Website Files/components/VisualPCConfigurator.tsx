@@ -132,17 +132,27 @@ export function VisualPCConfigurator() {
       ];
       const results: Record<string, PCComponent[]> = {};
 
+      console.log(
+        "🔧 VisualPCConfigurator: Starting to load components from CMS..."
+      );
+
       for (const cat of categories) {
         try {
           const items = await fetchPCComponents({
             category: cat === "memory" ? "ram" : cat,
           });
           results[cat] = items || [];
+          console.log(
+            `📦 Loaded ${items?.length || 0} components for category: ${cat}`,
+            items
+          );
         } catch (error) {
           console.error(`Failed to load ${cat}:`, error);
           results[cat] = [];
         }
       }
+
+      console.log("✅ All components loaded:", results);
       setCmsComponents(results);
       setIsLoadingComponents(false);
     };
