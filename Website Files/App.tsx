@@ -43,7 +43,6 @@ import {
   Home,
   Info,
   Phone,
-  Boxes,
 } from "lucide-react";
 import { fetchSettings, fetchPageContent } from "./services/cms";
 import { trackPageView, trackEvent } from "./services/database";
@@ -267,7 +266,6 @@ export default function App() {
   const navigation = [
     { id: "pc-finder", label: "PC Finder", icon: Search },
     { id: "pc-builder", label: "PC Builder", icon: Settings },
-    { id: "visual-configurator", label: "3D Builder", icon: Boxes },
     { id: "repair", label: "Repair Service", icon: Wrench },
     { id: "about", label: "About", icon: Info },
     { id: "contact", label: "Contact", icon: Phone },

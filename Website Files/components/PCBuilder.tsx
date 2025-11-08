@@ -163,6 +163,7 @@ import {
   Trash2,
   Download,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 // Dark themed placeholder image
 const PLACEHOLDER_IMAGE =
@@ -3037,6 +3038,7 @@ export function PCBuilder({
       });
     });
   };
+  const navigate = useNavigate();
 
   // Fetch components from CMS on mount
   useEffect(() => {
@@ -4495,6 +4497,14 @@ export function PCBuilder({
               >
                 <Sparkles className="w-4 h-4 mr-2" />
                 Enthusiast Builder
+              </Button>
+              <Button
+                onClick={() => navigate("/visual-configurator")}
+                variant="outline"
+                className="border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 hover:text-white px-6 py-6 text-base rounded-xl transition-all duration-300"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                3D Builder
               </Button>
             </div>
 
