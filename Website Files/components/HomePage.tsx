@@ -366,7 +366,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
               "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component."}
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-8 sm:mb-12 md:mb-16 animate-fade-in animation-delay-600 px-4 max-w-2xl mx-auto">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-8 sm:mb-12 md:mb-16 animate-fade-in animation-delay-600 px-4 max-w-3xl mx-auto">
             <Button
               onClick={() => setCurrentView("pc-finder")}
               variant="primary"
@@ -375,6 +375,15 @@ export function HomePage({ setCurrentView }: HomePageProps) {
             >
               <Search className="h-4 w-4 sm:h-5 sm:w-5" />
               Find Your Perfect PC
+            </Button>
+            <Button
+              onClick={() => setCurrentView("visual-configurator")}
+              variant="outline"
+              size="lg"
+              className="w-full sm:w-auto text-sm sm:text-base md:text-lg bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-purple-500/40 text-purple-300 hover:from-purple-500/30 hover:to-pink-500/30"
+            >
+              <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+              3D Configurator
             </Button>
             <Button
               onClick={() => setCurrentView("pc-builder")}
@@ -612,7 +621,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
               </p>
 
               {/* Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 md:gap-5 justify-center items-center max-w-2xl mx-auto">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 md:gap-5 justify-center items-center max-w-3xl mx-auto">
                 <Button
                   onClick={() => setCurrentView("pc-finder")}
                   variant="primary"
@@ -621,6 +630,15 @@ export function HomePage({ setCurrentView }: HomePageProps) {
                 >
                   <Search className="h-4 w-4 sm:h-5 sm:w-5" />
                   Start PC Finder
+                </Button>
+
+                <Button
+                  onClick={() => setCurrentView("visual-configurator")}
+                  size="xl"
+                  className="w-full sm:w-auto text-sm sm:text-base md:text-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50"
+                >
+                  <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                  3D Configurator
                 </Button>
 
                 <Button

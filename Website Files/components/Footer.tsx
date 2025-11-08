@@ -349,11 +349,15 @@ export function Footer({ onNavigate }: FooterProps) {
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full">
+                <div className="flex items-center gap-3 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full">
                   <span className="text-xs text-gray-400">
                     Designed & Built in the UK
                   </span>
-                  <span className="text-sm">🇬🇧</span>
+                  <img
+                    src="/union-jack.svg"
+                    alt="Union Jack"
+                    className="w-5 h-3 rounded-sm"
+                  />
                 </div>
               </div>
             </div>
