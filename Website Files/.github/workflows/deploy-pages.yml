@@ -21,12 +21,15 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
+        working-directory: ./Website Files
         run: npm ci
 
       - name: Build
+        working-directory: ./Website Files
         run: npm run build --if-present
 
       - name: Fetch CMS meta and inject into dist/index.html
+        working-directory: ./Website Files
         # This step will use Contentful credentials stored in repository secrets to fetch
         # site settings and the homepage content, then inject meta/OG/Twitter tags into dist/index.html
         # Optional: Configure these secrets in GitHub if using Contentful
@@ -40,6 +43,7 @@ jobs:
           node scripts/inject-meta.js || echo "Meta injection skipped (Contentful not configured)"
 
       - name: Inject version into built files
+        working-directory: ./Website Files
         # Update dist/version.json and patch dist/index.html meta/script/fav links so clients fetch new assets
         run: |
           set -e
@@ -64,9 +68,10 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
+          publish_dir: ./Website Files/dist
 
       - name: Display deployed version
+        working-directory: ./Website Files
         if: success()
         run: |
           echo "Deployed version:"
