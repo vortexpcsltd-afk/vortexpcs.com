@@ -1745,7 +1745,8 @@ export const fetchPCComponents = async (params?: {
   featured?: boolean;
 }): Promise<PCComponent[]> => {
   if (!isContentfulEnabled || !contentfulClient) {
-    console.log("📦 Contentful not enabled, returning empty components array");
+    console.log("📦 Contentful not enabled, using fallback components");
+    if (params?.category) return getFallbackPCComponents(params.category);
     return [];
   }
 
@@ -1806,6 +1807,29 @@ export const fetchPCComponents = async (params?: {
           rawFields: Object.keys(response.items[0].fields),
         });
       }
+      // If the content type exists but returned 0 items, try legacy fallback
+      if (allComponents.length === 0) {
+        console.log(
+          `ℹ️ No entries for '${params.category}' content type. Trying legacy fallback...`
+        );
+        try {
+          const legacy = await legacyFetchComponents(params.category!, {
+            limit: params.limit,
+            featured: params.featured,
+          });
+          if (legacy.length > 0) {
+            console.log(
+              `✅ Legacy fallback succeeded for '${params.category}' with ${legacy.length} components`
+            );
+            return legacy;
+          }
+        } catch (e) {
+          console.warn(
+            `⚠️ Legacy fallback errored for '${params.category}':`,
+            (e as any)?.message || e
+          );
+        }
+      }
     } else {
       // Fetch all categories
       for (const [category, contentType] of Object.entries(contentTypeMap)) {
@@ -1836,13 +1860,229 @@ export const fetchPCComponents = async (params?: {
       });
     }
 
+    // If still empty and single category requested, return static fallback so UI isn't blank
+    if (params?.category && allComponents.length === 0) {
+      const fallback = getFallbackPCComponents(params.category);
+      if (fallback.length > 0) {
+        console.log(
+          `🧰 Returning static fallback components for '${params.category}' (${fallback.length})`
+        );
+      }
+      return fallback;
+    }
     return allComponents;
   } catch (error: any) {
-    console.error("Fetch PC components error:", error);
-    console.error("Error details:", error.message);
+    console.error("❌ Fetch PC components error:", error?.message || error);
+    // Attempt legacy fallback if a specific category was requested
+    if (params?.category) {
+      console.log(
+        `🔄 Attempting legacy fallback for category '${params.category}' using 'component' content type...`
+      );
+      try {
+        const legacyResults = await legacyFetchComponents(params.category, {
+          limit: params.limit,
+          featured: params.featured,
+        });
+        if (legacyResults.length > 0) {
+          console.log(
+            `✅ Legacy fallback succeeded for '${params.category}' with ${legacyResults.length} components`
+          );
+          return legacyResults;
+        } else {
+          console.warn(
+            `⚠️ Legacy fallback returned 0 components for '${params.category}'`
+          );
+        }
+      } catch (legacyError: any) {
+        console.error(
+          `❌ Legacy fallback failed for '${params.category}':`,
+          legacyError?.message || legacyError
+        );
+      }
+    }
+    console.error("Error details:", error?.message);
     return [];
   }
 };
+
+/**
+ * Legacy fallback: fetch from older unified 'component' content type with category/type fields.
+ */
+async function legacyFetchComponents(
+  category: string,
+  options?: { limit?: number; featured?: boolean }
+): Promise<PCComponent[]> {
+  if (!contentfulClient) return [];
+  const baseQuery: any = {
+    content_type: "component",
+    limit: options?.limit || 100,
+  };
+
+  // Try filtering by fields.category first
+  const queries: any[] = [
+    { ...baseQuery, "fields.category": category },
+    { ...baseQuery, "fields.type": category }, // Secondary attempt: some spaces used 'type'
+  ];
+
+  const collected: PCComponent[] = [];
+  for (const q of queries) {
+    try {
+      const res = await contentfulClient.getEntries(q);
+      if (res.items.length === 0) {
+        console.log(
+          `ℹ️ Legacy query returned 0 items for filter ${
+            Object.keys(q).includes("fields.category")
+              ? "fields.category"
+              : "fields.type"
+          }='${category}'`
+        );
+        continue;
+      }
+      console.log(
+        `📦 Legacy fetch: ${res.items.length} items for ${
+          Object.keys(q).includes("fields.category") ? "category" : "type"
+        }='${category}'`
+      );
+      const mapped = res.items.map((item: any) =>
+        mapContentfulToComponent(item, category, res.includes)
+      );
+      // Merge without duplicates (by id)
+      for (const m of mapped) {
+        if (!collected.find((c) => c.id === m.id)) {
+          collected.push(m);
+        }
+      }
+    } catch (e: any) {
+      console.warn(
+        `⚠️ Legacy fetch failed for ${
+          Object.keys(q).includes("fields.category") ? "category" : "type"
+        }='${category}':`,
+        e?.message || e
+      );
+    }
+  }
+  return collected;
+}
+
+/**
+ * Static fallback components for each category to ensure UI isn't empty
+ * when CMS is unavailable or empty. Minimal fields only.
+ */
+function getFallbackPCComponents(category: string): PCComponent[] {
+  const img = "/vortexpcs-logo.png";
+  switch (category) {
+    case "case":
+      return [
+        {
+          id: "fallback-case-1",
+          name: "Lian Li O11 Dynamic",
+          price: 159,
+          category: "case",
+          brand: "Lian Li",
+          images: [img],
+          inStock: true,
+          features: ["ATX", "Tempered Glass"],
+        },
+      ];
+    case "motherboard":
+      return [
+        {
+          id: "fallback-mobo-1",
+          name: "ASUS ROG Strix X670E",
+          price: 389,
+          category: "motherboard",
+          brand: "ASUS",
+          socket: "AM5",
+          images: [img],
+          inStock: true,
+        },
+      ];
+    case "cpu":
+      return [
+        {
+          id: "fallback-cpu-1",
+          name: "AMD Ryzen 7 7800X3D",
+          price: 399,
+          category: "cpu",
+          brand: "AMD",
+          cores: 8,
+          threads: 16,
+          images: [img],
+          inStock: true,
+        },
+      ];
+    case "gpu":
+      return [
+        {
+          id: "fallback-gpu-1",
+          name: "NVIDIA GeForce RTX 4070",
+          price: 549,
+          category: "gpu",
+          brand: "NVIDIA",
+          vram: 12,
+          images: [img],
+          inStock: true,
+        },
+      ];
+    case "ram":
+      return [
+        {
+          id: "fallback-ram-1",
+          name: "32GB DDR5-6000",
+          price: 129,
+          category: "ram",
+          brand: "G.Skill",
+          capacity: 32,
+          type: "DDR5",
+          images: [img],
+          inStock: true,
+        },
+      ];
+    case "storage":
+      return [
+        {
+          id: "fallback-storage-1",
+          name: "Samsung 990 Pro 2TB NVMe",
+          price: 179,
+          category: "storage",
+          brand: "Samsung",
+          storageCapacity: "2TB",
+          interface: "NVMe",
+          images: [img],
+          inStock: true,
+        },
+      ];
+    case "psu":
+      return [
+        {
+          id: "fallback-psu-1",
+          name: "Corsair RM850x",
+          price: 139,
+          category: "psu",
+          brand: "Corsair",
+          wattage: 850,
+          efficiency: "80+ Gold",
+          images: [img],
+          inStock: true,
+        },
+      ];
+    case "cooling":
+      return [
+        {
+          id: "fallback-cool-1",
+          name: "360mm AIO Liquid Cooler",
+          price: 129,
+          category: "cooling",
+          brand: "NZXT",
+          radiatorSize: "360mm",
+          images: [img],
+          inStock: true,
+        },
+      ];
+    default:
+      return [];
+  }
+}
 
 /**
  * Helper function to map Contentful entry to PCComponent
