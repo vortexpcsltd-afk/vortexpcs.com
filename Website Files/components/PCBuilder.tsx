@@ -4501,10 +4501,13 @@ export function PCBuilder({
               <Button
                 onClick={() => navigate("/visual-configurator")}
                 variant="outline"
-                className="border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 hover:text-white px-6 py-6 text-base rounded-xl transition-all duration-300"
+                className="border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 hover:text-white px-6 py-6 text-base rounded-xl transition-all duration-300 flex items-center"
               >
                 <Settings className="w-4 h-4 mr-2" />
                 3D Builder
+                <Badge className="ml-2 bg-sky-500/20 border-sky-500/40 text-sky-300">
+                  3D Visualization
+                </Badge>
               </Button>
             </div>
 
