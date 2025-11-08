@@ -39,6 +39,15 @@ jobs:
           VERSION="$(date -u +%Y-%m-%d-%H%M%S)-${GITHUB_SHA:0:8}"
           TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "{\"version\":\"$VERSION\",\"timestamp\":\"$TIMESTAMP\",\"build\":\"github-actions\"}" > dist/version.json
+          # Inject version meta into index.html for quick visibility/debugging
+          if grep -q '<meta name="cache-version"' dist/index.html; then
+            sed -i "s|<meta name=\"cache-version\" content=\"\" />|<meta name=\"cache-version\" content=\"$VERSION\" />|" dist/index.html || true
+          fi
+          # Append ?v=VERSION to asset references in index.html to defeat CDN/browser caches of old chunks
+          sed -i -E "s|(src=\"/assets/[^\"\?]*)(\"[^>]*>)|\1?v=$VERSION\2|g" dist/index.html || true
+          sed -i -E "s|(href=\"/assets/[^\"\?]*)(\"[^>]*>)|\1?v=$VERSION\2|g" dist/index.html || true
+          sed -i -E "s|(src=\"assets/[^\"\?]*)(\"[^>]*>)|\1?v=$VERSION\2|g" dist/index.html || true
+          sed -i -E "s|(href=\"assets/[^\"\?]*)(\"[^>]*>)|\1?v=$VERSION\2|g" dist/index.html || true
           cp dist/index.html dist/404.html || echo "404 fallback copy skipped"
 
       - name: Deploy to GitHub Pages

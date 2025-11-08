@@ -73,6 +73,38 @@ export default function App() {
 
   // Simulate login state and cookie consent
   useEffect(() => {
+    // Runtime version check to avoid stale cached builds
+    (async () => {
+      try {
+        const res = await fetch("/version.json", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          const latestVersion = data?.version || "unknown";
+          const prior = localStorage.getItem("vortex_app_version");
+          if (prior && prior !== latestVersion) {
+            console.log(
+              `🔄 New site version detected: ${latestVersion} (was ${prior}). Reloading to get the latest assets...`
+            );
+            localStorage.setItem("vortex_app_version", latestVersion);
+            // Avoid reload loops in rare cases
+            const reloadedFor = sessionStorage.getItem("vortex_reloaded_for");
+            if (reloadedFor !== latestVersion) {
+              sessionStorage.setItem("vortex_reloaded_for", latestVersion);
+              const url = new URL(window.location.href);
+              url.searchParams.set("v", latestVersion);
+              window.location.replace(url.toString());
+              return;
+            }
+          } else if (!prior) {
+            localStorage.setItem("vortex_app_version", latestVersion);
+          }
+          console.log(`🧩 App version: ${latestVersion}`);
+        }
+      } catch (e) {
+        // Best-effort only; ignore errors
+      }
+    })();
+
     const checkAuth = () => {
       // Mock authentication check
       const mockUser = localStorage.getItem("vortex_user");
