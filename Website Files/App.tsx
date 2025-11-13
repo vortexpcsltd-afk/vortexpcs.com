@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Button } from "./components/ui/button";
 import { logger } from "./services/logger";
 import type { CartItem, ContentfulAsset, ContentfulImage } from "./types";
@@ -113,6 +113,71 @@ import { Card } from "./components/ui/card";
 import { fetchSettings, fetchPageContent } from "./services/cms";
 import { trackPageView, trackEvent } from "./services/database";
 const vortexLogo = "/vortexpcs-logo.png";
+
+// Business Dashboard Guard Component
+function BusinessDashboardGuard({
+  isLoggedIn,
+  setShowLoginDialog,
+  setCurrentView,
+}: {
+  isLoggedIn: boolean;
+  setShowLoginDialog: (show: boolean) => void;
+  setCurrentView: (view: string) => void;
+}) {
+  const { userProfile, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white py-12 px-4">
+        <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-8 max-w-md text-center">
+          <Shield className="w-16 h-16 text-sky-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
+          <p className="text-gray-400 mb-6">
+            You must be logged in to access the Business Dashboard.
+          </p>
+          <Button
+            onClick={() => setShowLoginDialog(true)}
+            className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+          >
+            Sign In
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (userProfile?.accountType !== "business") {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white py-12 px-4">
+        <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-8 max-w-md text-center">
+          <Building2 className="w-16 h-16 text-amber-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-4">Business Account Required</h2>
+          <p className="text-gray-400 mb-6">
+            The Business Dashboard is only accessible to verified business
+            customers. Business accounts are created by our team during
+            onboarding.
+          </p>
+          <Button
+            onClick={() => setCurrentView("business-solutions")}
+            className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+          >
+            Learn About Business Solutions
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  return <BusinessDashboard setCurrentView={setCurrentView} />;
+}
 
 export default function App() {
   const navigate = useNavigate();
@@ -508,69 +573,16 @@ export default function App() {
             <BusinessSolutions setCurrentView={onNavigate} />
           </PageErrorBoundary>
         );
-      case "business-dashboard": {
-        // Require authentication and business account type
-        if (!isLoggedIn) {
-          return (
-            <PageErrorBoundary pageName="Access Denied">
-              <div className="min-h-screen flex items-center justify-center text-white py-12 px-4">
-                <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-8 max-w-md text-center">
-                  <Shield className="w-16 h-16 text-sky-400 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold mb-4">
-                    Authentication Required
-                  </h2>
-                  <p className="text-gray-400 mb-6">
-                    You must be logged in to access the Business Dashboard.
-                  </p>
-                  <Button
-                    onClick={() => setShowLoginDialog(true)}
-                    className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
-                  >
-                    Sign In
-                  </Button>
-                </Card>
-              </div>
-            </PageErrorBoundary>
-          );
-        }
-
-        // Check if user has business account type
-        const userStr = localStorage.getItem("vortex_user");
-        const userData = userStr ? JSON.parse(userStr) : null;
-        const accountType = userData?.accountType || "personal";
-
-        if (accountType !== "business") {
-          return (
-            <PageErrorBoundary pageName="Access Denied">
-              <div className="min-h-screen flex items-center justify-center text-white py-12 px-4">
-                <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-8 max-w-md text-center">
-                  <Building2 className="w-16 h-16 text-amber-400 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold mb-4">
-                    Business Account Required
-                  </h2>
-                  <p className="text-gray-400 mb-6">
-                    The Business Dashboard is only accessible to verified
-                    business customers. Business accounts are created by our
-                    team during onboarding.
-                  </p>
-                  <Button
-                    onClick={() => setCurrentView("business-solutions")}
-                    className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
-                  >
-                    Learn About Business Solutions
-                  </Button>
-                </Card>
-              </div>
-            </PageErrorBoundary>
-          );
-        }
-
+      case "business-dashboard":
         return (
           <PageErrorBoundary pageName="Business Dashboard">
-            <BusinessDashboard setCurrentView={onNavigate} />
+            <BusinessDashboardGuard
+              isLoggedIn={isLoggedIn}
+              setShowLoginDialog={setShowLoginDialog}
+              setCurrentView={setCurrentView}
+            />
           </PageErrorBoundary>
         );
-      }
       case "about":
         return (
           <PageErrorBoundary pageName="About Us">
