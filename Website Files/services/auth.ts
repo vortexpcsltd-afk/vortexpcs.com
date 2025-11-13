@@ -12,6 +12,8 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role?: string;
+  accountType?: "general" | "business";
+  accountNumber?: string;
   phone?: string;
   address?: string;
   marketingOptOut?: boolean; // true means user opted out of marketing emails
@@ -54,12 +56,35 @@ export const registerUser = async (
       uid: user.uid,
       email: user.email!,
       displayName,
+      accountType: "general",
       marketingOptOut: false,
       createdAt: new Date(),
       lastLogin: new Date(),
     };
 
     await setDoc(doc(db, "users", user.uid), userProfile);
+
+    // Assign unique account number via serverless API (idempotent)
+    try {
+      const idToken = await user.getIdToken();
+      const resp = await fetch("/api/users/assign-account-number", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ uid: user.uid, accountType: "general" }),
+      });
+      if (!resp.ok) {
+        const msg = await resp.text();
+        logger.warn("Account number assignment failed", {
+          status: resp.status,
+          msg,
+        });
+      }
+    } catch (e) {
+      logger.warn("Account number assignment error", { err: String(e) });
+    }
 
     return user;
   } catch (error: unknown) {
@@ -190,12 +215,34 @@ export const loginWithGoogle = async (): Promise<User> => {
         uid: user.uid,
         email: user.email!,
         displayName: user.displayName || "User",
+        accountType: "general",
         marketingOptOut: false,
         createdAt: new Date(),
         lastLogin: new Date(),
       };
 
       await setDoc(doc(db, "users", user.uid), userProfile);
+      // Assign unique account number via serverless API (idempotent)
+      try {
+        const idToken = await user.getIdToken();
+        const resp = await fetch("/api/users/assign-account-number", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ uid: user.uid, accountType: "general" }),
+        });
+        if (!resp.ok) {
+          const msg = await resp.text();
+          logger.warn("Account number assignment failed", {
+            status: resp.status,
+            msg,
+          });
+        }
+      } catch (e) {
+        logger.warn("Account number assignment error", { err: String(e) });
+      }
     } else {
       // Update last login
       const { updateDoc } = await import("firebase/firestore");

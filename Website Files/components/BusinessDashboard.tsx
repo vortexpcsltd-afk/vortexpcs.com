@@ -4,7 +4,7 @@
  * service agreements, purchased workstations, and support tickets
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -34,6 +34,10 @@ import {
   BarChart3,
   Bell,
 } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { logoutUser } from "../services/auth";
+import { toast } from "sonner";
+import { logger } from "../services/logger";
 
 interface BusinessDashboardProps {
   setCurrentView: (view: string) => void;
@@ -84,16 +88,68 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
   const [activeTab, setActiveTab] = useState<
     "overview" | "subscriptions" | "workstations" | "support"
   >("overview");
+  const { userProfile } = useAuth();
 
-  // Mock data - would be fetched from backend
-  const businessInfo = {
-    companyName: "Example Business Ltd",
-    accountNumber: "VTX-BUS-2024-001",
-    contactPerson: "John Smith",
-    email: "john.smith@example.com",
-    phone: "+44 1234 567890",
-    memberSince: "January 2024",
-  };
+  const businessInfo = useMemo(() => {
+    const u = userProfile as unknown as {
+      uid?: string;
+      email?: string;
+      displayName?: string;
+      companyName?: string;
+      contactPerson?: string;
+      phone?: string;
+      createdAt?: unknown;
+      accountNumber?: string;
+    } | null;
+    let createdAt: Date | null = null;
+    if (u?.createdAt) {
+      const raw = u.createdAt as unknown as
+        | { toDate?: () => Date }
+        | string
+        | number
+        | Date;
+      if (
+        typeof raw === "object" &&
+        raw !== null &&
+        "toDate" in raw &&
+        typeof raw.toDate === "function"
+      ) {
+        try {
+          createdAt = raw.toDate();
+        } catch {
+          createdAt = null;
+        }
+      } else if (
+        typeof raw === "string" ||
+        typeof raw === "number" ||
+        raw instanceof Date
+      ) {
+        const d = new Date(raw);
+        createdAt = isNaN(d.getTime()) ? null : d;
+      }
+    }
+    const memberSince = createdAt
+      ? createdAt.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "long",
+        })
+      : "—";
+    return {
+      companyName: u?.companyName || u?.displayName || "Business Customer",
+      accountNumber: u?.accountNumber || u?.uid || "—",
+      contactPerson: u?.contactPerson || u?.displayName || "—",
+      email: u?.email || "—",
+      phone: u?.phone || "—",
+      memberSince,
+    } as {
+      companyName: string;
+      accountNumber: string;
+      contactPerson: string;
+      email: string;
+      phone: string;
+      memberSince: string;
+    };
+  }, [userProfile]);
 
   const subscriptions: Subscription[] = [
     {
@@ -297,13 +353,34 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                 Welcome back, {businessInfo.companyName}
               </p>
             </div>
-            <Button
-              onClick={() => setCurrentView("business-solutions")}
-              className="bg-white/10 hover:bg-white/20 border border-white/20"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Services
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setCurrentView("business-solutions")}
+                className="bg-white/10 hover:bg-white/20 border border-white/20"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Services
+              </Button>
+              <Button
+                variant="outline"
+                className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                onClick={async () => {
+                  try {
+                    await logoutUser();
+                  } catch (e) {
+                    logger.warn("Firebase logout failed", { e });
+                  }
+                  try {
+                    localStorage.removeItem("vortex_user");
+                  } catch (e) {
+                    logger.debug("localStorage cleanup skipped", { e });
+                  }
+                  window.location.href = "/";
+                }}
+              >
+                Logout
+              </Button>
+            </div>
           </div>
 
           {/* Account Info Card */}
@@ -450,6 +527,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                   <Button
                     size="sm"
                     className="bg-white/10 hover:bg-white/20 border border-white/20"
+                    onClick={() => setActiveTab("workstations")}
                   >
                     View All
                   </Button>
@@ -635,6 +713,9 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                       <Button
                         size="sm"
                         className="bg-white/10 hover:bg-white/20 border border-white/20"
+                        onClick={() =>
+                          toast.info("Agreement viewer coming soon")
+                        }
                       >
                         <FileText className="w-4 h-4 mr-2" />
                         View Agreement
@@ -642,6 +723,9 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                       <Button
                         size="sm"
                         className="bg-white/10 hover:bg-white/20 border border-white/20"
+                        onClick={() =>
+                          toast.info("Manage subscription coming soon")
+                        }
                       >
                         <Settings className="w-4 h-4 mr-2" />
                         Manage
@@ -770,6 +854,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                     <Button
                       size="sm"
                       className="flex-1 bg-white/10 hover:bg-white/20 border border-white/20"
+                      onClick={() => toast.info("Downloads coming soon")}
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Download Docs
@@ -876,6 +961,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                       <Button
                         size="sm"
                         className="bg-white/10 hover:bg-white/20 border border-white/20"
+                        onClick={() => setActiveTab("support")}
                       >
                         View Details
                         <ChevronRight className="w-4 h-4 ml-2" />

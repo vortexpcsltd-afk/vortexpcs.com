@@ -27,6 +27,7 @@ interface UserProfile {
   marketingOptOut?: boolean;
   role?: string;
   accountType?: string;
+  accountNumber?: string;
   phone?: string;
   address?: string;
   createdAt: Date;
@@ -75,8 +76,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Load user profile from Firestore
         import("../services/auth").then(({ getUserProfile }) => {
           getUserProfile(firebaseUser.uid)
-            .then((profile) => {
+            .then(async (profile) => {
               setUserProfile(profile);
+              // Assign account number on login if missing (idempotent)
+              try {
+                if (profile && !profile.accountNumber) {
+                  const { getCurrentUser } = await import("../services/auth");
+                  const current = getCurrentUser();
+                  if (current && typeof (current as unknown) === "object") {
+                    const getIdToken = (
+                      current as unknown as {
+                        getIdToken?: () => Promise<string>;
+                      }
+                    ).getIdToken;
+                    const idToken =
+                      typeof getIdToken === "function"
+                        ? await getIdToken()
+                        : undefined;
+                    if (idToken) {
+                      await fetch("/api/users/assign-account-number", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${idToken}`,
+                        },
+                        body: JSON.stringify({
+                          uid: firebaseUser.uid,
+                          accountType: profile.accountType || "general",
+                        }),
+                      });
+                      // Refresh profile after assignment
+                      try {
+                        const refreshed = await getUserProfile(
+                          firebaseUser.uid
+                        );
+                        setUserProfile(refreshed);
+                      } catch (e) {
+                        logger.warn("Profile refresh after assign failed", {
+                          err: String(e),
+                        });
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                logger.warn("Assign-on-login failed", { err: String(e) });
+              }
             })
             .catch((error) => {
               logger.error("Failed to load user profile:", error);

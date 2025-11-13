@@ -16,7 +16,8 @@
     "predeploy": "npm run build && powershell -Command \"Copy-Item -Path dist/index.html -Destination dist/404.html -Force; if (Test-Path dist/CNAME) { Remove-Item dist/CNAME -Force }\"",
     "deploy": "gh-pages -d dist",
     "postinstall": "echo 'Dependencies installed successfully'",
-    "contentful:update-post": "node scripts/update-blog-post.mjs"
+    "contentful:update-post": "node scripts/update-blog-post.mjs",
+    "backfill:accountNumbers": "node scripts/backfill-account-numbers.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.64",
@@ -67,6 +68,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.5.1",
     "firebase": "^10.14.1",
+    "firebase-admin": "^13.6.0",
     "input-otp": "^1.4.1",
     "lucide-react": "^0.460.0",
     "nodemailer": "^7.0.10",

@@ -85,13 +85,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!isAdmin)
       return res.status(403).json({ message: "Admin privileges required" });
 
-    const { email, displayName, companyName, contactName, phone } = (req.body ||
-      {}) as {
+    const {
+      email,
+      displayName,
+      companyName,
+      contactName,
+      phone,
+      tempPassword,
+    } = (req.body || {}) as {
       email?: string;
       displayName?: string;
       companyName?: string;
       contactName?: string;
       phone?: string;
+      tempPassword?: string;
     };
 
     if (!email || !displayName || !companyName || !contactName) {
@@ -100,12 +107,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Create user in Firebase Auth (no password; will send reset link)
+    // Create user in Firebase Auth
     const userRecord = await admin.auth().createUser({
       email,
       displayName,
       emailVerified: false,
       disabled: false,
+      ...(tempPassword ? { password: tempPassword } : {}),
     });
 
     // Create Firestore profile with business account type
@@ -128,13 +136,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         { merge: true }
       );
 
-    // Generate password reset link so the customer can set their password
-    const resetLink = await admin.auth().generatePasswordResetLink(email);
+    // Generate unique business account number if not already present
+    try {
+      const userRef = db.collection("users").doc(userRecord.uid);
+      await db.runTransaction(async (tx: any) => {
+        const userSnap = await tx.get(userRef);
+        const current = userSnap.exists ? userSnap.data() : null;
+        if (current?.accountNumber) {
+          return; // idempotent
+        }
+        const countersRef = db.collection("counters").doc("accountNumbers");
+        const countersSnap = await tx.get(countersRef);
+        const data = countersSnap.exists ? countersSnap.data() : {};
+        const currentSeq =
+          typeof data?.business === "number" ? data.business : 0;
+        const nextSeq = currentSeq + 1;
+        tx.set(countersRef, { business: nextSeq }, { merge: true });
+        const padded = String(nextSeq).padStart(6, "0");
+        const accountNumber = `VTXBUS-${padded}`;
+        tx.set(userRef, { accountNumber }, { merge: true });
+      });
+    } catch (e) {
+      console.error("Failed to generate business account number:", e);
+    }
+
+    // Option A: Admin set a temporary password — skip email and reset link
+    let resetLink: string | null = null;
+    let appLink: string | null = null;
+    if (!tempPassword) {
+      // Generate password reset link so the customer can set their password
+      const rawLink = await admin.auth().generatePasswordResetLink(email);
+      resetLink = rawLink;
+
+      // Build a first-party app link to /set-password using the oobCode
+      try {
+        const url = new URL(rawLink);
+        const oob = url.searchParams.get("oobCode");
+        const host =
+          (req.headers["x-forwarded-host"] as string) ||
+          (req.headers.host as string) ||
+          process.env.VERCEL_URL;
+        const proto = (req.headers["x-forwarded-proto"] as string) || "https";
+        const origin = host
+          ? `${host.startsWith("http") ? "" : `${proto}://`}${host}`
+          : process.env.PUBLIC_APP_URL || "https://vortexpcs.com";
+        if (oob) {
+          appLink = `${origin}/set-password?oobCode=${encodeURIComponent(
+            oob
+          )}&email=${encodeURIComponent(email)}`;
+        }
+      } catch (e) {
+        appLink = null;
+      }
+    }
 
     // Attempt to send a branded welcome email with the reset link directly via SMTP
     let emailSent = false;
     let emailError: string | null = null;
     try {
+      if (tempPassword) {
+        // When admin sets a temporary password, we do NOT include it in email for security.
+        // Optionally still send a welcome email without reset link.
+      }
       // Try dynamic import of branded email template builder; fallback if unavailable
       let buildBrandedEmailHtml: undefined | ((opts: any) => string);
       try {
@@ -146,9 +209,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         buildBrandedEmailHtml = undefined;
       }
 
-      const subject = `Welcome to Vortex PCs for Business — Set your password`;
-      const preheader = `Hi ${contactName}, your business account is ready. Set your password to sign in.`;
-      const cta = `<a href="${resetLink}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:linear-gradient(90deg,#0ea5e9,#2563eb);color:#ffffff;font-weight:700">Set your password</a>`;
+      const subject = tempPassword
+        ? `Welcome to Vortex PCs for Business — Your account is ready`
+        : `Welcome to Vortex PCs for Business — Set your password`;
+      const preheader = tempPassword
+        ? `Hi ${contactName}, your business account has been created. Please sign in and change your password.`
+        : `Hi ${contactName}, your business account is ready. Set your password to sign in.`;
+      const linkToUse = appLink || resetLink;
+      const cta =
+        !tempPassword && linkToUse
+          ? `<a href="${linkToUse}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:linear-gradient(90deg,#0ea5e9,#2563eb);color:#ffffff;font-weight:700">Set your password</a>`
+          : `<a href="https://vortexpcs.com/member" style="display:inline-block;padding:12px 22px;border-radius:10px;background:linear-gradient(90deg,#0ea5e9,#2563eb);color:#ffffff;font-weight:700">Go to Member Area</a>`;
 
       const contentHtml = `
         <h2 style="margin:0 0 8px 0;color:#e5e7eb;font-size:18px;">Hi ${escapeHtml(
@@ -157,11 +228,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         <p style="margin:0 0 12px 0;color:#cbd5e1;">We've created your business account for <strong style="color:#fff;">${escapeHtml(
           companyName
         )}</strong> on Vortex PCs.</p>
-        <p style="margin:0 0 12px 0;color:#cbd5e1;">Please set your password to finish setting up your access. This link will take you to a secure page to choose a password.</p>
+        ${
+          tempPassword
+            ? `<p style="margin:0 0 12px 0;color:#cbd5e1;">Your account has been created. Please sign in on our website and change your password from your account settings.</p>`
+            : `<p style="margin:0 0 12px 0;color:#cbd5e1;">Please set your password to finish setting up your access. This link will take you to a secure page to choose a password.</p>`
+        }
         ${cta}
-        <p style="margin:16px 0 0 0;color:#94a3b8;font-size:13px;">If the button doesn't work, copy and paste this link into your browser:<br/><span style="word-break:break-all;color:#a5b4fc;">${escapeHtml(
-          resetLink
-        )}</span></p>
+        ${
+          !tempPassword && linkToUse
+            ? `<p style="margin:16px 0 0 0;color:#94a3b8;font-size:13px;">If the button doesn't work, copy and paste this link into your browser:<br/><span style="word-break:break-all;color:#a5b4fc;">${escapeHtml(
+                linkToUse
+              )}</span></p>`
+            : ""
+        }
       `;
 
       const html = buildBrandedEmailHtml
@@ -201,6 +280,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         auth: { user: smtpUser, pass: smtpPass },
       });
 
+      // Always send a welcome email; when tempPassword is set, no secret is included
       await transporter.sendMail({
         from: `Vortex PCs <${fromAddress}>`,
         to: email,
@@ -238,7 +318,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       success: true,
       uid: userRecord.uid,
-      resetLink,
+      resetLink: appLink || resetLink,
+      passwordSet: !!tempPassword,
       emailSent,
       emailError: emailSent ? undefined : emailError,
     });

@@ -68,6 +68,9 @@ const LoggedOutPage = lazy(() =>
 import { HomePage } from "./components/HomePage";
 import { BusinessSolutions } from "./components/BusinessSolutions";
 import { BusinessDashboard } from "./components/BusinessDashboard";
+const SetPassword = lazy(() =>
+  import("./components/SetPassword").then((m) => ({ default: m.default }))
+);
 import { TermsPage } from "./components/TermsPage";
 import { WarrantyPage } from "./components/WarrantyPage";
 import { TechnicalSupportPage } from "./components/TechnicalSupportPage";
@@ -583,6 +586,12 @@ export default function App() {
             />
           </PageErrorBoundary>
         );
+      case "set-password":
+        return (
+          <PageErrorBoundary pageName="Set Password">
+            <SetPassword />
+          </PageErrorBoundary>
+        );
       case "about":
         return (
           <PageErrorBoundary pageName="About Us">
@@ -704,6 +713,7 @@ export default function App() {
           "visual-configurator",
           "business-solutions",
           "business-dashboard",
+          "set-password",
           "blog",
           "author",
           "repair",

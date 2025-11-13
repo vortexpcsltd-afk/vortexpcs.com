@@ -263,6 +263,8 @@ export function AdminPanel() {
   const [cbResetLink, setCbResetLink] = useState<string | null>(null);
   const [cbEmailSent, setCbEmailSent] = useState<boolean | null>(null);
   const [cbEmailError, setCbEmailError] = useState<string | null>(null);
+  const [cbSetPasswordNow, setCbSetPasswordNow] = useState(false);
+  const [cbTempPassword, setCbTempPassword] = useState("");
 
   // Meta tags state
   const [metaTags, setMetaTags] = useState({
@@ -328,6 +330,22 @@ export function AdminPanel() {
   >([]);
   const [ticketReplyUploadProgress, setTicketReplyUploadProgress] =
     useState<number>(0);
+
+  // Audit logs state (account number assignments monitoring)
+  type AuditLog = {
+    id: string;
+    type: string;
+    targetUid?: string | null;
+    accountNumber?: string | null;
+    accountType?: string | null;
+    performedBy?: string | null;
+    performedAt?: Date | string | null;
+  };
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilter, setAuditFilter] = useState<
+    "all" | "assign_account_number" | "backfill_account_number"
+  >("all");
 
   // Handle attachment uploads (sequential to keep it simple)
   const handleTicketAttachmentUpload = async (
@@ -575,6 +593,71 @@ export function AdminPanel() {
     }
   }, [isAdmin]);
 
+  // Load audit logs when Audit tab is active
+  useEffect(() => {
+    const loadAuditLogs = async () => {
+      try {
+        setAuditLoading(true);
+        const { db } = await import("../config/firebase");
+        if (!db) {
+          setAuditLogs([]);
+          return;
+        }
+        const { collection, getDocs, orderBy, query, limit } = await import(
+          "firebase/firestore"
+        );
+        const q = query(
+          collection(db, "admin_audit_logs"),
+          orderBy("performedAt", "desc"),
+          limit(50)
+        );
+        const snap = await getDocs(q);
+        const rows: AuditLog[] = snap.docs.map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          let performedAt: Date | string | null = null;
+          try {
+            const raw = data["performedAt"];
+            if (
+              raw &&
+              typeof raw === "object" &&
+              "toDate" in (raw as object) &&
+              typeof (raw as { toDate?: unknown }).toDate === "function"
+            ) {
+              performedAt = (raw as { toDate: () => Date }).toDate();
+            } else if (typeof raw === "string") {
+              performedAt = raw;
+            } else if (raw instanceof Date) {
+              performedAt = raw;
+            }
+          } catch (e) {
+            logger.warn("Failed to parse audit performedAt", {
+              err: String(e),
+            });
+          }
+          return {
+            id: d.id,
+            type: String(data["type"] ?? ""),
+            targetUid: (data["targetUid"] as string) ?? null,
+            accountNumber: (data["accountNumber"] as string) ?? null,
+            accountType: (data["accountType"] as string) ?? null,
+            performedBy: (data["performedBy"] as string) ?? null,
+            performedAt,
+          };
+        });
+        setAuditLogs(rows);
+      } catch (error) {
+        logger.error("Admin Panel - Error loading audit logs", { error });
+        setAuditLogs([]);
+      } finally {
+        setAuditLoading(false);
+      }
+    };
+
+    if (isAdmin && activeTab === "audit") {
+      loadAuditLogs();
+    }
+  }, [isAdmin, activeTab]);
+
   // Get filtered inventory based on selected category
   const getFilteredInventory = () => {
     if (selectedCategory === "all") {
@@ -792,7 +875,7 @@ export function AdminPanel() {
               className="space-y-4 sm:space-y-6"
             >
               <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 pb-2 sm:pb-0">
-                <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-7 bg-white/5 border-white/10">
+                <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-8 bg-white/5 border-white/10">
                   <TabsTrigger
                     value="dashboard"
                     className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
@@ -834,6 +917,12 @@ export function AdminPanel() {
                     className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
                   >
                     Emails
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="audit"
+                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
+                  >
+                    Audit
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -1385,6 +1474,155 @@ export function AdminPanel() {
                     </div>
                   </Card>
                 )}
+              </TabsContent>
+
+              {/* Audit Tab */}
+              <TabsContent value="audit" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">
+                      Audit Logs
+                    </h3>
+                    <p className="text-gray-400 mt-1">
+                      Recent account number assignments and backfill events
+                    </p>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <Select
+                      value={auditFilter}
+                      onValueChange={(v) =>
+                        setAuditFilter(
+                          v as
+                            | "all"
+                            | "assign_account_number"
+                            | "backfill_account_number"
+                        )
+                      }
+                    >
+                      <SelectTrigger className="bg-white/5 border-white/10 text-white w-56">
+                        <SelectValue placeholder="Filter by type" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-white/10">
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="assign_account_number">
+                          assign_account_number
+                        </SelectItem>
+                        <SelectItem value="backfill_account_number">
+                          backfill_account_number
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      className="border-white/20 text-white hover:bg-white/10"
+                      onClick={() => {
+                        // Simple reload by flipping tabs quickly
+                        setActiveTab("dashboard");
+                        setTimeout(() => setActiveTab("audit"), 10);
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Reload
+                    </Button>
+                  </div>
+                </div>
+
+                <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden">
+                  {auditLoading ? (
+                    <div className="text-center py-12">
+                      <Loader2 className="w-12 h-12 text-sky-400 animate-spin mx-auto mb-4" />
+                      <p className="text-gray-400">Loading audit logs...</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-white/10">
+                            <TableHead className="text-white">When</TableHead>
+                            <TableHead className="text-white">Type</TableHead>
+                            <TableHead className="text-white">
+                              Account Number
+                            </TableHead>
+                            <TableHead className="text-white">
+                              Account Type
+                            </TableHead>
+                            <TableHead className="text-white">
+                              Target UID
+                            </TableHead>
+                            <TableHead className="text-white">
+                              Performed By
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {auditLogs
+                            .filter(
+                              (l) =>
+                                auditFilter === "all" || l.type === auditFilter
+                            )
+                            .map((log) => {
+                              const when = (() => {
+                                const v = log.performedAt;
+                                try {
+                                  if (v instanceof Date)
+                                    return v.toLocaleString();
+                                  if (typeof v === "string") {
+                                    const d = new Date(v);
+                                    return isNaN(d.getTime())
+                                      ? "—"
+                                      : d.toLocaleString();
+                                  }
+                                } catch (e) {
+                                  logger.warn("Failed to render audit time", {
+                                    err: String(e),
+                                  });
+                                }
+                                return "—";
+                              })();
+                              return (
+                                <TableRow
+                                  key={log.id}
+                                  className="border-white/10"
+                                >
+                                  <TableCell className="text-white whitespace-nowrap">
+                                    {when}
+                                  </TableCell>
+                                  <TableCell className="text-white whitespace-nowrap">
+                                    {log.type}
+                                  </TableCell>
+                                  <TableCell className="text-white whitespace-nowrap">
+                                    {log.accountNumber || "—"}
+                                  </TableCell>
+                                  <TableCell className="text-white whitespace-nowrap">
+                                    {log.accountType || "—"}
+                                  </TableCell>
+                                  <TableCell className="text-white whitespace-nowrap">
+                                    {log.targetUid || "—"}
+                                  </TableCell>
+                                  <TableCell className="text-white whitespace-nowrap">
+                                    {log.performedBy || "—"}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          {auditLogs.filter(
+                            (l) =>
+                              auditFilter === "all" || l.type === auditFilter
+                          ).length === 0 && (
+                            <TableRow>
+                              <TableCell
+                                colSpan={6}
+                                className="text-center text-gray-400 py-8"
+                              >
+                                No audit entries found for this filter.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </Card>
               </TabsContent>
 
               {/* Customers Tab */}
@@ -2218,9 +2456,51 @@ export function AdminPanel() {
                         className="bg-white/5 border-white/10 text-white"
                       />
                     </div>
+                    <div className="p-3 rounded-lg border border-white/10 bg-white/5">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label className="text-white">
+                          Set password now (no email link)
+                        </Label>
+                        <input
+                          type="checkbox"
+                          checked={cbSetPasswordNow}
+                          onChange={(e) =>
+                            setCbSetPasswordNow(e.target.checked)
+                          }
+                        />
+                      </div>
+                      {cbSetPasswordNow && (
+                        <div className="mt-3">
+                          <Label className="text-white">
+                            Temporary password
+                          </Label>
+                          <Input
+                            type="text"
+                            value={cbTempPassword}
+                            onChange={(e) => setCbTempPassword(e.target.value)}
+                            placeholder="Set a temporary password"
+                            className="bg-white/5 border-white/10 text-white"
+                          />
+                          <p className="text-xs text-gray-400 mt-2">
+                            The password will be set immediately. It is not
+                            emailed — share it securely with the customer and
+                            ask them to change it after logging in.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                     {cbError && (
                       <div className="text-red-400 text-sm">{cbError}</div>
                     )}
+                    {cbSetPasswordNow && !cbResetLink ? (
+                      <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded">
+                        <p className="text-blue-300 text-sm">
+                          Password set for {cbEmail}. No email link was sent.
+                          Share the temporary password securely and advise
+                          changing it after first login.
+                        </p>
+                      </div>
+                    ) : null}
                     {cbResetLink ? (
                       <div className="p-4 bg-green-500/10 border border-green-500/30 rounded">
                         <p className="text-green-300 font-semibold mb-2">
@@ -2239,7 +2519,7 @@ export function AdminPanel() {
                             variant="outline"
                             className="border-white/20 text-white hover:bg-white/10"
                             onClick={() =>
-                              navigator.clipboard.writeText(cbResetLink)
+                              navigator.clipboard.writeText(cbResetLink!)
                             }
                           >
                             Copy
@@ -2320,6 +2600,9 @@ export function AdminPanel() {
                                 displayName: cbDisplayName,
                                 email: cbEmail,
                                 phone: cbPhone,
+                                ...(cbSetPasswordNow && cbTempPassword
+                                  ? { tempPassword: cbTempPassword }
+                                  : {}),
                               }),
                             }
                           );
@@ -2332,6 +2615,10 @@ export function AdminPanel() {
                           }
                           const data = await res.json();
                           setCbResetLink(data.resetLink || null);
+                          if (data.passwordSet) {
+                            // If password was set, we won't have a link; ensure state reflects that
+                            setCbResetLink(null);
+                          }
                           setCbEmailSent(!!data.emailSent);
                           setCbEmailError(data.emailError || null);
                           if (data.emailSent) {

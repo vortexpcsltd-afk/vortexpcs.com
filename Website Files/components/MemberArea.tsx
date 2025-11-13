@@ -612,6 +612,14 @@ export function MemberArea({
                 <p className="text-sm sm:text-base text-gray-400">
                   Member since {getMemberSince()}
                 </p>
+                {userProfile?.accountNumber && (
+                  <p className="text-xs sm:text-sm text-gray-300 mt-1">
+                    Account Number:{" "}
+                    <span className="text-sky-400 font-semibold">
+                      {userProfile.accountNumber}
+                    </span>
+                  </p>
+                )}
               </div>
             </div>
             <Button
