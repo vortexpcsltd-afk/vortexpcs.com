@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import {
@@ -11,11 +11,31 @@ import {
   X,
 } from "lucide-react";
 import { Switch } from "./ui/switch";
+import { fetchLegalPage, type LegalPage } from "../services/cms";
+import { HtmlContent } from "./cms/HtmlContent";
 
 export function CookiePolicyPage() {
+  const [cms, setCms] = useState<LegalPage | null>(null);
   const [essentialEnabled] = React.useState(true); // Always enabled
   const [analyticsEnabled, setAnalyticsEnabled] = React.useState(false);
   const [marketingEnabled, setMarketingEnabled] = React.useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await fetchLegalPage("cookies");
+        if (active && data && data.content && data.content.trim().length > 0) {
+          setCms(data);
+        }
+      } catch {
+        // Silent fallback
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const cookieTypes = [
     {
@@ -181,7 +201,10 @@ export function CookiePolicyPage() {
           <h1 className="text-white mb-4">Cookie Policy</h1>
           <p className="text-gray-400">
             Last updated:{" "}
-            {new Date().toLocaleDateString("en-GB", {
+            {(cms?.lastUpdated
+              ? new Date(cms.lastUpdated)
+              : new Date()
+            ).toLocaleDateString("en-GB", {
               day: "numeric",
               month: "long",
               year: "numeric",
@@ -189,24 +212,31 @@ export function CookiePolicyPage() {
           </p>
         </div>
 
-        {/* Introduction */}
-        <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-8 mb-8">
-          <div className="flex items-start gap-4 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/40 flex items-center justify-center flex-shrink-0">
-              <Cookie className="w-6 h-6 text-sky-400" />
+        {/* Introduction / CMS Content */}
+        {cms?.content ? (
+          <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-8 mb-8">
+            <HtmlContent html={cms.content} />
+          </Card>
+        ) : (
+          <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-8 mb-8">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/40 flex items-center justify-center flex-shrink-0">
+                <Cookie className="w-6 h-6 text-sky-400" />
+              </div>
+              <div>
+                <h2 className="text-white mb-2">What Are Cookies?</h2>
+                <p className="text-gray-300">
+                  Cookies are small text files that are placed on your device
+                  when you visit our website. They help us provide you with a
+                  better experience by remembering your preferences, analysing
+                  how you use our site, and enabling certain functionality. This
+                  policy explains what cookies we use and how you can control
+                  them.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-white mb-2">What Are Cookies?</h2>
-              <p className="text-gray-300">
-                Cookies are small text files that are placed on your device when
-                you visit our website. They help us provide you with a better
-                experience by remembering your preferences, analysing how you
-                use our site, and enabling certain functionality. This policy
-                explains what cookies we use and how you can control them.
-              </p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         {/* Cookie Types with Controls */}
         <div className="mb-12">

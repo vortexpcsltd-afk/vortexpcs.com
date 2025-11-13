@@ -18,6 +18,24 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
+import { logger } from "./logger";
+
+// Timestamp helper utilities
+type TimestampLike = { toDate: () => Date };
+const hasToDate = (val: unknown): val is TimestampLike =>
+  !!val &&
+  typeof val === "object" &&
+  "toDate" in val &&
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  typeof (val as Record<string, unknown> as any).toDate === "function";
+const toDateSafe = (value: unknown): Date | undefined => {
+  if (hasToDate(value)) return value.toDate();
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  if (typeof value === "string") return new Date(value);
+  return undefined;
+};
+// (db, logger imports moved to top to avoid patch corruption)
 
 export interface Order {
   id?: string;
@@ -53,7 +71,7 @@ export interface Order {
   };
   paymentId?: string;
   buildUpdates?: Array<{
-    timestamp: any;
+    timestamp: Timestamp | Date;
     progress: number;
     status: string;
     note: string;
@@ -66,10 +84,54 @@ export interface SavedConfiguration {
   id?: string;
   userId: string;
   name: string;
-  components: Record<string, any>;
+  components: Record<string, unknown>;
   totalPrice: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Support ticket types
+export type TicketStatus =
+  | "open"
+  | "in-progress"
+  | "awaiting-customer"
+  | "resolved"
+  | "closed";
+export type TicketPriority = "low" | "normal" | "high" | "urgent";
+
+export interface TicketAttachment {
+  name: string;
+  url: string;
+  size?: number;
+  type?: string;
+  path?: string;
+  scanStatus?: "pending" | "clean" | "infected" | "error";
+}
+
+export interface SupportTicketMessage {
+  senderId?: string | null;
+  senderName?: string | null;
+  body: string;
+  internal?: boolean; // visible to staff only
+  timestamp: Timestamp | Date; // Firestore Timestamp on write; Date when read back
+  attachments?: TicketAttachment[];
+}
+
+export interface SupportTicket {
+  id?: string;
+  userId?: string;
+  name: string;
+  email: string;
+  subject: string;
+  message?: string; // initial message (legacy field)
+  type: string; // e.g. technical, billing, order, other
+  status: TicketStatus;
+  priority?: TicketPriority;
+  category?: string;
+  assignedTo?: { userId: string; name?: string } | null;
+  createdAt: Date;
+  updatedAt?: Date;
+  messages?: SupportTicketMessage[];
 }
 
 /**
@@ -88,9 +150,11 @@ export const createOrder = async (
     });
 
     return docRef.id;
-  } catch (error: any) {
-    console.error("Create order error:", error);
-    throw new Error(error.message || "Failed to create order");
+  } catch (error: unknown) {
+    logger.error("Create order error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to create order"
+    );
   }
 };
 
@@ -107,16 +171,18 @@ export const getOrder = async (orderId: string): Promise<Order | null> => {
       return {
         id: docSnap.id,
         ...data,
-        orderDate: data.orderDate?.toDate(),
-        estimatedCompletion: data.estimatedCompletion?.toDate(),
-        deliveryDate: data.deliveryDate?.toDate(),
+        orderDate: toDateSafe(data.orderDate),
+        estimatedCompletion: toDateSafe(data.estimatedCompletion),
+        deliveryDate: toDateSafe(data.deliveryDate),
       } as Order;
     }
 
     return null;
-  } catch (error: any) {
-    console.error("Get order error:", error);
-    throw new Error(error.message || "Failed to get order");
+  } catch (error: unknown) {
+    logger.error("Get order error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to get order"
+    );
   }
 };
 
@@ -124,9 +190,10 @@ export const getOrder = async (orderId: string): Promise<Order | null> => {
  * Get all orders for a user
  */
 export const getUserOrders = async (userId: string): Promise<Order[]> => {
-  // If Firebase is not configured, return empty array (no orders in development)
+  // If Firebase is not configured (truly undefined/null), return empty array.
+  // Allow tests with mocked/empty db objects to proceed to Firestore query mocks.
   if (!db) {
-    console.log("Firebase not configured - returning empty orders array");
+    logger.debug("Firebase not configured - returning empty orders array");
     return [];
   }
 
@@ -145,16 +212,18 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
       orders.push({
         id: doc.id,
         ...data,
-        orderDate: data.orderDate?.toDate(),
-        estimatedCompletion: data.estimatedCompletion?.toDate(),
-        deliveryDate: data.deliveryDate?.toDate(),
+        orderDate: toDateSafe(data.orderDate),
+        estimatedCompletion: toDateSafe(data.estimatedCompletion),
+        deliveryDate: toDateSafe(data.deliveryDate),
       } as Order);
     });
 
     return orders;
-  } catch (error: any) {
-    console.error("Get user orders error:", error);
-    throw new Error(error.message || "Failed to get user orders");
+  } catch (error: unknown) {
+    logger.error("Get user orders error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to get user orders"
+    );
   }
 };
 
@@ -173,9 +242,11 @@ export const updateOrderStatus = async (
       progress,
       updatedAt: Timestamp.now(),
     });
-  } catch (error: any) {
-    console.error("Update order status error:", error);
-    throw new Error(error.message || "Failed to update order status");
+  } catch (error: unknown) {
+    logger.error("Update order status error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to update order status"
+    );
   }
 };
 
@@ -193,9 +264,11 @@ export const saveConfiguration = async (
     });
 
     return docRef.id;
-  } catch (error: any) {
-    console.error("Save configuration error:", error);
-    throw new Error(error.message || "Failed to save configuration");
+  } catch (error: unknown) {
+    logger.error("Save configuration error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to save configuration"
+    );
   }
 };
 
@@ -206,8 +279,15 @@ export const getUserConfigurations = async (
   userId: string
 ): Promise<SavedConfiguration[]> => {
   // If Firebase is not configured, return empty array (no configurations in development)
-  if (!db) {
-    console.log(
+  const d = db as unknown;
+  if (
+    !(
+      !!d &&
+      typeof d === "object" &&
+      Object.keys(d as Record<string, unknown>).length > 0
+    )
+  ) {
+    logger.debug(
       "Firebase not configured - returning empty configurations array"
     );
     return [];
@@ -228,15 +308,19 @@ export const getUserConfigurations = async (
       configurations.push({
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate(),
-        updatedAt: data.updatedAt?.toDate(),
+        createdAt: toDateSafe(data.createdAt)!,
+        updatedAt: toDateSafe(data.updatedAt)!,
       } as SavedConfiguration);
     });
 
     return configurations;
-  } catch (error: any) {
-    console.error("Get user configurations error:", error);
-    throw new Error(error.message || "Failed to get user configurations");
+  } catch (error: unknown) {
+    logger.error("Get user configurations error:", error);
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Failed to get user configurations"
+    );
   }
 };
 
@@ -246,9 +330,11 @@ export const getUserConfigurations = async (
 export const deleteConfiguration = async (configId: string): Promise<void> => {
   try {
     await deleteDoc(doc(db, "configurations", configId));
-  } catch (error: any) {
-    console.error("Delete configuration error:", error);
-    throw new Error(error.message || "Failed to delete configuration");
+  } catch (error: unknown) {
+    logger.error("Delete configuration error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to delete configuration"
+    );
   }
 };
 
@@ -273,16 +359,18 @@ export const getAllOrders = async (
       orders.push({
         id: doc.id,
         ...data,
-        orderDate: data.orderDate?.toDate(),
-        estimatedCompletion: data.estimatedCompletion?.toDate(),
-        deliveryDate: data.deliveryDate?.toDate(),
+        orderDate: toDateSafe(data.orderDate),
+        estimatedCompletion: toDateSafe(data.estimatedCompletion),
+        deliveryDate: toDateSafe(data.deliveryDate),
       } as Order);
     });
 
     return orders;
-  } catch (error: any) {
-    console.error("Get all orders error:", error);
-    throw new Error(error.message || "Failed to get all orders");
+  } catch (error: unknown) {
+    logger.error("Get all orders error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to get all orders"
+    );
   }
 };
 
@@ -296,18 +384,157 @@ export const createSupportTicket = async (ticketData: {
   subject: string;
   message: string;
   type: string;
+  priority?: TicketPriority;
+  category?: string;
+  attachments?: TicketAttachment[]; // initial attachments (optional)
 }): Promise<string> => {
   try {
+    if (!db) {
+      throw new Error(
+        "Firebase is not initialized. Please check your environment variables."
+      );
+    }
+
+    const now = Timestamp.now();
+    const initialMessage: SupportTicketMessage = {
+      senderId: ticketData.userId || null,
+      senderName: ticketData.name || null,
+      body: ticketData.message,
+      internal: false,
+      timestamp: now,
+      attachments: ticketData.attachments || [],
+    };
+
     const docRef = await addDoc(collection(db, "support_tickets"), {
-      ...ticketData,
+      userId: ticketData.userId || null,
+      name: ticketData.name,
+      email: ticketData.email,
+      subject: ticketData.subject,
+      type: ticketData.type,
       status: "open",
-      createdAt: Timestamp.now(),
+      priority: ticketData.priority || "normal",
+      category: ticketData.category || null,
+      assignedTo: null,
+      messages: [initialMessage],
+      message: ticketData.message, // keep legacy field for compatibility
+      createdAt: now,
+      updatedAt: now,
     });
 
     return docRef.id;
-  } catch (error: any) {
-    console.error("Create support ticket error:", error);
-    throw new Error(error.message || "Failed to create support ticket");
+  } catch (error: unknown) {
+    logger.error("Create support ticket error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to create support ticket"
+    );
+  }
+};
+
+/**
+ * Add a message to a support ticket
+ */
+export const addSupportTicketMessage = async (
+  ticketId: string,
+  message: Omit<SupportTicketMessage, "timestamp"> & {
+    timestamp?: Timestamp | Date;
+  }
+): Promise<void> => {
+  try {
+    const docRef = doc(db, "support_tickets", ticketId);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) throw new Error("Ticket not found");
+
+    const data = snap.data() || {};
+    const existing: unknown[] = data.messages || [];
+    const entry: SupportTicketMessage = {
+      senderId: message.senderId ?? null,
+      senderName: message.senderName ?? null,
+      body: message.body,
+      internal: !!message.internal,
+      timestamp: message.timestamp || Timestamp.now(),
+      attachments: message.attachments || [],
+    };
+    await updateDoc(docRef, {
+      messages: [...existing, entry],
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error: unknown) {
+    logger.error("Add support ticket message error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to add message"
+    );
+  }
+};
+
+/** Assign a support ticket to a staff user */
+export const assignSupportTicket = async (
+  ticketId: string,
+  staffUserId: string,
+  staffName?: string
+): Promise<void> => {
+  try {
+    const docRef = doc(db, "support_tickets", ticketId);
+    await updateDoc(docRef, {
+      assignedTo: { userId: staffUserId, name: staffName || null },
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error: unknown) {
+    logger.error("Assign support ticket error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to assign ticket"
+    );
+  }
+};
+
+/** Set ticket status */
+export const setSupportTicketStatus = async (
+  ticketId: string,
+  status: TicketStatus
+): Promise<void> => {
+  try {
+    const docRef = doc(db, "support_tickets", ticketId);
+    await updateDoc(docRef, { status, updatedAt: Timestamp.now() });
+  } catch (error: unknown) {
+    logger.error("Set support ticket status error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to update ticket status"
+    );
+  }
+};
+
+/** Set ticket priority */
+export const setSupportTicketPriority = async (
+  ticketId: string,
+  priority: TicketPriority
+): Promise<void> => {
+  try {
+    const docRef = doc(db, "support_tickets", ticketId);
+    await updateDoc(docRef, { priority, updatedAt: Timestamp.now() });
+  } catch (error: unknown) {
+    logger.error("Set support ticket priority error:", error);
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Failed to update ticket priority"
+    );
+  }
+};
+
+/** Set ticket category */
+export const setSupportTicketCategory = async (
+  ticketId: string,
+  category: string
+): Promise<void> => {
+  try {
+    const docRef = doc(db, "support_tickets", ticketId);
+    await updateDoc(docRef, { category, updatedAt: Timestamp.now() });
+  } catch (error: unknown) {
+    logger.error("Set support ticket category error:", error);
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Failed to update ticket category"
+    );
   }
 };
 
@@ -325,8 +552,8 @@ export const trackPageView = async (
       page,
       timestamp: Timestamp.now(),
     });
-  } catch (error: any) {
-    console.error("Track page view error:", error);
+  } catch (error: unknown) {
+    logger.error("Track page view error:", error);
     // Don't throw - analytics should fail silently
   }
 };
@@ -346,8 +573,8 @@ export const trackEvent = async (
       data: data || {},
       timestamp: Timestamp.now(),
     });
-  } catch (error: any) {
-    console.error("Track event error:", error);
+  } catch (error: unknown) {
+    logger.error("Track event error:", error);
     // Silent fail
   }
 };
@@ -406,8 +633,8 @@ export const getAnalytics = async (days: number = 30) => {
       topPages,
       viewsByDay,
     };
-  } catch (error: any) {
-    console.error("Get analytics error:", error);
+  } catch (error: unknown) {
+    logger.error("Get analytics error:", error);
     return {
       totalPageViews: 0,
       totalVisitors: 0,
@@ -421,21 +648,37 @@ export const getAnalytics = async (days: number = 30) => {
 /**
  * Get all users (admin only)
  */
-export const getAllUsers = async (): Promise<any[]> => {
+export interface RawUserRecord {
+  id?: string;
+  email?: string;
+  displayName?: string;
+  createdAt?: Date | undefined;
+  role?: unknown;
+  // Allow arbitrary metadata fields
+  [key: string]: unknown;
+}
+export const getAllUsers = async (): Promise<RawUserRecord[]> => {
   // If Firebase is not configured, return empty array
-  if (!db) {
-    console.log("Firebase not configured - returning empty users array");
+  const d = db as unknown;
+  if (
+    !(
+      !!d &&
+      typeof d === "object" &&
+      Object.keys(d as Record<string, unknown>).length > 0
+    )
+  ) {
+    logger.debug("Firebase not configured - returning empty users array");
     return [];
   }
 
   try {
-    console.log("🔍 Fetching all users from Firestore...");
+    logger.debug("🔍 Fetching all users from Firestore...");
     const querySnapshot = await getDocs(collection(db, "users"));
-    const users: any[] = [];
+    const users: RawUserRecord[] = [];
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      console.log("👤 Found user:", doc.id, data.email);
+      logger.debug("👤 Found user", { id: doc.id, email: data.email });
       users.push({
         id: doc.id,
         ...data,
@@ -445,12 +688,31 @@ export const getAllUsers = async (): Promise<any[]> => {
       });
     });
 
-    console.log(`✅ Successfully loaded ${users.length} users`);
+    logger.debug(`✅ Successfully loaded ${users.length} users`);
     return users;
-  } catch (error: any) {
-    console.error("❌ Get all users error:", error);
-    console.error("Error details:", error.code, error.message);
-    throw new Error(error.message || "Failed to get users");
+  } catch (error: unknown) {
+    logger.error("❌ Get all users error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to get users"
+    );
+  }
+};
+
+/**
+ * Update user profile (admin only)
+ */
+export const updateUserProfile = async (
+  userId: string,
+  updates: Partial<RawUserRecord>
+): Promise<void> => {
+  try {
+    const ref = doc(db, "users", userId);
+    await updateDoc(ref, { ...updates, updatedAt: Timestamp.now() });
+  } catch (error: unknown) {
+    logger.error("Update user profile error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to update user profile"
+    );
   }
 };
 
@@ -521,9 +783,13 @@ export const getDashboardStats = async () => {
         trend: "up" as const,
       },
     };
-  } catch (error: any) {
-    console.error("Get dashboard stats error:", error);
-    throw new Error(error.message || "Failed to get dashboard statistics");
+  } catch (error: unknown) {
+    logger.error("Get dashboard stats error:", error);
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Failed to get dashboard statistics"
+    );
   }
 };
 
@@ -536,7 +802,7 @@ export const updateOrder = async (
 ): Promise<void> => {
   try {
     const docRef = doc(db, "orders", orderId);
-    const updateData: any = { ...updates };
+    const updateData: Record<string, unknown> = { ...updates };
 
     // Convert dates to Timestamps
     if (updates.orderDate) {
@@ -554,9 +820,11 @@ export const updateOrder = async (
     updateData.updatedAt = Timestamp.now();
 
     await updateDoc(docRef, updateData);
-  } catch (error: any) {
-    console.error("Update order error:", error);
-    throw new Error(error.message || "Failed to update order");
+  } catch (error: unknown) {
+    logger.error("Update order error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to update order"
+    );
   }
 };
 
@@ -571,7 +839,7 @@ export const updateBuildProgress = async (
 ): Promise<void> => {
   try {
     const docRef = doc(db, "orders", orderId);
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       progress: Math.min(100, Math.max(0, progress)), // Clamp between 0-100
       status,
       updatedAt: Timestamp.now(),
@@ -593,23 +861,70 @@ export const updateBuildProgress = async (
     }
 
     await updateDoc(docRef, updateData);
-  } catch (error: any) {
-    console.error("Update build progress error:", error);
-    throw new Error(error.message || "Failed to update build progress");
+  } catch (error: unknown) {
+    logger.error("Update build progress error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to update build progress"
+    );
+  }
+};
+
+/**
+ * Add a build update step (optionally adjust status/progress)
+ */
+export const addBuildUpdate = async (
+  orderId: string,
+  update: { progress?: number; status?: Order["status"]; note?: string }
+): Promise<void> => {
+  try {
+    const docRef = doc(db, "orders", orderId);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) throw new Error("Order not found");
+
+    const data = snap.data() || {};
+    const existingUpdates = data.buildUpdates || [];
+    const now = Timestamp.now();
+    const entry = {
+      timestamp: now,
+      progress:
+        typeof update.progress === "number"
+          ? update.progress
+          : data.progress || 0,
+      status: update.status || data.status || "pending",
+      note: update.note || "",
+    };
+
+    await updateDoc(docRef, {
+      buildUpdates: [...existingUpdates, entry],
+      ...(typeof update.progress === "number"
+        ? { progress: Math.min(100, Math.max(0, update.progress)) }
+        : {}),
+      ...(update.status ? { status: update.status } : {}),
+      updatedAt: now,
+    });
+  } catch (error: unknown) {
+    logger.error("Add build update error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to add build update"
+    );
   }
 };
 
 /**
  * Get all support tickets (admin)
  */
-export const getAllSupportTickets = async (): Promise<any[]> => {
+export const getAllSupportTickets = async (): Promise<SupportTicket[]> => {
   try {
-    const q = query(
-      collection(db, "support_tickets"),
-      orderBy("createdAt", "desc")
-    );
+    logger.debug("getAllSupportTickets: Loading all tickets");
+
+    const q = query(collection(db, "support_tickets"));
     const querySnapshot = await getDocs(q);
-    const tickets: any[] = [];
+
+    logger.debug("getAllSupportTickets: Found tickets", {
+      count: querySnapshot.size,
+    });
+
+    const tickets: SupportTicket[] = [];
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
@@ -617,42 +932,76 @@ export const getAllSupportTickets = async (): Promise<any[]> => {
         id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate(),
-      });
+      } as SupportTicket);
     });
 
+    // Sort in memory instead of Firestore query
+    tickets.sort((a, b) => {
+      const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+      const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+      return bTime - aTime; // descending order
+    });
+
+    logger.debug("getAllSupportTickets: Returning tickets", {
+      count: tickets.length,
+    });
     return tickets;
-  } catch (error: any) {
-    console.error("Get support tickets error:", error);
-    throw new Error(error.message || "Failed to get support tickets");
+  } catch (error: unknown) {
+    logger.error("Get support tickets error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to get support tickets"
+    );
   }
 };
 
 /**
  * Get user's support tickets
  */
-export const getUserSupportTickets = async (userId: string): Promise<any[]> => {
+export const getUserSupportTickets = async (
+  userId: string
+): Promise<SupportTicket[]> => {
   try {
+    logger.debug("getUserSupportTickets: Loading tickets for user", { userId });
+
+    // Try without orderBy first - it may require a Firestore index
     const q = query(
       collection(db, "support_tickets"),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc")
+      where("userId", "==", userId)
     );
+
     const querySnapshot = await getDocs(q);
-    const tickets: any[] = [];
+    logger.debug("getUserSupportTickets: Found tickets", {
+      count: querySnapshot.size,
+    });
+
+    const tickets: SupportTicket[] = [];
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      logger.debug("getUserSupportTickets: Processing ticket", { id: doc.id });
       tickets.push({
         id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate(),
-      });
+      } as SupportTicket);
     });
 
+    // Sort in memory instead of Firestore query
+    tickets.sort((a, b) => {
+      const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+      const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+      return bTime - aTime; // descending order
+    });
+
+    logger.debug("getUserSupportTickets: Returning tickets", {
+      count: tickets.length,
+    });
     return tickets;
-  } catch (error: any) {
-    console.error("Get user support tickets error:", error);
-    throw new Error(error.message || "Failed to get support tickets");
+  } catch (error: unknown) {
+    logger.error("Get user support tickets error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to get support tickets"
+    );
   }
 };
 
@@ -661,7 +1010,7 @@ export const getUserSupportTickets = async (userId: string): Promise<any[]> => {
  */
 export const updateSupportTicket = async (
   ticketId: string,
-  updates: any
+  updates: Partial<SupportTicket>
 ): Promise<void> => {
   try {
     const docRef = doc(db, "support_tickets", ticketId);
@@ -669,9 +1018,11 @@ export const updateSupportTicket = async (
       ...updates,
       updatedAt: Timestamp.now(),
     });
-  } catch (error: any) {
-    console.error("Update support ticket error:", error);
-    throw new Error(error.message || "Failed to update support ticket");
+  } catch (error: unknown) {
+    logger.error("Update support ticket error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to update support ticket"
+    );
   }
 };
 
@@ -700,23 +1051,34 @@ export const createRefundRequest = async (
     });
 
     return docRef.id;
-  } catch (error: any) {
-    console.error("Create refund request error:", error);
-    throw new Error(error.message || "Failed to create refund request");
+  } catch (error: unknown) {
+    logger.error("Create refund request error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to create refund request"
+    );
   }
 };
 
 /**
  * Get all refund requests (admin)
  */
-export const getAllRefundRequests = async (): Promise<any[]> => {
+export interface RefundRequest {
+  id?: string;
+  orderId: string;
+  userId: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: Date;
+}
+
+export const getAllRefundRequests = async (): Promise<RefundRequest[]> => {
   try {
     const q = query(
       collection(db, "refund_requests"),
       orderBy("createdAt", "desc")
     );
     const querySnapshot = await getDocs(q);
-    const requests: any[] = [];
+    const requests: RefundRequest[] = [];
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
@@ -724,12 +1086,47 @@ export const getAllRefundRequests = async (): Promise<any[]> => {
         id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate(),
-      });
+      } as RefundRequest);
     });
 
     return requests;
-  } catch (error: any) {
-    console.error("Get refund requests error:", error);
-    throw new Error(error.message || "Failed to get refund requests");
+  } catch (error: unknown) {
+    logger.error("Get refund requests error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to get refund requests"
+    );
+  }
+};
+
+/**
+ * Get refund requests for a specific user
+ */
+export const getUserRefundRequests = async (
+  userId: string
+): Promise<RefundRequest[]> => {
+  try {
+    const q = query(
+      collection(db, "refund_requests"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc")
+    );
+    const querySnapshot = await getDocs(q);
+    const requests: RefundRequest[] = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      requests.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate(),
+      } as RefundRequest);
+    });
+
+    return requests;
+  } catch (error: unknown) {
+    logger.error("Get user refund requests error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to get refund requests"
+    );
   }
 };

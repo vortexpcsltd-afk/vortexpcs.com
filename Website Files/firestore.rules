@@ -13,11 +13,20 @@ service cloud.firestore {
     }
     
     // Helper function to check if user is admin
+    function isWhitelistedAdminEmail() {
+      // Add additional trusted emails here if needed
+      return isAuthenticated() && (
+        request.auth.token.email == 'admin@vortexpcs.com' ||
+        request.auth.token.email == 'info@vortexpcs.com'
+      );
+    }
+
     function isAdmin() {
       return isAuthenticated() && (
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'admin@vortexpcs.com'
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'admin@vortexpcs.com' ||
+        isWhitelistedAdminEmail()
       );
     }
     

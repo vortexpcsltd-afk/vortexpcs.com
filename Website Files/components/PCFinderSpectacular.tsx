@@ -12,6 +12,14 @@ import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
 import { Slider } from "./ui/slider";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
+import { AspectRatio } from "./ui/aspect-ratio";
+import {
   ArrowRight,
   ArrowLeft,
   Monitor,
@@ -34,12 +42,303 @@ import {
   Cpu,
   MemoryStick,
   HardDriveIcon,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  Bookmark,
+  Heart,
 } from "lucide-react";
+import { ProgressiveImage } from "./ProgressiveImage";
 import {
   generateRecommendation,
   persistRecommendation,
   type RecommendationResult,
 } from "../services/recommendation";
+import {
+  ProductCardSkeleton,
+  PageHeaderSkeleton,
+  GridSkeleton,
+} from "./SkeletonComponents";
+import {
+  fetchPCBuilds,
+  fetchCategories,
+  fetchProducts,
+  type PCBuild,
+} from "../services/cms";
+import { logger } from "../services/logger";
+
+// Dark themed placeholder image
+const PLACEHOLDER_IMAGE =
+  "data:image/svg+xml;base64," +
+  btoa(`
+<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#grad1)" />
+  <rect x="20" y="20" width="360" height="260" fill="none" stroke="#334155" stroke-width="2" stroke-dasharray="10,5" rx="8" />
+  <circle cx="200" cy="120" r="30" fill="#475569" opacity="0.5" />
+  <rect x="170" y="90" width="60" height="60" fill="none" stroke="#64748b" stroke-width="2" rx="4" />
+  <text x="200" y="180" text-anchor="middle" fill="#94a3b8" font-family="Arial, sans-serif" font-size="16" font-weight="600">Image Coming Soon</text>
+  <text x="200" y="200" text-anchor="middle" fill="#64748b" font-family="Arial, sans-serif" font-size="12">High-quality product image</text>
+  <text x="200" y="215" text-anchor="middle" fill="#64748b" font-family="Arial, sans-serif" font-size="12">will be available via CMS</text>
+</svg>
+`);
+
+// Image gallery component for products
+type ImageSrc = string;
+
+const ProductImageGallery = ({
+  images,
+  productName,
+}: {
+  images: ImageSrc[];
+  productName: string;
+}) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+
+  // Determine if provided images are real (exclude common placeholder URLs)
+  const isPlaceholderImage = (src: unknown) => {
+    if (typeof src !== "string") return true;
+    const s = src.toLowerCase();
+    return (
+      s.includes("placeholder") ||
+      s.includes("placehold.co") ||
+      s.includes("dummyimage") ||
+      s.includes("coming-soon") ||
+      s.includes("image-coming-soon") ||
+      s.startsWith("data:image/svg+xml") ||
+      s.startsWith("about:blank")
+    );
+  };
+
+  const filteredImages = (images ?? []).filter(
+    (src) => !isPlaceholderImage(src)
+  );
+  const hasRealImages = filteredImages.length > 0;
+  const productImages: ImageSrc[] = hasRealImages ? filteredImages : [];
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % productImages.length);
+  };
+
+  const prevImage = () => {
+    setCurrentImageIndex(
+      (prev) => (prev - 1 + productImages.length) % productImages.length
+    );
+  };
+
+  return (
+    <>
+      {/* Main product image */}
+      <div
+        className={`relative group ${hasRealImages ? "cursor-pointer" : ""}`}
+        onClick={() => hasRealImages && setIsGalleryOpen(true)}
+      >
+        <AspectRatio
+          ratio={16 / 10}
+          className="overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900"
+        >
+          {hasRealImages ? (
+            <>
+              <ProgressiveImage
+                src={productImages[currentImageIndex]}
+                alt={productName}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                aspectRatio="16/10"
+                shimmer
+                lazy
+                srcSet={`${productImages[currentImageIndex]}?w=480 480w, ${productImages[currentImageIndex]}?w=768 768w, ${productImages[currentImageIndex]}?w=1024 1024w, ${productImages[currentImageIndex]}?w=1280 1280w`}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 75vw, 640px"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+              {/* View Gallery Button */}
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="bg-white/10 backdrop-blur-md text-white border-white/20 hover:bg-white/20"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  View Gallery
+                </Button>
+              </div>
+
+              {/* Image Counter */}
+              <div className="absolute bottom-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <Badge
+                  variant="secondary"
+                  className="bg-white/10 backdrop-blur-md text-white border-white/20"
+                >
+                  {currentImageIndex + 1} / {productImages.length}
+                </Badge>
+              </div>
+
+              {/* Navigation arrows */}
+              {productImages.length > 1 && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      prevImage();
+                    }}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md text-white opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white/20 flex items-center justify-center"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      nextImage();
+                    }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md text-white opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white/20 flex items-center justify-center"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            /* Placeholder with large PC icon */
+            <div className="w-full h-full flex flex-col items-center justify-center p-8">
+              <div className="relative">
+                <div className="absolute inset-0 bg-sky-500/20 blur-3xl rounded-full"></div>
+                <Monitor className="w-32 h-32 text-sky-400/60 relative z-10" />
+              </div>
+              <p className="mt-6 text-gray-400 text-sm">
+                Product images coming soon
+              </p>
+            </div>
+          )}
+        </AspectRatio>
+
+        {/* Thumbnail strip - only show if we have real images */}
+        {hasRealImages && productImages.length > 1 && (
+          <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+            {productImages.slice(0, 6).map((image: ImageSrc, index: number) => (
+              <button
+                key={index}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex(index);
+                }}
+                className={`flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all duration-300 ${
+                  index === currentImageIndex
+                    ? "border-sky-500 shadow-lg shadow-sky-500/25"
+                    : "border-white/10 hover:border-white/30"
+                }`}
+              >
+                <ProgressiveImage
+                  src={image}
+                  alt={`${productName} view ${index + 1}`}
+                  className="w-full h-full object-cover"
+                  aspectRatio="4/3"
+                  shimmer={false}
+                  srcSet={`${image}?w=120 120w, ${image}?w=160 160w, ${image}?w=240 240w`}
+                  sizes="(max-width: 640px) 80px, 64px"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Full Gallery Modal - only show if we have real images */}
+      {hasRealImages && (
+        <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
+          <DialogContent className="max-w-4xl bg-black/95 border-white/10 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-2xl bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent">
+                {productName} - Gallery
+              </DialogTitle>
+              <DialogDescription className="text-gray-400">
+                View detailed images of this recommended PC build
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="relative">
+              <AspectRatio
+                ratio={16 / 10}
+                className="overflow-hidden rounded-xl"
+              >
+                <ProgressiveImage
+                  src={productImages[currentImageIndex]}
+                  alt={productName}
+                  className="w-full h-full object-cover"
+                  aspectRatio="16/10"
+                  shimmer
+                  lazy={false}
+                  srcSet={`${productImages[currentImageIndex]}?w=640 640w, ${productImages[currentImageIndex]}?w=960 960w, ${productImages[currentImageIndex]}?w=1280 1280w, ${productImages[currentImageIndex]}?w=1600 1600w`}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 960px"
+                />
+              </AspectRatio>
+
+              {/* Modal Navigation */}
+              {productImages.length > 1 && (
+                <>
+                  <button
+                    onClick={prevImage}
+                    aria-label="Previous image"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 backdrop-blur-md text-white hover:bg-white/30 transition-all duration-300 flex items-center justify-center"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                  <button
+                    onClick={nextImage}
+                    aria-label="Next image"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 backdrop-blur-md text-white hover:bg-white/30 transition-all duration-300 flex items-center justify-center"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                </>
+              )}
+
+              {/* Image counter */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+                <Badge
+                  variant="secondary"
+                  className="bg-white/15 backdrop-blur-md text-white border-white/20"
+                >
+                  {currentImageIndex + 1} / {productImages.length}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Gallery thumbnails */}
+            <div className="grid grid-cols-6 gap-3 mt-4">
+              {productImages.map((image: ImageSrc, index: number) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentImageIndex(index)}
+                  className={`aspect-video rounded-lg overflow-hidden border-2 transition-all duration-300 ${
+                    index === currentImageIndex
+                      ? "border-sky-500 shadow-lg shadow-sky-500/25"
+                      : "border-white/10 hover:border-white/30"
+                  }`}
+                >
+                  <ProgressiveImage
+                    src={image}
+                    alt={`${productName} thumbnail ${index + 1}`}
+                    aspectRatio="16/9"
+                    className="w-full h-full object-cover"
+                    srcSet={`${image}?w=160 160w, ${image}?w=240 240w, ${image}?w=320 320w`}
+                    sizes="(max-width: 640px) 16vw, (max-width: 1024px) 10vw, 8vw"
+                    shimmer
+                  />
+                </button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+};
 
 // Confetti particle component
 const ConfettiParticle = ({ delay }: { delay: number }) => {
@@ -75,6 +374,40 @@ export function PCFinderSpectacular({
   const [score, setScore] = useState(0);
   const [recommendation, setRecommendation] =
     useState<RecommendationResult | null>(null);
+  const [strapiBuilds, setStrapiBuilds] = useState<PCBuild[]>([]);
+  const [_categories, setCategories] = useState<unknown[]>([]);
+  const [_loadingBuilds, setLoadingBuilds] = useState(false);
+
+  // Load Strapi builds and categories on component mount
+  useEffect(() => {
+    const loadContentfulData = async () => {
+      setLoadingBuilds(true);
+      try {
+        const [builds, cats, products] = await Promise.all([
+          fetchPCBuilds(),
+          fetchCategories(),
+          fetchProducts({ featured: true, limit: 10 }), // Load featured products
+        ]);
+        setStrapiBuilds(builds);
+        setCategories(cats);
+        logger.debug("Loaded Contentful builds", { count: builds.length });
+        logger.debug("Loaded Contentful categories", { count: cats.length });
+        logger.debug("Loaded Contentful products", { count: products.length });
+      } catch (error) {
+        logger.error("Failed to load Contentful data", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Set empty arrays to indicate no CMS data available
+        setStrapiBuilds([]);
+        setCategories([]);
+        logger.debug("ℹ️ Using fallback recommendations without CMS data");
+      } finally {
+        setLoadingBuilds(false);
+      }
+    };
+
+    loadContentfulData();
+  }, []);
 
   // Question flow
   const getQuestions = () => {
@@ -382,6 +715,50 @@ export function PCFinderSpectacular({
   ]);
 
   if (showResults) {
+    // Show loading skeleton while generating recommendation
+    if (!recommendation) {
+      return (
+        <div className="min-h-screen py-12 bg-black">
+          <div className="container mx-auto px-4">
+            <PageHeaderSkeleton />
+            <div className="max-w-5xl mx-auto space-y-6">
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden relative">
+                <div className="absolute inset-0 animate-shimmer pointer-events-none"></div>
+                <div className="p-8 md:p-12 space-y-6">
+                  <div className="h-8 w-48 bg-white/10 rounded"></div>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div className="h-6 w-32 bg-white/10 rounded"></div>
+                      <div className="h-32 bg-white/10 rounded"></div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="h-6 w-40 bg-white/10 rounded"></div>
+                      <div className="space-y-2">
+                        {[...Array(5)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="h-12 bg-white/10 rounded"
+                          ></div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border-t border-white/10 pt-6 space-y-4">
+                    <div className="h-8 w-40 bg-white/10 rounded"></div>
+                    <GridSkeleton
+                      count={3}
+                      columns={3}
+                      SkeletonComponent={ProductCardSkeleton}
+                    />
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen py-12">
         {/* Victory celebration */}
@@ -396,7 +773,7 @@ export function PCFinderSpectacular({
           {/* Epic Results Header */}
           <div className="text-center mb-12 relative">
             <h1
-              className="text-5xl md:text-7xl font-black mb-6 relative bg-gradient-to-r from-pink-500 via-purple-500 via-blue-500 via-cyan-500 via-green-500 via-yellow-500 to-pink-500 bg-clip-text text-transparent"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black mb-6 relative bg-gradient-to-r from-pink-500 via-purple-500 via-blue-500 via-cyan-500 via-green-500 via-yellow-500 to-pink-500 bg-clip-text text-transparent"
               style={{
                 backgroundSize: "200% auto",
                 animation: "gradient 3s linear infinite",
@@ -405,7 +782,7 @@ export function PCFinderSpectacular({
               Your Dream PC Awaits
             </h1>
 
-            <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto mb-8">
+            <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 max-w-3xl mx-auto mb-8 px-4">
               Based on your answers, we've crafted the ultimate configuration
               designed specifically for you
             </p>
@@ -452,6 +829,24 @@ export function PCFinderSpectacular({
                   <p className="text-lg md:text-xl text-gray-400">
                     Perfectly tailored to your requirements
                   </p>
+                </div>
+
+                {/* Product Image Gallery */}
+                <div className="mb-8">
+                  <ProductImageGallery
+                    images={
+                      strapiBuilds.length > 0 && strapiBuilds[0]?.images
+                        ? strapiBuilds[0].images
+                        : Array(6).fill(PLACEHOLDER_IMAGE)
+                    }
+                    productName={`The Ultimate ${
+                      answers.purpose === "gaming"
+                        ? "Gaming"
+                        : answers.purpose === "creative"
+                        ? "Creative"
+                        : "Professional"
+                    } Build`}
+                  />
                 </div>
 
                 {/* Spec Highlights */}
@@ -525,7 +920,7 @@ export function PCFinderSpectacular({
 
                 {/* Additional parts summary and fulfilment info */}
                 {recommendation && (
-                  <div className="grid md:grid-cols-3 gap-4 mb-8 text-sm">
+                  <div className="grid md:grid-cols-4 gap-4 mb-8 text-sm">
                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-gray-300">
                       <div className="font-semibold text-white mb-1">
                         Cooling
@@ -544,6 +939,14 @@ export function PCFinderSpectacular({
                       </div>
                       <div>{recommendation.parts.case}</div>
                     </div>
+                    {recommendation.parts.caseFans && (
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-gray-300">
+                        <div className="font-semibold text-white mb-1">
+                          Case Fans
+                        </div>
+                        <div>{recommendation.parts.caseFans}</div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -892,6 +1295,20 @@ export function PCFinderSpectacular({
                     <Settings className="w-5 h-5 mr-2" />
                     Customise Your Build
                   </button>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      className="flex-1 sm:flex-none border-white/20 text-white hover:bg-white/10 hover:scale-110 transition-all duration-300"
+                    >
+                      <Bookmark className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 sm:flex-none border-white/20 text-white hover:bg-white/10 hover:text-red-400 hover:border-red-400/40 hover:scale-110 transition-all duration-300"
+                    >
+                      <Heart className="w-4 h-4" />
+                    </Button>
+                  </div>
                   <Button
                     onClick={restart}
                     variant="outline"
@@ -922,7 +1339,7 @@ export function PCFinderSpectacular({
             </span>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-black mb-6">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black mb-6">
             <span
               className="block bg-gradient-to-r from-pink-500 via-purple-500 via-blue-500 via-cyan-500 via-green-500 via-yellow-500 to-pink-500 bg-clip-text text-transparent"
               style={{
@@ -944,7 +1361,7 @@ export function PCFinderSpectacular({
             </span>
           </h1>
 
-          <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto">
+          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 max-w-3xl mx-auto px-4">
             {currentQuestion?.emoji} {currentQuestion?.subtitle}
           </p>
         </div>
@@ -982,14 +1399,14 @@ export function PCFinderSpectacular({
           <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-blue-950/90 border-2 border-sky-500/30 backdrop-blur-2xl shadow-2xl shadow-sky-500/20 p-8 md:p-12">
             {/* Question Title */}
             <div className="text-center mb-12">
-              <div className="text-7xl mb-6 animate-bounce">
+              <div className="text-5xl sm:text-6xl md:text-7xl mb-6 animate-bounce">
                 {currentQuestion?.emoji}
               </div>
-              <h2 className="text-4xl md:text-5xl font-black text-white mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 px-4">
                 {currentQuestion?.title}
               </h2>
               {currentQuestion?.helpText && (
-                <p className="text-base md:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
+                <p className="text-sm sm:text-base md:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed px-4">
                   {currentQuestion.helpText}
                 </p>
               )}

@@ -3,6 +3,7 @@
 // Fallback: api.postcodes.io (synthesised addresses for coverage only)
 
 import { GETADDRESS_IO_API_KEY } from "../config/address";
+import { logger } from "./logger";
 
 // Export a simple indicator so the UI can tell what provider actually served the data
 export let lastAddressProvider: string = "";
@@ -17,7 +18,7 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
   // Goal: deliver real addresses immediately while backend routing propagates
   if (GETADDRESS_IO_API_KEY) {
     if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
-      console.log("📫 Trying getaddress.io (client) first");
+      logger.debug("📫 Trying getaddress.io (client) first");
     const url = `https://api.getaddress.io/find/${encodeURIComponent(
       trimmed
     )}?api-key=${encodeURIComponent(GETADDRESS_IO_API_KEY)}&expand=true`;
@@ -55,7 +56,7 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
         import.meta.env.VITE_DEBUG_ADDRESS === "1"
       ) {
         const text = await res.text().catch(() => "");
-        console.warn(`getaddress.io responded ${res.status}: ${text}`);
+        logger.warn(`getaddress.io responded ${res.status}: ${text}`);
         lastAddressError = `client ${res.status} ${
           text?.slice(0, 120) || ""
         }`.trim();
@@ -63,7 +64,9 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
-        console.warn("getaddress.io (client) failed, will try backend.", msg);
+        logger.warn("getaddress.io (client) failed, will try backend.", {
+          error: msg,
+        });
       lastAddressError = `client error ${msg}`;
     }
     // If client fails or returns empty, continue to backend attempts below
@@ -85,7 +88,7 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
         const json = await proxyRes.json();
         if (Array.isArray(json.addresses) && json.addresses.length > 0) {
           if (import.meta.env.DEV)
-            console.log("📦 Using backend address proxy");
+            logger.debug("📦 Using backend address proxy");
           lastAddressProvider = "backend proxy";
           return json.addresses;
         } else if (
@@ -93,7 +96,9 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
           json.addresses.length === 0 &&
           (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
         ) {
-          console.warn("Backend proxy returned no addresses for:", trimmed);
+          logger.warn("Backend proxy returned no addresses", {
+            postcode: trimmed,
+          });
           lastAddressProvider = "backend proxy (no results)";
           lastAddressError = "backend 200 empty";
         }
@@ -102,7 +107,7 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
       }
     } catch {
       if (import.meta.env.DEV)
-        console.warn("Backend address proxy unavailable.");
+        logger.warn("Backend address proxy unavailable.");
       if (!lastAddressError) lastAddressError = "backend unreachable";
     }
   }
@@ -116,7 +121,7 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
       const json = await res.json();
       if (Array.isArray(json.addresses) && json.addresses.length > 0) {
         if (import.meta.env.DEV)
-          console.log("📦 Using same-origin backend address proxy");
+          logger.debug("📦 Using same-origin backend address proxy");
         lastAddressProvider = "backend proxy (same-origin)";
         return json.addresses;
       } else if (
@@ -124,10 +129,9 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
         json.addresses.length === 0 &&
         (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
       ) {
-        console.warn(
-          "Same-origin backend proxy returned no addresses for:",
-          trimmed
-        );
+        logger.warn("Same-origin backend proxy returned no addresses", {
+          postcode: trimmed,
+        });
         lastAddressProvider = "backend proxy (same-origin, no results)";
         lastAddressError = "backend same-origin 200 empty";
       }
@@ -142,7 +146,7 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
 
   // Fallback: use postcodes.io to synthesise plausible addresses for UX
   if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1") {
-    console.log("📮 Falling back to postcodes.io synthetic addresses");
+    logger.debug("📮 Falling back to postcodes.io synthetic addresses");
   }
   const normalized = trimmed.replace(/\s+/g, "").toUpperCase();
   const response = await fetch(

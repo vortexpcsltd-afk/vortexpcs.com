@@ -23,6 +23,7 @@ import {
   Loader2,
   Package,
 } from "lucide-react";
+import { logger } from "../services/logger";
 import { fetchPCComponents, PCComponent } from "../services/cms";
 
 // Component database now fetched from CMS via fetchPCComponents
@@ -132,7 +133,7 @@ export function VisualPCConfigurator() {
       ];
       const results: Record<string, PCComponent[]> = {};
 
-      console.log(
+      logger.debug(
         "🔧 VisualPCConfigurator: Starting to load components from CMS..."
       );
 
@@ -142,17 +143,25 @@ export function VisualPCConfigurator() {
             category: cat === "memory" ? "ram" : cat,
           });
           results[cat] = items || [];
-          console.log(
-            `📦 Loaded ${items?.length || 0} components for category: ${cat}`,
-            items
+          logger.debug(
+            `Loaded ${items?.length || 0} components for category: ${cat}`,
+            { count: items?.length || 0 }
           );
         } catch (error) {
-          console.error(`Failed to load ${cat}:`, error);
+          logger.error(`Failed to load ${cat}`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
           results[cat] = [];
         }
       }
 
-      console.log("✅ All components loaded:", results);
+      logger.debug("All components loaded", {
+        categories: Object.keys(results),
+        totalCount: Object.values(results).reduce(
+          (sum, arr) => sum + arr.length,
+          0
+        ),
+      });
       setCmsComponents(results);
       setIsLoadingComponents(false);
     };
@@ -297,10 +306,27 @@ export function VisualPCConfigurator() {
     (sum, component) => sum + (component?.price || 0),
     0
   );
-  const totalPowerDraw = Object.values(buildConfig).reduce(
-    (sum, component) => sum + (component?.powerDraw || 0),
-    0
-  );
+
+  // Calculate power draw from various component fields
+  const totalPowerDraw = (() => {
+    let draw = 0;
+
+    // CPU TDP
+    if (buildConfig.cpu?.tdp) {
+      draw += buildConfig.cpu.tdp;
+    }
+
+    // GPU power consumption
+    if (buildConfig.gpu?.power) {
+      draw += buildConfig.gpu.power;
+    }
+
+    // Base system components (motherboard, RAM, storage, fans, etc.)
+    const baseSystemPower = 100;
+    draw += baseSystemPower;
+
+    return draw;
+  })();
 
   // Helper to derive performance score from CMS component data
   const getComponentPerformanceScore = (
@@ -409,7 +435,7 @@ export function VisualPCConfigurator() {
   };
 
   return (
-    <div className="min-h-screen text-white overflow-hidden">
+    <div className="min-h-screen text-white overflow-x-hidden">
       {/* Animated Background */}
       <div className="fixed inset-0 bg-gradient-to-br from-blue-900/20 via-cyan-900/10 to-sky-900/20 animate-gradient"></div>
       <div
@@ -422,18 +448,28 @@ export function VisualPCConfigurator() {
       <div className="relative container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-5xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
             Visual PC Configurator
           </h1>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+          <p
+            className="text-base sm:text-lg md:text-xl text-gray-300 mx-auto max-w-full sm:max-w-2xl md:max-w-3xl px-2 sm:px-0 break-words"
+            style={{ wordBreak: "break-word", whiteSpace: "normal" }}
+          >
+            Custom PCs built for speed, power, and precision. Delivered within 5
+            days.
+          </p>
+          <p
+            className="text-base sm:text-lg md:text-xl text-gray-300 mx-auto max-w-full sm:max-w-2xl md:max-w-3xl px-2 sm:px-0 break-words mt-2"
+            style={{ wordBreak: "break-word", whiteSpace: "normal" }}
+          >
             Build your dream PC with our interactive 3D visualisation tool
           </p>
         </div>
 
-        {/* Status Indicators */}
-        <div className="flex justify-center gap-6 mb-8">
+        {/* Status Indicators - Responsive badges */}
+        <div className="flex flex-wrap justify-center gap-2 sm:gap-4 md:gap-6 mb-8 w-full">
           <Badge
-            className={`px-4 py-2 ${
+            className={`px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm md:text-base ${
               Object.values(buildConfig).length === 0
                 ? "bg-red-500/20 border-red-500/40 text-red-400"
                 : Object.values(buildConfig).length < 6
@@ -449,7 +485,7 @@ export function VisualPCConfigurator() {
           </Badge>
           {/* Compatibility Pill */}
           <Badge
-            className={`px-4 py-2 ${
+            className={`px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm md:text-base ${
               Object.values(buildConfig).filter(Boolean).length === 0
                 ? "bg-gray-500/20 border-gray-500/40 text-gray-400"
                 : compatibility.issues.length > 0
@@ -471,21 +507,21 @@ export function VisualPCConfigurator() {
                 }`
               : "Compatible"}
           </Badge>
-          <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-400 px-4 py-2">
+          <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-400 px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm md:text-base">
             <TrendingUp className="w-4 h-4 mr-2" />
             Overall Score: {performanceBenchmarks.overall.toFixed(0)}%
           </Badge>
-          <Badge className="bg-purple-500/20 border-purple-500/40 text-purple-400 px-4 py-2">
+          <Badge className="bg-purple-500/20 border-purple-500/40 text-purple-400 px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm md:text-base">
             £{totalPrice.toLocaleString()}
           </Badge>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-3 px-0">
           {/* 3D Visualization */}
-          <div className="xl:col-span-2">
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
+          <div className="xl:col-span-2 w-full">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-1 sm:p-2 md:p-4">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white">
+                <h2 className="text-xl sm:text-2xl font-bold text-white">
                   The Vortex 3D PC Visualisation Tool
                 </h2>
                 <div className="flex gap-2">
@@ -525,12 +561,12 @@ export function VisualPCConfigurator() {
               {/* 3D PC Visualization Container */}
               <div
                 ref={configuratorRef}
-                className="relative bg-gradient-to-br from-slate-900/50 to-slate-950/50 rounded-xl p-8 min-h-[600px] flex items-center justify-center"
+                className="relative bg-gradient-to-br from-slate-900/50 to-slate-950/50 rounded-xl p-1 sm:p-2 md:p-4 min-h-[180px] sm:min-h-[320px] md:min-h-[600px] flex items-center justify-center overflow-hidden"
                 style={{ perspective: "1200px" }}
               >
                 {/* 3D PC Build Visualization */}
                 <div
-                  className="relative w-full h-[500px] transition-transform duration-700"
+                  className="relative w-[220px] sm:w-[350px] md:w-[600px] h-[120px] sm:h-[220px] md:h-[500px] transition-transform duration-700"
                   style={{
                     transformStyle: "preserve-3d",
                     transform: `rotateY(${viewAngle}deg) rotateX(-5deg)`,
@@ -541,8 +577,12 @@ export function VisualPCConfigurator() {
                     <div
                       className="relative bg-gradient-to-br from-slate-800/60 to-slate-900/80 border-2 border-slate-600/50 rounded-lg backdrop-blur-md shadow-2xl"
                       style={{
-                        width: "700px",
-                        height: "500px",
+                        width: "100%",
+                        maxWidth: "700px",
+                        height: "100%",
+                        maxHeight: "400px",
+                        minWidth: "180px",
+                        minHeight: "100px",
                         transform: `translateZ(0) ${
                           viewMode === "exploded"
                             ? "scale(1.05)"
@@ -1469,7 +1509,7 @@ export function VisualPCConfigurator() {
           </div>
 
           {/* Sidebar with Performance & Summary */}
-          <div className="space-y-6">
+          <div className="space-y-6 w-full xl:w-auto">
             {/* Performance Benchmarks */}
             <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
               <h3 className="text-xl font-bold mb-4 flex items-center">
@@ -1579,7 +1619,7 @@ export function VisualPCConfigurator() {
         </div>
 
         {/* Component Selection */}
-        <Card className="bg-white/5 backdrop-blur-xl border-white/10 mt-8 p-6">
+        <Card className="bg-white/5 backdrop-blur-xl border-white/10 mt-8 p-2 sm:p-4">
           <h2 className="text-2xl font-bold mb-6">Component Selection</h2>
 
           {/* Category Tabs */}

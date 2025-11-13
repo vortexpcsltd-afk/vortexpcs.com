@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Mail,
   Phone,
@@ -11,6 +11,7 @@ import {
   Award,
 } from "lucide-react";
 import { toast } from "sonner";
+import { logger } from "../services/logger";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -23,6 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import {
+  fetchContactInformation,
+  type ContactInformation,
+} from "../services/cms";
 
 interface ContactProps {
   onNavigate?: (view: string) => void;
@@ -39,6 +44,17 @@ export function Contact({ onNavigate }: ContactProps = {}) {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [contactInfo, setContactInfo] = useState<ContactInformation | null>(
+    null
+  );
+
+  useEffect(() => {
+    const loadContactInfo = async () => {
+      const data = await fetchContactInformation();
+      setContactInfo(data);
+    };
+    loadContactInfo();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +93,7 @@ export function Contact({ onNavigate }: ContactProps = {}) {
         throw new Error(errMsg || "Failed to send message");
       }
     } catch (error) {
-      console.error("Contact form submission error:", error);
+      logger.error("Contact form submission error:", error);
       toast.error(
         error instanceof Error
           ? error.message
@@ -104,7 +120,42 @@ export function Contact({ onNavigate }: ContactProps = {}) {
       icon: Phone,
       title: "Call Us",
       value: "01603 975440",
-      description: "Mon-Fri 9AM-6PM, Sat 10AM-4PM GMT",
+      description: contactInfo?.businessHours
+        ? (() => {
+            const hours = contactInfo.businessHours!;
+            const parts: string[] = [];
+
+            // Check Mon-Fri
+            const weekdayHours = hours.monday;
+            const allWeekdaysSame = [
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday",
+            ].every((day) => hours[day] === weekdayHours);
+
+            if (allWeekdaysSame && weekdayHours) {
+              parts.push(`Mon-Fri ${weekdayHours}`);
+            } else {
+              ["monday", "tuesday", "wednesday", "thursday", "friday"].forEach(
+                (day) => {
+                  if (hours[day]) {
+                    parts.push(
+                      `${day.charAt(0).toUpperCase() + day.slice(1, 3)} ${
+                        hours[day]
+                      }`
+                    );
+                  }
+                }
+              );
+            }
+
+            if (hours.saturday) parts.push(`Sat ${hours.saturday}`);
+            if (hours.sunday) parts.push(`Sun ${hours.sunday}`);
+
+            return parts.join(", ");
+          })()
+        : "Mon-Fri 08:30-18:00, Sat 09:00-16:00, Sun Closed",
       href: "tel:+441603975440",
       color: "blue",
     },
@@ -392,18 +443,98 @@ export function Contact({ onNavigate }: ContactProps = {}) {
                       <h3 className="text-white">Opening Hours</h3>
                     </div>
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between py-2">
-                        <span className="text-gray-400">Monday - Friday</span>
-                        <span className="text-white">9AM - 6PM</span>
-                      </div>
-                      <div className="flex justify-between py-2">
-                        <span className="text-gray-400">Saturday</span>
-                        <span className="text-white">10AM - 4PM</span>
-                      </div>
-                      <div className="flex justify-between py-2">
-                        <span className="text-gray-400">Sunday</span>
-                        <span className="text-gray-500">Closed</span>
-                      </div>
+                      {contactInfo?.businessHours ? (
+                        (() => {
+                          // Group consecutive days with same hours
+                          const hours = contactInfo.businessHours!;
+                          const grouped: Array<{
+                            label: string;
+                            hours: string;
+                          }> = [];
+
+                          // Check Mon-Fri
+                          const weekdayHours = hours.monday;
+                          const allWeekdaysSame = [
+                            "tuesday",
+                            "wednesday",
+                            "thursday",
+                            "friday",
+                          ].every((day) => hours[day] === weekdayHours);
+
+                          if (allWeekdaysSame && weekdayHours) {
+                            grouped.push({
+                              label: "Mon-Fri",
+                              hours: weekdayHours,
+                            });
+                          } else {
+                            // List individually if different
+                            [
+                              "monday",
+                              "tuesday",
+                              "wednesday",
+                              "thursday",
+                              "friday",
+                            ].forEach((day) => {
+                              if (hours[day]) {
+                                grouped.push({
+                                  label:
+                                    day.charAt(0).toUpperCase() +
+                                    day.slice(1, 3),
+                                  hours: hours[day],
+                                });
+                              }
+                            });
+                          }
+
+                          // Add Saturday
+                          if (hours.saturday) {
+                            grouped.push({
+                              label: "Sat",
+                              hours: hours.saturday,
+                            });
+                          }
+
+                          // Add Sunday
+                          if (hours.sunday) {
+                            grouped.push({ label: "Sun", hours: hours.sunday });
+                          }
+
+                          return grouped.map((item, index) => (
+                            <div
+                              key={index}
+                              className="flex justify-between py-2"
+                            >
+                              <span className="text-gray-400">
+                                {item.label}
+                              </span>
+                              <span
+                                className={
+                                  item.hours.toLowerCase() === "closed"
+                                    ? "text-gray-500"
+                                    : "text-white"
+                                }
+                              >
+                                {item.hours}
+                              </span>
+                            </div>
+                          ));
+                        })()
+                      ) : (
+                        <>
+                          <div className="flex justify-between py-2">
+                            <span className="text-gray-400">Mon-Fri</span>
+                            <span className="text-white">08:30 - 18:00</span>
+                          </div>
+                          <div className="flex justify-between py-2">
+                            <span className="text-gray-400">Sat</span>
+                            <span className="text-white">09:00 - 16:00</span>
+                          </div>
+                          <div className="flex justify-between py-2">
+                            <span className="text-gray-400">Sun</span>
+                            <span className="text-gray-500">Closed</span>
+                          </div>
+                        </>
+                      )}
                       <p className="text-xs text-gray-500 pt-2">
                         All times in GMT/BST
                       </p>

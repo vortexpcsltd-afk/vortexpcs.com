@@ -11,6 +11,7 @@ import React, {
   ReactNode,
 } from "react";
 import { onAuthStateChanged } from "../services/auth";
+import { logger } from "../services/logger";
 
 // Define types without importing from Firebase to avoid initialization issues
 interface User {
@@ -23,6 +24,7 @@ interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  marketingOptOut?: boolean;
   role?: string;
   phone?: string;
   address?: string;
@@ -46,6 +48,7 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
 });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -75,7 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setUserProfile(profile);
             })
             .catch((error) => {
-              console.error("Failed to load user profile:", error);
+              logger.error("Failed to load user profile:", error);
             });
         });
       } else {

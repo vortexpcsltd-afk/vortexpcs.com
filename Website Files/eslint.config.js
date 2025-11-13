@@ -18,6 +18,12 @@ export default [
       "App_backup.tsx",
       "App_original.tsx",
       "backup-before-figma/**",
+      "archive/**",
+      "**/*.backup.tsx",
+      "components/VisualPCConfigurator.backup.tsx",
+      "src/test/**",
+      "**/*.test.ts",
+      "**/*.test.tsx",
     ],
   },
   // Configuration for Node.js backend/service files

@@ -1,8 +1,43 @@
+import { useEffect, useState } from "react";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Shield, FileText, AlertCircle, CheckCircle } from "lucide-react";
+import { fetchLegalPage, type LegalPage } from "../services/cms";
+import { HtmlContent } from "./cms/HtmlContent";
+import { LegalLayout } from "./legal/LegalLayout";
 
 export function TermsPage() {
+  const [cms, setCms] = useState<LegalPage | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await fetchLegalPage("terms");
+        if (active && data && data.content && data.content.trim().length > 0) {
+          setCms(data);
+        }
+      } catch {
+        // Silent fallback to static content
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // If CMS content is available, render it inside the styled layout and return early
+  if (cms?.content) {
+    return (
+      <LegalLayout
+        title={cms.title || "Terms of Service"}
+        lastUpdated={cms.lastUpdated}
+      >
+        <HtmlContent html={cms.content} />
+      </LegalLayout>
+    );
+  }
+
   const sections = [
     {
       title: "1. Agreement to Terms",
@@ -14,7 +49,7 @@ export function TermsPage() {
     },
     {
       title: "3. Pricing and Payment",
-      content: `All prices are displayed in British Pounds (GBP) and include VAT at the current rate. We require full payment before commencing the build process. Payment can be made via credit card, debit card, or bank transfer. Prices are subject to change based on component availability and market conditions. Once an order is placed and paid for, the agreed price is fixed.`,
+      content: `All prices are displayed in British Pounds (GBP). We require full payment before commencing the build process. Payment can be made via credit card, debit card, or bank transfer. Prices are subject to change based on component availability and market conditions. Once an order is placed and paid for, the agreed price is fixed.`,
     },
     {
       title: "4. Warranty Terms",

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import {
@@ -9,8 +10,40 @@ import {
   AlertCircle,
   CheckCircle,
 } from "lucide-react";
+import { fetchLegalPage, type LegalPage } from "../services/cms";
+import { HtmlContent } from "./cms/HtmlContent";
+import { LegalLayout } from "./legal/LegalLayout";
 
 export function PrivacyPage() {
+  const [cms, setCms] = useState<LegalPage | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await fetchLegalPage("privacy");
+        if (active && data && data.content && data.content.trim().length > 0) {
+          setCms(data);
+        }
+      } catch {
+        // Silent fallback
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (cms?.content) {
+    return (
+      <LegalLayout
+        title={cms.title || "Privacy Policy"}
+        lastUpdated={cms.lastUpdated}
+      >
+        <HtmlContent html={cms.content} />
+      </LegalLayout>
+    );
+  }
   const sections = [
     {
       icon: Database,

@@ -36,12 +36,12 @@ export const strapiConfig = {
   apiToken: "",
 };
 
-export const strapiClient = null as any;
+export const strapiClient: null = null;
 
-export const strapiEndpoints = {} as Record<string, string>;
+export const strapiEndpoints: Record<string, string> = {};
 
-export const getStrapiImageUrl = (_: any) => null;
+export const getStrapiImageUrl = (_: unknown) => null;
 
-export const formatStrapiResponse = (_: any) => null;
+export const formatStrapiResponse = (_: unknown) => null;
 
 export default null;

@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
+import { buildFullShareUrl, decodeFullBuild } from "../services/buildSharing";
+import { toast } from "sonner";
+import { logger } from "../services/logger";
+import { ComponentErrorBoundary } from "./ErrorBoundary";
+import { ProductComparison } from "./ProductComparison";
+import { BuildsCompletedToday, SocialProof } from "./SocialProof";
+import { View3DButton } from "./AR3DViewer";
 
 // --- Typed Interfaces to replace implicit any usage ---
 export interface PCBuilderComponent {
@@ -79,8 +86,10 @@ export interface SelectedComponentIds {
   storage?: string;
   psu?: string;
   cooling?: string;
+  caseFans?: string;
 }
 
+type CategoryKey = keyof SelectedComponentIds;
 type AnyComponent = PCBuilderComponent | PCComponent;
 
 export interface ComponentDataMap {
@@ -92,11 +101,13 @@ export interface ComponentDataMap {
   storage?: AnyComponent[];
   psu?: AnyComponent[];
   cooling?: AnyComponent[];
+  caseFans?: AnyComponent[];
   [key: string]: AnyComponent[] | undefined;
 }
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { ProgressiveImage } from "./ProgressiveImage";
 import {
   fetchPCComponents,
   fetchPCOptionalExtras,
@@ -126,6 +137,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { Separator } from "./ui/separator";
 import { EnthusiastBuilder } from "./EnthusiastBuilder";
+import { BuildComparisonModal, type SavedBuild } from "./BuildComparisonModal";
 import {
   Dialog,
   DialogContent,
@@ -133,7 +145,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
+import { VisuallyHidden } from "./ui/visually-hidden";
 import { AspectRatio } from "./ui/aspect-ratio";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 import {
   Cpu,
   HardDrive,
@@ -161,9 +180,16 @@ import {
   AlertCircle,
   Sparkles,
   Trash2,
+  ArrowLeftRight,
   Download,
+  RefreshCw,
+  Share2,
+  X,
+  TrendingUp,
+  Building2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { ProductSchema } from "./seo/ProductSchema";
 
 // Dark themed placeholder image
 const PLACEHOLDER_IMAGE =
@@ -219,6 +245,97 @@ interface CompatibilityIssue {
   affectedComponents: string[];
 }
 
+// Skeleton Loading Components
+const ComponentCardSkeleton = ({
+  viewMode = "grid",
+}: {
+  viewMode?: string;
+}) => {
+  if (viewMode === "list") {
+    return (
+      <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden relative">
+        <div className="absolute inset-0 animate-shimmer pointer-events-none"></div>
+        <div className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6 items-center">
+            {/* Image skeleton */}
+            <div className="sm:col-span-3">
+              <div className="w-full h-32 bg-white/10 rounded-lg"></div>
+            </div>
+            {/* Content skeleton */}
+            <div className="sm:col-span-6 space-y-3">
+              <div className="h-6 bg-white/10 rounded w-3/4"></div>
+              <div className="h-4 bg-white/10 rounded w-full"></div>
+              <div className="h-4 bg-white/10 rounded w-5/6"></div>
+              <div className="flex gap-2">
+                <div className="h-6 w-20 bg-white/10 rounded"></div>
+                <div className="h-6 w-24 bg-white/10 rounded"></div>
+              </div>
+            </div>
+            {/* Price skeleton */}
+            <div className="sm:col-span-3 space-y-3">
+              <div className="h-8 bg-white/10 rounded w-24 ml-auto"></div>
+              <div className="h-10 bg-white/10 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden relative">
+      <div className="absolute inset-0 animate-shimmer pointer-events-none"></div>
+      <div className="p-6 space-y-4">
+        {/* Image skeleton */}
+        <div className="w-full h-48 bg-white/10 rounded-lg"></div>
+        {/* Content skeleton */}
+        <div className="space-y-3">
+          <div className="h-6 bg-white/10 rounded w-3/4"></div>
+          <div className="h-4 bg-white/10 rounded w-1/2"></div>
+          <div className="h-4 bg-white/10 rounded w-full"></div>
+          <div className="flex gap-2">
+            <div className="h-6 w-16 bg-white/10 rounded"></div>
+            <div className="h-6 w-20 bg-white/10 rounded"></div>
+          </div>
+          <div className="h-8 bg-white/10 rounded w-24"></div>
+          <div className="h-10 bg-white/10 rounded"></div>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+const BuildSummarySkeleton = () => {
+  return (
+    <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-4 sm:p-6 overflow-hidden relative">
+      <div className="absolute inset-0 animate-shimmer pointer-events-none"></div>
+      <div className="h-6 bg-white/10 rounded w-32 mb-4"></div>
+      <div className="space-y-4">
+        <div className="h-16 bg-white/10 rounded"></div>
+        <div className="h-12 bg-white/10 rounded"></div>
+        <div className="space-y-2">
+          <div className="h-4 bg-white/10 rounded w-3/4"></div>
+          <div className="h-4 bg-white/10 rounded w-1/2"></div>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+const CategoryNavSkeleton = () => {
+  return (
+    <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6 overflow-hidden relative">
+      <div className="absolute inset-0 animate-shimmer pointer-events-none"></div>
+      <div className="h-6 bg-white/10 rounded w-28 mb-4"></div>
+      <div className="space-y-2">
+        {[...Array(8)].map((_, i) => (
+          <div key={i} className="h-12 bg-white/10 rounded"></div>
+        ))}
+      </div>
+    </Card>
+  );
+};
+
 const BuildDetailsModal = ({
   isOpen,
   onClose,
@@ -273,6 +390,8 @@ const BuildDetailsModal = ({
         return Fan;
       default:
         return Package;
+      case "caseFans":
+        return Fan;
     }
   };
 
@@ -496,6 +615,18 @@ type ImageRef = string | { url?: string; src?: string };
 const getImageUrl = (img: ImageRef): string =>
   typeof img === "string" ? img : img.url || img.src || PLACEHOLDER_IMAGE;
 
+// Helper to get first image from a component
+const getComponentImage = (component: AnyComponent): string => {
+  if (
+    component.images &&
+    Array.isArray(component.images) &&
+    component.images.length > 0
+  ) {
+    return getImageUrl(component.images[0]);
+  }
+  return PLACEHOLDER_IMAGE;
+};
+
 const ComponentImageGallery = ({
   images,
   productName,
@@ -676,7 +807,7 @@ const ComponentImageGallery = ({
 
         {/* Thumbnail strip for non-compact view */}
         {!isCompact && productImages.length > 1 && (
-          <div className="flex gap-3 mt-4 overflow-x-auto pb-2">
+          <div className="flex gap-3 mt-4 overflow-x-auto pb-2 px-2 pt-2">
             {productImages.slice(0, 3).map((image: string, index: number) => (
               <button
                 type="button"
@@ -766,7 +897,7 @@ const ComponentImageGallery = ({
           </div>
 
           {/* Gallery thumbnails */}
-          <div className="grid grid-cols-4 gap-3 mt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 p-2">
             {productImages.map((image: string, index: number) => (
               <button
                 type="button"
@@ -1029,6 +1160,24 @@ const ComponentDetailModal = ({
             value: component.rgbLighting ? "Yes" : "No",
           });
         break;
+
+      case "caseFans":
+        if (component.rpm)
+          specs.push({ label: "Fan RPM", value: component.rpm });
+        if (component.airflow)
+          specs.push({ label: "Airflow", value: component.airflow });
+        if (component.noiseLevel)
+          specs.push({
+            label: "Noise Level",
+            value: `${component.noiseLevel} dBA`,
+          });
+        if (component.fanCount)
+          specs.push({ label: "Fan Count", value: component.fanCount });
+        if (component.connector)
+          specs.push({ label: "Connector", value: component.connector });
+        if (component.ledType)
+          specs.push({ label: "LED Type", value: component.ledType });
+        break;
     }
 
     return specs;
@@ -1048,6 +1197,11 @@ const ComponentDetailModal = ({
         className="w-[95vw] max-h-[90vh] overflow-hidden bg-gradient-to-br from-slate-950 to-black border-2 border-sky-500/40 p-0"
         style={{ maxWidth: "1200px" }}
       >
+        <VisuallyHidden>
+          <DialogTitle>{component.name} - Component Details</DialogTitle>
+        </VisuallyHidden>
+        {/* JSON-LD for the component shown in this modal */}
+        <ProductSchema product={component} />
         <div className="overflow-y-auto max-h-[90vh] p-8">
           {/* MASSIVE IMAGE SECTION - Takes up most of the modal */}
           <div className="mb-8">
@@ -1109,7 +1263,7 @@ const ComponentDetailModal = ({
 
             {/* Image Gallery Thumbnails */}
             {detailImages.length > 1 && (
-              <div className="flex gap-3 mt-4 justify-center flex-wrap">
+              <div className="flex gap-3 mt-4 justify-center flex-wrap p-2">
                 {detailImages.slice(0, 4).map((img: string, idx: number) => (
                   <button
                     type="button"
@@ -1188,7 +1342,7 @@ const ComponentDetailModal = ({
                   Price
                 </div>
                 <div className="flex items-start justify-end gap-1">
-                  <span className="text-5xl font-black text-white">
+                  <span className="text-3xl sm:text-4xl md:text-5xl font-black text-white">
                     £{Math.floor(component.price ?? 0)}
                   </span>
                   <span className="text-2xl font-bold text-sky-300 mt-1">
@@ -1258,7 +1412,10 @@ const ComponentDetailModal = ({
                       {spec.label}
                     </div>
                     <div className="text-sm font-semibold text-white">
-                      {spec.value}
+                      {typeof spec.value === "string" ||
+                      typeof spec.value === "number"
+                        ? spec.value
+                        : ""}
                     </div>
                   </div>
                 ))}
@@ -1341,6 +1498,425 @@ const ComponentDetailModal = ({
   );
 };
 
+// Optional Extra Detail Modal - Similar to ComponentDetailModal but for peripherals
+const OptionalExtraDetailModal = ({
+  extra,
+  category,
+  isOpen,
+  onClose,
+  onToggle,
+  isSelected,
+}: {
+  extra: PCOptionalExtra;
+  category: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onToggle: (category: string, extraId: string) => void;
+  isSelected: boolean;
+}) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const detailImages: string[] =
+    extra?.images && extra.images.length > 0
+      ? extra.images
+      : Array(4).fill(PLACEHOLDER_IMAGE);
+
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [extra?.id]);
+
+  if (!extra) return null;
+
+  const getSpecifications = () => {
+    const specs = [];
+
+    // Common specs
+    if (extra.name) specs.push({ label: "Name", value: extra.name });
+    if (extra.brand) specs.push({ label: "Brand", value: extra.brand });
+    if (extra.price)
+      specs.push({ label: "Price", value: `£${extra.price.toFixed(2)}` });
+    if (extra.rating)
+      specs.push({ label: "Rating", value: `${extra.rating}/5` });
+
+    // Optional Extra specific specs
+    if (extra.type) specs.push({ label: "Type", value: extra.type });
+    if (extra.color) specs.push({ label: "Color", value: extra.color });
+    if (extra.wireless !== undefined)
+      specs.push({
+        label: "Connection",
+        value: extra.wireless ? "Wireless" : "Wired",
+      });
+    if (extra.rgb !== undefined)
+      specs.push({ label: "RGB Lighting", value: extra.rgb ? "Yes" : "No" });
+
+    // Keyboard specific
+    if (extra.switches)
+      specs.push({ label: "Switches", value: extra.switches });
+    if (extra.layout) specs.push({ label: "Layout", value: extra.layout });
+    if (extra.keyCount)
+      specs.push({ label: "Key Count", value: extra.keyCount });
+
+    // Mouse specific
+    if (extra.dpi) specs.push({ label: "DPI", value: extra.dpi });
+    if (extra.weight)
+      specs.push({ label: "Weight", value: `${extra.weight}g` });
+    if (extra.sensor) specs.push({ label: "Sensor", value: extra.sensor });
+
+    // Monitor specific
+    if (extra.size) specs.push({ label: "Size", value: `${extra.size}"` });
+    if (extra.monitorResolution)
+      specs.push({ label: "Resolution", value: extra.monitorResolution });
+    if (extra.resolution)
+      specs.push({ label: "Resolution", value: extra.resolution });
+    if (extra.refreshRate)
+      specs.push({ label: "Refresh Rate", value: `${extra.refreshRate}Hz` });
+    if (extra.panelType)
+      specs.push({ label: "Panel Type", value: extra.panelType });
+    if (extra.responseTime)
+      specs.push({
+        label: "Response Time",
+        value: `${extra.responseTime}ms`,
+      });
+    if (extra.curved !== undefined)
+      specs.push({ label: "Curved", value: extra.curved ? "Yes" : "No" });
+    if (extra.aspectRatio)
+      specs.push({ label: "Aspect Ratio", value: extra.aspectRatio });
+
+    // Gamepad specific
+    if (extra.platform)
+      specs.push({ label: "Platform", value: extra.platform });
+    if (extra.batteryLife)
+      specs.push({ label: "Battery Life", value: extra.batteryLife });
+    if (extra.connection)
+      specs.push({ label: "Connection Type", value: extra.connection });
+
+    // Mousepad specific
+    if (extra.surface) specs.push({ label: "Surface", value: extra.surface });
+    if (extra.dimensions)
+      specs.push({ label: "Dimensions", value: extra.dimensions });
+    if (extra.thickness)
+      specs.push({ label: "Thickness", value: `${extra.thickness}mm` });
+
+    // Audio specific (headset, speakers, microphone)
+    if (extra.frequencyResponse)
+      specs.push({
+        label: "Frequency Response",
+        value: extra.frequencyResponse,
+      });
+    if (extra.impedance)
+      specs.push({ label: "Impedance", value: `${extra.impedance}Ω` });
+    if (extra.microphone !== undefined)
+      specs.push({
+        label: "Microphone",
+        value: extra.microphone ? "Yes" : "No",
+      });
+    if (extra.surroundSound !== undefined)
+      specs.push({
+        label: "Surround Sound",
+        value: extra.surroundSound ? "Yes" : "No",
+      });
+
+    // Webcam/Microphone specific
+    if (extra.frameRate)
+      specs.push({ label: "Frame Rate", value: `${extra.frameRate}fps` });
+    if (extra.fieldOfView)
+      specs.push({ label: "Field of View", value: `${extra.fieldOfView}°` });
+
+    return specs;
+  };
+
+  const specs = getSpecifications();
+
+  const technicalSpecs = specs.filter(
+    (spec) => !["Name", "Brand", "Price", "Rating"].includes(spec.label)
+  );
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent
+        className="w-[95vw] max-h-[90vh] overflow-hidden bg-gradient-to-br from-slate-950 to-black border-2 border-green-500/40 p-0"
+        style={{ maxWidth: "1200px" }}
+      >
+        <VisuallyHidden>
+          <DialogTitle>{extra.name} - Product Details</DialogTitle>
+        </VisuallyHidden>
+        {/* JSON-LD for the optional extra shown in this modal */}
+        <ProductSchema product={extra} />
+        <div className="overflow-y-auto max-h-[90vh] p-8">
+          <div className="mb-8">
+            <div className="relative w-full bg-slate-900/50 rounded-2xl overflow-hidden border-2 border-green-500/20">
+              <img
+                src={detailImages[currentImageIndex]}
+                alt={extra.name}
+                className="w-full h-auto object-contain"
+                style={{ minHeight: "500px", maxHeight: "600px" }}
+              />
+
+              {extra.featured && (
+                <div className="absolute top-3 right-3 z-30">
+                  <FeaturedTag />
+                </div>
+              )}
+
+              {detailImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Previous image"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(
+                        (prev) =>
+                          (prev - 1 + detailImages.length) % detailImages.length
+                      );
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/25 transition-all duration-300 flex items-center justify-center"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next image"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(
+                        (prev) => (prev + 1) % detailImages.length
+                      );
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/25 transition-all duration-300 flex items-center justify-center"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+                <Badge className="bg-white/10 backdrop-blur-md text-white border-white/20">
+                  {currentImageIndex + 1}/{detailImages.length}
+                </Badge>
+              </div>
+            </div>
+
+            {detailImages.length > 1 && (
+              <div className="flex gap-3 mt-4 justify-center flex-wrap p-2">
+                {detailImages.slice(0, 4).map((img: string, idx: number) => (
+                  <button
+                    type="button"
+                    key={idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(idx);
+                    }}
+                    className={`w-20 h-20 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                      idx === currentImageIndex
+                        ? "border-green-500 ring-2 ring-green-500/30"
+                        : "border-white/10 hover:border-white/30"
+                    }`}
+                    aria-label={`View image ${idx + 1}`}
+                  >
+                    <img
+                      src={img}
+                      alt={`${extra.name} ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-3xl font-black text-white mb-2">
+                  {extra.name}
+                </h2>
+                <p className="text-gray-400">{extra.description}</p>
+
+                <div className="flex items-center gap-3 mt-3">
+                  <div className="flex gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`w-3 h-3 ${
+                          i < Math.floor(extra.rating ?? 0)
+                            ? "fill-current"
+                            : ""
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-sm text-gray-400">
+                    ({extra.rating}/5)
+                  </span>
+                  <Badge
+                    className={
+                      extra.inStock !== false
+                        ? "bg-green-500/20 text-green-400 border-green-500/40"
+                        : "bg-red-500/20 text-red-400 border-red-500/40"
+                    }
+                  >
+                    {extra.inStock !== false ? "✓ In Stock" : "Out of Stock"}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="text-right bg-gradient-to-br from-green-500/20 to-emerald-500/20 px-8 py-6 rounded-xl border-2 border-green-400/40">
+                <div className="text-xs text-green-400 uppercase tracking-wider mb-2">
+                  Price
+                </div>
+                <div className="flex items-start justify-end gap-1">
+                  <span className="text-3xl sm:text-4xl md:text-5xl font-black text-white">
+                    £{Math.floor(extra.price ?? 0)}
+                  </span>
+                  <span className="text-2xl font-bold text-green-300 mt-1">
+                    .{(extra.price ?? 0).toFixed(2).split(".")[1]}
+                  </span>
+                </div>
+                {extra.brand && (
+                  <Badge className="mt-3 bg-green-500/30 text-green-300 border-green-400/50">
+                    {extra.brand}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {extra.mainDescription && (
+              <div className="bg-slate-900/60 rounded-xl p-6 border border-green-500/20">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <svg
+                    className="w-5 h-5 text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  Product Description
+                </h3>
+                <div className="text-base text-gray-300 leading-relaxed whitespace-pre-line">
+                  {extra.mainDescription}
+                </div>
+              </div>
+            )}
+
+            {technicalSpecs.length > 0 && (
+              <div className="bg-slate-900/60 rounded-xl p-6 border border-green-500/20">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-green-400" />
+                    Technical Specifications
+                  </h3>
+                  {extra.techSheet && (
+                    <a
+                      href={extra.techSheet}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-green-500/50"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Download className="w-4 h-4" />
+                      Download Full Tech Sheet
+                    </a>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {technicalSpecs.map((spec, index) => (
+                    <div
+                      key={index}
+                      className="bg-slate-800/60 rounded-lg p-4 border border-white/5"
+                    >
+                      <div className="text-xs text-gray-500 uppercase mb-1">
+                        {spec.label}
+                      </div>
+                      <div className="text-sm font-semibold text-white">
+                        {typeof spec.value === "string" ||
+                        typeof spec.value === "number"
+                          ? spec.value
+                          : ""}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {extra.features && extra.features.length > 0 && (
+              <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 rounded-xl p-6 border border-green-500/20">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <svg
+                    className="w-5 h-5 text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Key Features
+                </h3>
+                <ul className="space-y-2">
+                  {extra.features.map((feature: string, index: number) => (
+                    <li key={index} className="flex items-start gap-3">
+                      <svg
+                        className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      <span className="text-base text-gray-300">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex gap-4 pt-4">
+              <Button
+                variant="outline"
+                onClick={onClose}
+                className="flex-1 h-12"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={() => {
+                  onToggle(category, extra.id);
+                  onClose();
+                }}
+                className={`flex-1 h-12 ${
+                  isSelected
+                    ? "bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500"
+                    : "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
+                }`}
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                {isSelected ? "Remove from Build" : "Add to Build"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // Enhanced Component Card with images
 const ComponentCard = ({
   component,
@@ -1348,12 +1924,14 @@ const ComponentCard = ({
   isSelected,
   onSelect,
   viewMode = "grid",
+  onSetActiveCategory,
 }: {
   component: PCBuilderComponent;
   category: string;
   isSelected: boolean;
   onSelect: (category: string, componentId: string) => void;
   viewMode?: string;
+  onSetActiveCategory?: (category: CategoryKey) => void;
 }) => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -1390,7 +1968,7 @@ const ComponentCard = ({
               <div className="sm:col-span-3">
                 <ComponentImageGallery
                   images={componentWithImages.images}
-                  productName={component.name}
+                  productName={component.name ?? ""}
                   isCompact={true}
                 />
               </div>
@@ -1539,30 +2117,30 @@ const ComponentCard = ({
                   </div>
                 </div>
 
-                <div className="flex gap-2 justify-start sm:justify-end">
+                <div className="flex flex-col gap-2 w-full">
                   <Button
-                    variant="ghost"
-                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setIsFavorited(!isFavorited);
+                      onSetActiveCategory?.(category as CategoryKey);
                     }}
-                    className={`p-2 ${
-                      isFavorited
-                        ? "text-red-400 hover:text-red-300"
-                        : "text-gray-400 hover:text-white"
-                    }`}
+                    variant="outline"
+                    size="sm"
+                    className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10 w-full"
                   >
-                    <Heart
-                      className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`}
-                    />
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Swap Component
                   </Button>
                   <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelect(category, "");
+                    }}
                     variant="ghost"
                     size="sm"
-                    className="p-2 text-gray-400 hover:text-white"
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 w-full"
                   >
-                    <Bookmark className="w-4 h-4" />
+                    <X className="w-4 h-4 mr-2" />
+                    Remove
                   </Button>
                 </div>
               </div>
@@ -1604,12 +2182,12 @@ const ComponentCard = ({
           {/* Image Gallery */}
           <ComponentImageGallery
             images={componentWithImages.images}
-            productName={component.name}
+            productName={component.name ?? ""}
           />
 
           {/* Content */}
           <div className="space-y-3">
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-start gap-4">
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-white mb-1 group-hover:text-sky-300 transition-colors">
                   {component.name}
@@ -1631,32 +2209,58 @@ const ComponentCard = ({
                 </div>
               </div>
 
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsFavorited(!isFavorited);
-                  }}
-                  className={`p-2 ${
-                    isFavorited
-                      ? "text-red-400 hover:text-red-300"
-                      : "text-gray-400 hover:text-white"
-                  }`}
-                >
-                  <Heart
-                    className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`}
-                  />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-2 text-gray-400 hover:text-white"
-                >
-                  <Bookmark className="w-4 h-4" />
-                </Button>
-              </div>
+              <TooltipProvider>
+                <div className="flex gap-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsFavorited(!isFavorited);
+                        }}
+                        className={`p-2 ${
+                          isFavorited
+                            ? "text-red-400 hover:text-red-300"
+                            : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        <Heart
+                          className={`w-4 h-4 ${
+                            isFavorited ? "fill-current" : ""
+                          }`}
+                        />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        {isFavorited
+                          ? "Remove from favorites"
+                          : "Add to favorites"}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // TODO: Implement bookmark/save for later functionality
+                        }}
+                        className="p-2 text-gray-400 hover:text-white"
+                      >
+                        <Bookmark className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Save for comparison</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
             </div>
 
             <p className="text-gray-400 text-sm line-clamp-2">
@@ -1665,6 +2269,9 @@ const ComponentCard = ({
 
             {/* Badges */}
             <div className="flex flex-wrap gap-2">
+              {/* Social Proof - Viewer Count */}
+              <SocialProof productId={component.id} variant="compact" />
+
               {/* All the existing badge logic from your original code */}
               {component.capacity && (
                 <Badge
@@ -1699,6 +2306,24 @@ const ComponentCard = ({
                 </Badge>
               )}
             </div>
+
+            {/* 3D Viewer Button (for PC cases only) */}
+            {category === "case" && (
+              <div className="mt-3">
+                <View3DButton
+                  productName={component.name ?? "PC Case"}
+                  caseType={
+                    component.formFactor?.toLowerCase().includes("mini")
+                      ? "mini-itx"
+                      : component.formFactor?.toLowerCase().includes("full")
+                      ? "full-tower"
+                      : "mid-tower"
+                  }
+                  color="#1e293b"
+                  className="w-full"
+                />
+              </div>
+            )}
 
             {/* Price */}
             <div className="flex justify-between items-center pt-2">
@@ -2436,6 +3061,7 @@ const PeripheralCard = ({
   viewMode?: string;
 }) => {
   const [isFavorited, setIsFavorited] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Use actual images from CMS data, fallback to placeholder if none
   const peripheralImages =
@@ -2444,7 +3070,7 @@ const PeripheralCard = ({
       : Array(4).fill(PLACEHOLDER_IMAGE);
 
   // Debug logging for image data
-  console.log(`🔍 PeripheralCard for ${peripheral.name}:`, {
+  logger.debug(`🔍 PeripheralCard for ${peripheral.name}:`, {
     hasImages: peripheral.images ? peripheral.images.length : 0,
     firstImage: peripheral.images?.[0]?.substring(0, 50) + "..." || "none",
     usingFallback: !(peripheral.images && peripheral.images.length > 0),
@@ -2452,13 +3078,157 @@ const PeripheralCard = ({
 
   if (viewMode === "list") {
     return (
+      <>
+        <Card
+          className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] relative overflow-visible ${
+            isSelected
+              ? "ring-2 ring-green-500 bg-green-500/10 border-green-500/50"
+              : "bg-white/5 border-white/10 hover:bg-white/10"
+          }`}
+          onClick={() => setShowDetailModal(true)}
+        >
+          {/* Featured Tag */}
+          {peripheral.featured && (
+            <div className="absolute top-2 right-2 z-20">
+              <FeaturedTag />
+            </div>
+          )}
+          <div className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6 items-center">
+              {/* Image */}
+              <div className="sm:col-span-3">
+                <ComponentImageGallery
+                  images={peripheralImages}
+                  productName={peripheral.name}
+                  isCompact={true}
+                />
+              </div>
+
+              {/* Content */}
+              <div className="sm:col-span-6 space-y-3">
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
+                    {peripheral.name}
+                  </h3>
+                  <p className="text-gray-400 line-clamp-2 text-sm sm:text-base">
+                    {peripheral.description}
+                  </p>
+                </div>
+
+                {/* Badges */}
+                <div className="flex flex-wrap gap-2">
+                  {peripheral.type && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-purple-500/20 text-purple-300 border-purple-500/30"
+                    >
+                      {peripheral.type}
+                    </Badge>
+                  )}
+                  {peripheral.wireless !== undefined && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+                    >
+                      {peripheral.wireless ? "Wireless" : "Wired"}
+                    </Badge>
+                  )}
+                  {peripheral.rgb && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-pink-500/20 text-pink-300 border-pink-500/30"
+                    >
+                      RGB
+                    </Badge>
+                  )}
+                  {peripheral.size && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-blue-500/20 text-blue-300 border-blue-500/30"
+                    >
+                      {peripheral.size}
+                    </Badge>
+                  )}
+                  {peripheral.refreshRate && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
+                    >
+                      {peripheral.refreshRate}Hz
+                    </Badge>
+                  )}
+                  {peripheral.resolution && (
+                    <Badge
+                      variant="secondary"
+                      className="text-sm py-1 px-2 bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+                    >
+                      {peripheral.resolution}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Price & Actions */}
+              <div className="col-span-3 text-right space-y-3">
+                <div>
+                  <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                    £{peripheral.price.toFixed(2)}
+                  </div>
+                  <div className="flex items-center justify-end gap-1 text-yellow-400">
+                    {[...Array(5)].map((_, i) => {
+                      const ratingValue = peripheral.rating ?? 0;
+                      return (
+                        <Star
+                          key={i}
+                          className={`w-3 h-3 ${
+                            i < Math.floor(ratingValue) ? "fill-current" : ""
+                          }`}
+                        />
+                      );
+                    })}
+                    <span className="text-xs text-gray-400 ml-1">
+                      ({peripheral.rating})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsFavorited(!isFavorited);
+                    }}
+                    className={`p-2 ${
+                      isFavorited
+                        ? "text-red-400 hover:text-red-300"
+                        : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    <Heart
+                      className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`}
+                    />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </>
+    );
+  }
+
+  // Grid view (default)
+  return (
+    <>
       <Card
-        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.01] relative overflow-visible ${
+        className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group relative overflow-hidden ${
           isSelected
             ? "ring-2 ring-green-500 bg-green-500/10 border-green-500/50"
             : "bg-white/5 border-white/10 hover:bg-white/10"
         }`}
-        onClick={() => onToggle(category, peripheral.id)}
+        onClick={() => setShowDetailModal(true)}
       >
         {/* Featured Tag */}
         {peripheral.featured && (
@@ -2466,88 +3236,21 @@ const PeripheralCard = ({
             <FeaturedTag />
           </div>
         )}
-        <div className="p-4 sm:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6 items-center">
-            {/* Image */}
-            <div className="sm:col-span-3">
-              <ComponentImageGallery
-                images={peripheralImages}
-                productName={peripheral.name}
-                isCompact={true}
-              />
-            </div>
+        <div className="p-6 space-y-4">
+          {/* Image Gallery */}
+          <ComponentImageGallery
+            images={peripheralImages}
+            productName={peripheral.name}
+          />
 
-            {/* Content */}
-            <div className="sm:col-span-6 space-y-3">
-              <div>
-                <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
+          {/* Content */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-white mb-1 group-hover:text-green-300 transition-colors">
                   {peripheral.name}
                 </h3>
-                <p className="text-gray-400 line-clamp-2 text-sm sm:text-base">
-                  {peripheral.description}
-                </p>
-              </div>
-
-              {/* Badges */}
-              <div className="flex flex-wrap gap-2">
-                {peripheral.type && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-purple-500/20 text-purple-300 border-purple-500/30"
-                  >
-                    {peripheral.type}
-                  </Badge>
-                )}
-                {peripheral.wireless !== undefined && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
-                  >
-                    {peripheral.wireless ? "Wireless" : "Wired"}
-                  </Badge>
-                )}
-                {peripheral.rgb && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-pink-500/20 text-pink-300 border-pink-500/30"
-                  >
-                    RGB
-                  </Badge>
-                )}
-                {peripheral.size && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-blue-500/20 text-blue-300 border-blue-500/30"
-                  >
-                    {peripheral.size}
-                  </Badge>
-                )}
-                {peripheral.refreshRate && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-green-500/20 text-green-300 border-green-500/30"
-                  >
-                    {peripheral.refreshRate}Hz
-                  </Badge>
-                )}
-                {peripheral.resolution && (
-                  <Badge
-                    variant="secondary"
-                    className="text-sm py-1 px-2 bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
-                  >
-                    {peripheral.resolution}
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            {/* Price & Actions */}
-            <div className="col-span-3 text-right space-y-3">
-              <div>
-                <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                  £{peripheral.price.toFixed(2)}
-                </div>
-                <div className="flex items-center justify-end gap-1 text-yellow-400">
+                <div className="flex items-center gap-1 text-yellow-400 mb-2">
                   {[...Array(5)].map((_, i) => {
                     const ratingValue = peripheral.rating ?? 0;
                     return (
@@ -2565,161 +3268,119 @@ const PeripheralCard = ({
                 </div>
               </div>
 
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsFavorited(!isFavorited);
-                  }}
-                  className={`p-2 ${
-                    isFavorited
-                      ? "text-red-400 hover:text-red-300"
-                      : "text-gray-400 hover:text-white"
-                  }`}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsFavorited(!isFavorited);
+                }}
+                className={`p-2 ${
+                  isFavorited
+                    ? "text-red-400 hover:text-red-300"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <Heart
+                  className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`}
+                />
+              </Button>
+            </div>
+
+            <p className="text-gray-400 text-sm line-clamp-2">
+              {peripheral.description}
+            </p>
+
+            {/* Badges */}
+            <div className="flex flex-wrap gap-2">
+              {peripheral.type && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs py-1 px-2 bg-purple-500/20 text-purple-300 border-purple-500/30"
                 >
-                  <Heart
-                    className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`}
-                  />
-                </Button>
+                  {peripheral.type}
+                </Badge>
+              )}
+              {peripheral.wireless !== undefined && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs py-1 px-2 bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+                >
+                  {peripheral.wireless ? "Wireless" : "Wired"}
+                </Badge>
+              )}
+              {peripheral.rgb && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs py-1 px-2 bg-pink-500/20 text-pink-300 border-pink-500/30"
+                >
+                  RGB
+                </Badge>
+              )}
+            </div>
+
+            {/* Price */}
+            <div className="flex justify-between items-center pt-2">
+              <div className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                £{peripheral.price.toFixed(2)}
+              </div>
+              <div
+                className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+                  isSelected
+                    ? "bg-green-500 text-white"
+                    : "bg-white/10 text-gray-300 group-hover:bg-green-500/20 group-hover:text-green-300"
+                }`}
+              >
+                {isSelected ? (
+                  <>
+                    <CheckCircle className="w-3 h-3" />
+                    Added
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-3 h-3" />
+                    Add
+                  </>
+                )}
               </div>
             </div>
           </div>
         </div>
       </Card>
-    );
-  }
 
-  // Grid view (default)
-  return (
-    <Card
-      className={`cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group relative overflow-hidden ${
-        isSelected
-          ? "ring-2 ring-green-500 bg-green-500/10 border-green-500/50"
-          : "bg-white/5 border-white/10 hover:bg-white/10"
-      }`}
-      onClick={() => onToggle(category, peripheral.id)}
-    >
-      {/* Featured Tag */}
-      {peripheral.featured && (
-        <div className="absolute top-2 right-2 z-20">
-          <FeaturedTag />
-        </div>
-      )}
-      <div className="p-6 space-y-4">
-        {/* Image Gallery */}
-        <ComponentImageGallery
-          images={peripheralImages}
-          productName={peripheral.name}
-        />
-
-        {/* Content */}
-        <div className="space-y-3">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <h3 className="text-lg font-bold text-white mb-1 group-hover:text-green-300 transition-colors">
-                {peripheral.name}
-              </h3>
-              <div className="flex items-center gap-1 text-yellow-400 mb-2">
-                {[...Array(5)].map((_, i) => {
-                  const ratingValue = peripheral.rating ?? 0;
-                  return (
-                    <Star
-                      key={i}
-                      className={`w-3 h-3 ${
-                        i < Math.floor(ratingValue) ? "fill-current" : ""
-                      }`}
-                    />
-                  );
-                })}
-                <span className="text-xs text-gray-400 ml-1">
-                  ({peripheral.rating})
-                </span>
-              </div>
-            </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsFavorited(!isFavorited);
-              }}
-              className={`p-2 ${
-                isFavorited
-                  ? "text-red-400 hover:text-red-300"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              <Heart
-                className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`}
-              />
-            </Button>
-          </div>
-
-          <p className="text-gray-400 text-sm line-clamp-2">
-            {peripheral.description}
-          </p>
-
-          {/* Badges */}
-          <div className="flex flex-wrap gap-2">
-            {peripheral.type && (
-              <Badge
-                variant="secondary"
-                className="text-xs py-1 px-2 bg-purple-500/20 text-purple-300 border-purple-500/30"
-              >
-                {peripheral.type}
-              </Badge>
-            )}
-            {peripheral.wireless !== undefined && (
-              <Badge
-                variant="secondary"
-                className="text-xs py-1 px-2 bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
-              >
-                {peripheral.wireless ? "Wireless" : "Wired"}
-              </Badge>
-            )}
-            {peripheral.rgb && (
-              <Badge
-                variant="secondary"
-                className="text-xs py-1 px-2 bg-pink-500/20 text-pink-300 border-pink-500/30"
-              >
-                RGB
-              </Badge>
-            )}
-          </div>
-
-          {/* Price */}
-          <div className="flex justify-between items-center pt-2">
-            <div className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-              £{peripheral.price.toFixed(2)}
-            </div>
-            <div
-              className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
-                isSelected
-                  ? "bg-green-500 text-white"
-                  : "bg-white/10 text-gray-300 group-hover:bg-green-500/20 group-hover:text-green-300"
-              }`}
-            >
-              {isSelected ? (
-                <>
-                  <CheckCircle className="w-3 h-3" />
-                  Added
-                </>
-              ) : (
-                <>
-                  <Plus className="w-3 h-3" />
-                  Add
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </Card>
+      {/* Detail Modal */}
+      <OptionalExtraDetailModal
+        extra={peripheral}
+        category={category}
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        onToggle={onToggle}
+        isSelected={isSelected}
+      />
+    </>
   );
 };
+
+// Memoized heavy list items to reduce re-renders
+const MemoComponentCard = memo(
+  ComponentCard,
+  (prev, next) =>
+    prev.component.id === next.component.id &&
+    prev.component.price === next.component.price &&
+    prev.isSelected === next.isSelected &&
+    prev.viewMode === next.viewMode &&
+    prev.category === next.category
+);
+
+const MemoPeripheralCard = memo(
+  PeripheralCard,
+  (prev, next) =>
+    prev.peripheral.id === next.peripheral.id &&
+    prev.peripheral.price === next.peripheral.price &&
+    prev.isSelected === next.isSelected &&
+    prev.viewMode === next.viewMode &&
+    prev.category === next.category
+);
 
 // Enhanced compatibility checking system (hardened with null/undefined guards)
 const checkCompatibility = (
@@ -2973,9 +3634,8 @@ export function PCBuilder({
   const [selectedComponents, setSelectedComponents] =
     useState<SelectedComponentIds>({});
   const [selectedPeripherals, setSelectedPeripherals] = useState<
-    Record<string, string>
+    Record<string, string[]>
   >({});
-  type CategoryKey = keyof SelectedComponentIds;
   const [activeCategory, setActiveCategory] = useState<CategoryKey>("case");
   const [viewMode, setViewMode] = useState("grid");
   const [sortBy, setSortBy] = useState("price");
@@ -2987,6 +3647,16 @@ export function PCBuilder({
     useState(false);
   const [showBuildDetailsModal, setShowBuildDetailsModal] = useState(false);
   const [showEnthusiastBuilder, setShowEnthusiastBuilder] = useState(false);
+
+  // Build comparison feature
+  const [savedBuildsForComparison, setSavedBuildsForComparison] = useState<
+    SavedBuild[]
+  >([]);
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
+
+  // Product comparison feature
+  const [compareProducts, setCompareProducts] = useState<PCComponent[]>([]);
+  const [showProductComparison, setShowProductComparison] = useState(false);
 
   // CMS Integration
   const [cmsComponents, setCmsComponents] = useState<{
@@ -3040,11 +3710,66 @@ export function PCBuilder({
   };
   const navigate = useNavigate();
 
+  // Hydrate from ?build= token in URL after components/peripherals load
+  useEffect(() => {
+    const token = new URL(window.location.href).searchParams.get("build");
+    if (!token) return;
+    const decoded = decodeFullBuild(token);
+    const { components: compDecoded, peripherals: periphDecoded } = decoded;
+    if (!compDecoded || Object.keys(compDecoded).length === 0) return;
+
+    // Pick the right dataset (CMS or fallback)
+    const data = useCmsData ? cmsComponents : componentData;
+    const extrasData: Record<string, Array<{ id: string }>> = useCmsData
+      ? cmsOptionalExtras
+      : {};
+
+    // Filter components to only IDs that exist in current data
+    const filtered: SelectedComponentIds = {} as SelectedComponentIds;
+    (Object.keys(compDecoded) as (keyof SelectedComponentIds)[]).forEach(
+      (k) => {
+        const id = compDecoded[k];
+        if (!id) return;
+        const list =
+          (data as ComponentDataMap)[k as keyof ComponentDataMap] || [];
+        if (Array.isArray(list) && list.find((c) => c.id === id)) {
+          filtered[k] = id;
+        }
+      }
+    );
+
+    // Filter peripherals similarly
+    const filteredPeripherals: Record<string, string[]> = {};
+    Object.entries(periphDecoded).forEach(([category, ids]) => {
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      const list = extrasData[category as keyof typeof cmsOptionalExtras] || [];
+      if (Array.isArray(list)) {
+        const validIds = ids.filter((id) => list.find((c) => c.id === id));
+        if (validIds.length > 0) filteredPeripherals[category] = validIds;
+      }
+    });
+
+    if (Object.keys(filtered).length > 0) {
+      setSelectedComponents(filtered);
+      if (Object.keys(filteredPeripherals).length > 0) {
+        setSelectedPeripherals((prev) => ({ ...prev, ...filteredPeripherals }));
+      }
+      // Clean up the URL (keep path without query)
+      const url = new URL(window.location.href);
+      url.searchParams.delete("build");
+      window.history.replaceState({}, "", url.pathname + url.hash);
+      logger.debug("✅ Imported build from share link", {
+        filtered,
+        filteredPeripherals,
+      });
+    }
+  }, [isLoadingCms, useCmsData, cmsComponents, cmsOptionalExtras]);
+
   // Fetch components from CMS on mount
   useEffect(() => {
     const loadCmsData = async () => {
       try {
-        console.log(
+        logger.debug(
           "🔄 Loading PC components and optional extras - please wait..."
         );
         setIsLoadingCms(true);
@@ -3059,6 +3784,7 @@ export function PCBuilder({
           storage: PCComponent[];
           psu: PCComponent[];
           cooling: PCComponent[];
+          caseFans: PCComponent[];
         }
         const categories: (keyof LoadedComponentsMap)[] = [
           "case",
@@ -3069,6 +3795,7 @@ export function PCBuilder({
           "storage",
           "psu",
           "cooling",
+          "caseFans",
         ];
         const componentResults: LoadedComponentsMap = {
           case: [],
@@ -3079,11 +3806,12 @@ export function PCBuilder({
           storage: [],
           psu: [],
           cooling: [],
+          caseFans: [],
         };
         for (const category of categories) {
           const components = await fetchPCComponents({ category });
           componentResults[category] = components;
-          console.log(`✅ Loaded ${components.length} ${category} components`);
+          logger.debug(`✅ Loaded ${components.length} ${category} components`);
         }
 
         // Load optional extras
@@ -3112,7 +3840,9 @@ export function PCBuilder({
         for (const category of extraCategories) {
           const extras = await fetchPCOptionalExtras({ category });
           extraResults[category] = extras;
-          console.log(`✅ Loaded ${extras.length} ${category} optional extras`);
+          logger.debug(
+            `✅ Loaded ${extras.length} ${category} optional extras`
+          );
         }
 
         setCmsComponents(componentResults);
@@ -3128,9 +3858,9 @@ export function PCBuilder({
         setUseCmsData(hasComponents || hasExtras);
 
         if (hasComponents || hasExtras) {
-          console.log("✅ Using CMS data for PC Builder");
+          logger.debug("✅ Using CMS data for PC Builder");
         } else {
-          console.log("ℹ️ No CMS data found, using fallback hardcoded data");
+          logger.debug("ℹ️ No CMS data found, using fallback hardcoded data");
         }
 
         // Process pending PC Finder recommendations if available
@@ -3138,7 +3868,7 @@ export function PCBuilder({
         if (finderParts && hasComponents) {
           try {
             const parts = JSON.parse(finderParts);
-            console.log(
+            logger.debug(
               "🔧 Auto-importing PC Finder recommendations...",
               parts
             );
@@ -3292,15 +4022,16 @@ export function PCBuilder({
             }
 
             if (Object.keys(autoSelected).length > 0) {
-              console.log(
-                "✅ Auto-selected components from PC Finder:",
-                autoSelected
-              );
+              logger.debug("Auto-selected components from PC Finder", {
+                autoSelected,
+              });
               setSelectedComponents(autoSelected);
               sessionStorage.removeItem("finder_parts_pending"); // Clear after successful import
             }
           } catch (e) {
-            console.warn("⚠️ Failed to auto-import Finder recommendations:", e);
+            logger.warn("Failed to auto-import Finder recommendations", {
+              error: e instanceof Error ? e.message : String(e),
+            });
           }
         }
 
@@ -3309,10 +4040,9 @@ export function PCBuilder({
         if (visualBuild && hasComponents) {
           try {
             const buildConfig = JSON.parse(visualBuild);
-            console.log(
-              "🎨 Auto-importing Visual Configurator build...",
-              buildConfig
-            );
+            logger.debug("Auto-importing Visual Configurator build", {
+              buildConfig,
+            });
 
             const autoSelected: SelectedComponentIds = {};
 
@@ -3332,9 +4062,9 @@ export function PCBuilder({
               autoSelected.cooling = buildConfig.cooling.id;
 
             if (Object.keys(autoSelected).length > 0) {
-              console.log(
-                "✅ Auto-selected components from Visual Configurator:",
-                autoSelected
+              logger.debug(
+                "Auto-selected components from Visual Configurator",
+                { autoSelected }
               );
               setSelectedComponents(autoSelected);
               // Focus the first selected category so it's visible in the main viewport
@@ -3355,14 +4085,15 @@ export function PCBuilder({
               sessionStorage.removeItem("visual_configurator_build"); // Clear after successful import
             }
           } catch (e) {
-            console.warn(
-              "⚠️ Failed to auto-import Visual Configurator build:",
-              e
-            );
+            logger.warn("Failed to auto-import Visual Configurator build", {
+              error: e instanceof Error ? e.message : String(e),
+            });
           }
         }
       } catch (error) {
-        console.error("❌ Error loading CMS data:", error);
+        logger.error("Error loading CMS data", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         setUseCmsData(false);
       } finally {
         setIsLoadingCms(false);
@@ -3376,14 +4107,13 @@ export function PCBuilder({
   useEffect(() => {
     const persisted = loadPersistedRecommendation();
     if (persisted && persisted.recommendation) {
-      console.log(
-        "🎯 Loading PC Finder recommendations into Builder:",
-        persisted
-      );
+      logger.debug("Loading PC Finder recommendations into Builder", {
+        recommendation: persisted.recommendation,
+      });
       const { parts } = persisted.recommendation;
 
       // Store for later processing once CMS components are loaded
-      console.log("📦 Recommended parts from Finder:", parts);
+      logger.debug("Recommended parts from Finder", { parts });
       sessionStorage.setItem("finder_parts_pending", JSON.stringify(parts));
     }
   }, []);
@@ -3391,7 +4121,7 @@ export function PCBuilder({
   // Import recommended build on mount or when it changes
   useEffect(() => {
     if (recommendedBuild && recommendedBuild.specs) {
-      console.log(
+      logger.debug(
         "🔄 Importing recommended build to PC Builder:",
         recommendedBuild
       );
@@ -3436,12 +4166,16 @@ export function PCBuilder({
             specString.includes("i7") ||
             specString.includes("i5")
           ) {
-            match = components.find((c) => c.platform === "Intel");
+            match = components.find(
+              (c) => (c as { platform?: string }).platform === "Intel"
+            );
           } else if (
             specString.includes("AMD") ||
             specString.includes("Ryzen")
           ) {
-            match = components.find((c) => c.platform === "AMD");
+            match = components.find(
+              (c) => (c as { platform?: string }).platform === "AMD"
+            );
           }
         } else if (category === "gpu") {
           // Match by GPU model
@@ -3466,79 +4200,131 @@ export function PCBuilder({
         } else if (category === "ram") {
           // Match by capacity
           if (specString.includes("64GB"))
-            match = components.find((c) => c.capacity === 64);
+            match = components.find(
+              (c) => (c as { capacity?: number }).capacity === 64
+            );
           else if (specString.includes("32GB"))
-            match = components.find((c) => c.capacity === 32);
+            match = components.find(
+              (c) => (c as { capacity?: number }).capacity === 32
+            );
           else if (specString.includes("16GB"))
-            match = components.find((c) => c.capacity === 16);
+            match = components.find(
+              (c) => (c as { capacity?: number }).capacity === 16
+            );
           else match = components[0]; // Default to first RAM
         } else if (category === "storage") {
           // Match by capacity and type
           if (specString.includes("4TB"))
-            match = components.find((c) => c.capacity >= 4000);
+            match = components.find(
+              (c) =>
+                (c as { capacity?: number }).capacity &&
+                (c as { capacity?: number }).capacity! >= 4000
+            );
           else if (specString.includes("2TB"))
             match = components.find(
-              (c) => c.capacity >= 2000 && c.capacity < 4000
+              (c) =>
+                (c as { capacity?: number }).capacity &&
+                (c as { capacity?: number }).capacity! >= 2000 &&
+                (c as { capacity?: number }).capacity! < 4000
             );
           else if (specString.includes("1TB"))
             match = components.find(
-              (c) => c.capacity >= 1000 && c.capacity < 2000
+              (c) =>
+                (c as { capacity?: number }).capacity &&
+                (c as { capacity?: number }).capacity! >= 1000 &&
+                (c as { capacity?: number }).capacity! < 2000
             );
           else if (specString.includes("500GB"))
             match = components.find(
-              (c) => c.capacity >= 500 && c.capacity < 1000
+              (c) =>
+                (c as { capacity?: number }).capacity &&
+                (c as { capacity?: number }).capacity! >= 500 &&
+                (c as { capacity?: number }).capacity! < 1000
             );
           else match = components[0]; // Default to first storage
         } else if (category === "psu") {
           // Match by wattage
           if (specString.includes("1000W"))
-            match = components.find((c) => c.wattage >= 1000);
+            match = components.find(
+              (c) =>
+                (c as { wattage?: number }).wattage &&
+                (c as { wattage?: number }).wattage! >= 1000
+            );
           else if (specString.includes("850W"))
             match = components.find(
-              (c) => c.wattage >= 850 && c.wattage < 1000
+              (c) =>
+                (c as { wattage?: number }).wattage &&
+                (c as { wattage?: number }).wattage! >= 850 &&
+                (c as { wattage?: number }).wattage! < 1000
             );
           else if (specString.includes("750W"))
-            match = components.find((c) => c.wattage >= 750 && c.wattage < 850);
+            match = components.find(
+              (c) =>
+                (c as { wattage?: number }).wattage &&
+                (c as { wattage?: number }).wattage! >= 750 &&
+                (c as { wattage?: number }).wattage! < 850
+            );
           else match = components[0]; // Default to first PSU
         } else if (category === "cooling") {
           // Match by type and size
           if (specString.includes("360mm"))
             match = components.find(
-              (c) => c.radiatorSize === 360 || c.name?.includes("360mm")
+              (c) =>
+                (c as { radiatorSize?: number }).radiatorSize === 360 ||
+                c.name?.includes("360mm")
             );
           else if (specString.includes("280mm"))
             match = components.find(
-              (c) => c.radiatorSize === 280 || c.name?.includes("280mm")
+              (c) =>
+                (c as { radiatorSize?: number }).radiatorSize === 280 ||
+                c.name?.includes("280mm")
             );
           else if (specString.includes("240mm"))
             match = components.find(
-              (c) => c.radiatorSize === 240 || c.name?.includes("240mm")
+              (c) =>
+                (c as { radiatorSize?: number }).radiatorSize === 240 ||
+                c.name?.includes("240mm")
             );
           else if (specString.includes("AIO"))
             match = components.find(
-              (c) => c.type === "Liquid" || c.type === "AIO"
+              (c) =>
+                (c as { type?: string }).type === "Liquid" ||
+                (c as { type?: string }).type === "AIO"
             );
           else match = components[0]; // Default to first cooler
         } else if (category === "motherboard") {
           // Match by socket/platform
           if (specString.includes("Z790") || specString.includes("LGA1700")) {
             match = components.find(
-              (c) => c.socket === "LGA1700" || c.chipset?.includes("Z790")
+              (c) =>
+                (c as { socket?: string; chipset?: string }).socket ===
+                  "LGA1700" ||
+                (c as { socket?: string; chipset?: string }).chipset?.includes(
+                  "Z790"
+                )
             );
           } else if (
             specString.includes("B650") ||
             specString.includes("AM5")
           ) {
             match = components.find(
-              (c) => c.socket === "AM5" || c.chipset?.includes("B650")
+              (c) =>
+                (c as { socket?: string; chipset?: string }).socket === "AM5" ||
+                (c as { socket?: string; chipset?: string }).chipset?.includes(
+                  "B650"
+                )
             );
           } else match = components[0]; // Default to first motherboard
         } else if (category === "case") {
           // Match by form factor
           if (specString.includes("ATX"))
-            match = components.find((c) => c.formFactor === "ATX");
+            match = components.find(
+              (c) => (c as { formFactor?: string }).formFactor === "ATX"
+            );
           else if (specString.includes("MicroATX"))
-            match = components.find((c) => c.formFactor === "MicroATX");
+            match = components.find(
+              (c) => (c as { formFactor?: string }).formFactor === "MicroATX"
+            );
           else match = components[0]; // Default to first case
         }
 
@@ -3551,7 +4337,7 @@ export function PCBuilder({
         const cpu = findComponentBySpec("cpu", recommendedBuild.specs.cpu);
         if (cpu) {
           importedComponents.cpu = cpu.id;
-          console.log(
+          logger.debug(
             `✅ Matched CPU: ${recommendedBuild.specs.cpu} → ${cpu.name}`
           );
 
@@ -3563,7 +4349,7 @@ export function PCBuilder({
           );
           if (compatibleMB) {
             importedComponents.motherboard = compatibleMB.id;
-            console.log(
+            logger.debug(
               `✅ Auto-selected compatible motherboard: ${compatibleMB.name}`
             );
           }
@@ -3574,7 +4360,7 @@ export function PCBuilder({
         const gpu = findComponentBySpec("gpu", recommendedBuild.specs.gpu);
         if (gpu) {
           importedComponents.gpu = gpu.id;
-          console.log(
+          logger.debug(
             `✅ Matched GPU: ${recommendedBuild.specs.gpu} → ${gpu.name}`
           );
         }
@@ -3584,7 +4370,7 @@ export function PCBuilder({
         const ram = findComponentBySpec("ram", recommendedBuild.specs.ram);
         if (ram) {
           importedComponents.ram = ram.id;
-          console.log(
+          logger.debug(
             `✅ Matched RAM: ${recommendedBuild.specs.ram} → ${ram.name}`
           );
         }
@@ -3597,7 +4383,7 @@ export function PCBuilder({
         );
         if (storage) {
           importedComponents.storage = storage.id;
-          console.log(
+          logger.debug(
             `✅ Matched Storage: ${recommendedBuild.specs.storage} → ${storage.name}`
           );
         }
@@ -3610,7 +4396,7 @@ export function PCBuilder({
         );
         if (cooling) {
           importedComponents.cooling = cooling.id;
-          console.log(
+          logger.debug(
             `✅ Matched Cooling: ${recommendedBuild.specs.cooling} → ${cooling.name}`
           );
         }
@@ -3620,7 +4406,7 @@ export function PCBuilder({
         const psu = findComponentBySpec("psu", recommendedBuild.specs.psu);
         if (psu) {
           importedComponents.psu = psu.id;
-          console.log(
+          logger.debug(
             `✅ Matched PSU: ${recommendedBuild.specs.psu} → ${psu.name}`
           );
         }
@@ -3631,15 +4417,14 @@ export function PCBuilder({
         const cases = (useCmsData ? cmsComponents : componentData).case;
         if (cases && cases.length > 0) {
           importedComponents.case = cases[0].id;
-          console.log(`✅ Auto-selected case: ${cases[0].name}`);
+          logger.debug(`✅ Auto-selected case: ${cases[0].name}`);
         }
       }
 
       setSelectedComponents(importedComponents);
-      console.log(
-        "✅ Build import complete. Selected components:",
-        importedComponents
-      );
+      logger.debug("Build import complete. Selected components", {
+        importedComponents,
+      });
     }
   }, [recommendedBuild, useCmsData, cmsComponents]);
 
@@ -3652,6 +4437,90 @@ export function PCBuilder({
   const activeOptionalExtrasData = useCmsData
     ? cmsOptionalExtras
     : peripheralsData;
+
+  // Load saved builds from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("vortex_saved_builds_comparison");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setSavedBuildsForComparison(parsed.slice(0, 3)); // Max 3 builds
+        }
+      }
+    } catch (e) {
+      logger.warn("Failed to load saved builds", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
+  // Save builds to localStorage whenever they change
+  useEffect(() => {
+    if (savedBuildsForComparison.length > 0) {
+      try {
+        localStorage.setItem(
+          "vortex_saved_builds_comparison",
+          JSON.stringify(savedBuildsForComparison)
+        );
+      } catch (e) {
+        logger.warn("Failed to save builds", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+  }, [savedBuildsForComparison]);
+
+  // Add current build to comparison
+  const handleSaveForComparison = () => {
+    if (getSelectedComponentsCount() === 0) {
+      toast.warning("Add some components before saving for comparison");
+      return;
+    }
+
+    if (savedBuildsForComparison.length >= 3) {
+      toast.warning("Maximum 3 builds can be compared. Remove one first.");
+      return;
+    }
+
+    const buildName = `Build ${savedBuildsForComparison.length + 1}`;
+    const newBuild: SavedBuild = {
+      id: Date.now().toString(),
+      name: buildName,
+      timestamp: Date.now(),
+      components: { ...selectedComponents },
+      peripherals: { ...selectedPeripherals },
+      totalPrice: getTotalPrice(),
+    };
+
+    setSavedBuildsForComparison((prev) => [...prev, newBuild]);
+    toast.success(`"${buildName}" saved for comparison`);
+  };
+
+  // Remove build from comparison
+  const handleRemoveBuildFromComparison = (buildId: string) => {
+    setSavedBuildsForComparison((prev) => prev.filter((b) => b.id !== buildId));
+    toast.success("Build removed from comparison");
+  };
+
+  // Product comparison handlers - removed unused _handleToggleProductComparison
+  const handleRemoveFromComparison = (productId: string) => {
+    setCompareProducts((prev) => prev.filter((p) => p.id !== productId));
+  };
+
+  const handleClearComparison = () => {
+    setCompareProducts([]);
+    setShowProductComparison(false);
+    toast.success("Comparison cleared");
+  };
+
+  const handleAddComparisonToCart = (product: PCComponent) => {
+    if (onAddToCart) {
+      // Convert PCComponent to PCBuilderComponent format
+      onAddToCart(product as unknown as PCBuilderComponent);
+      toast.success(`${product.name} added to build!`);
+    }
+  };
 
   // Check compatibility whenever components change
   useEffect(() => {
@@ -3708,6 +4577,12 @@ export function PCBuilder({
       icon: Fan,
       count: activeComponentData.cooling?.length || 0,
     },
+    {
+      id: "caseFans",
+      label: "Case Fans",
+      icon: Fan,
+      count: activeComponentData.caseFans?.length || 0,
+    },
   ];
 
   const handleComponentSelect = (category: string, componentId: string) => {
@@ -3762,13 +4637,17 @@ export function PCBuilder({
   const handlePeripheralToggle = (category: string, peripheralId: string) => {
     setSelectedPeripherals((prev) => {
       const currentItems = prev[category] || [];
-      const isSelected = currentItems.includes(peripheralId);
+      const isSelected = Array.isArray(currentItems)
+        ? currentItems.includes(peripheralId)
+        : false;
 
       if (isSelected) {
         // Remove the peripheral
         return {
           ...prev,
-          [category]: currentItems.filter((id: string) => id !== peripheralId),
+          [category]: Array.isArray(currentItems)
+            ? currentItems.filter((id: string) => id !== peripheralId)
+            : [],
         };
       } else {
         // Add the peripheral
@@ -3926,7 +4805,7 @@ export function PCBuilder({
 
   const addBuildToCart = () => {
     if (!onAddToCart || !onOpenCart) {
-      console.error("Cart functions not provided to PCBuilder");
+      logger.error("Cart functions not provided to PCBuilder");
       return;
     }
 
@@ -3942,7 +4821,7 @@ export function PCBuilder({
         const component = list.find((c) => c.id === componentId);
 
         if (!component) {
-          console.warn(`Component not found: ${category} - ${componentId}`);
+          logger.warn(`Component not found: ${category} - ${componentId}`);
           return null;
         }
 
@@ -4037,8 +4916,8 @@ export function PCBuilder({
         );
         if (
           pcCase &&
-          component.length &&
-          pcCase.maxGpuLength &&
+          typeof component.length === "number" &&
+          typeof pcCase.maxGpuLength === "number" &&
           component.length > pcCase.maxGpuLength
         ) {
           return false;
@@ -4051,8 +4930,8 @@ export function PCBuilder({
         );
         if (
           gpu &&
-          component.maxGpuLength &&
-          gpu.length &&
+          typeof component.maxGpuLength === "number" &&
+          typeof gpu.length === "number" &&
           gpu.length > component.maxGpuLength
         ) {
           return false;
@@ -4061,7 +4940,7 @@ export function PCBuilder({
 
       // RAM-Motherboard Compatibility
       if (category === "ram" && currentComponents.motherboard) {
-        const motherboard = activeComponentData.motherboard.find(
+        const motherboard = activeComponentData.motherboard?.find(
           (mb) => mb.id === currentComponents.motherboard
         );
         if (
@@ -4069,7 +4948,7 @@ export function PCBuilder({
           motherboard.ramSupport &&
           !(Array.isArray(motherboard.ramSupport)
             ? motherboard.ramSupport.includes(component.type)
-            : motherboard.ramSupport.includes(component.type))
+            : motherboard.ramSupport?.includes(component.type ?? ""))
         ) {
           return false;
         }
@@ -4084,7 +4963,7 @@ export function PCBuilder({
           component.ramSupport &&
           !(Array.isArray(component.ramSupport)
             ? component.ramSupport.includes(ram.type)
-            : component.ramSupport.includes(ram.type))
+            : component.ramSupport?.includes(ram.type ?? ""))
         ) {
           return false;
         }
@@ -4092,14 +4971,16 @@ export function PCBuilder({
 
       // Case-Motherboard Form Factor
       if (category === "case" && currentComponents.motherboard) {
-        const motherboard = activeComponentData.motherboard.find(
+        const motherboard = activeComponentData.motherboard?.find(
           (mb) => mb.id === currentComponents.motherboard
         );
         if (
           motherboard &&
           !safeIncludes(
-            component.compatibility,
-            motherboard.formFactor?.toLowerCase()
+            Array.isArray(component.compatibility)
+              ? component.compatibility
+              : undefined,
+            motherboard.formFactor?.toLowerCase() ?? ""
           )
         ) {
           return false;
@@ -4107,14 +4988,16 @@ export function PCBuilder({
       }
 
       if (category === "motherboard" && currentComponents.case) {
-        const pcCase = activeComponentData.case.find(
+        const pcCase = (activeComponentData.case ?? []).find(
           (c) => c.id === currentComponents.case
         );
         if (
           pcCase &&
           !safeIncludes(
-            pcCase.compatibility,
-            component.formFactor?.toLowerCase()
+            Array.isArray(pcCase.compatibility)
+              ? pcCase.compatibility
+              : undefined,
+            component.formFactor?.toLowerCase() ?? ""
           )
         ) {
           return false;
@@ -4127,20 +5010,20 @@ export function PCBuilder({
         currentComponents.case &&
         component.type === "Air"
       ) {
-        const pcCase = activeComponentData.case.find(
+        const pcCase = (activeComponentData.case ?? []).find(
           (c) => c.id === currentComponents.case
         );
         if (
           pcCase &&
           pcCase.maxCpuCoolerHeight &&
-          component.height > pcCase.maxCpuCoolerHeight
+          (component.height ?? 0) > (pcCase?.maxCpuCoolerHeight ?? 0)
         ) {
           return false;
         }
       }
 
       if (category === "case" && currentComponents.cooling) {
-        const cooling = activeComponentData.cooling.find(
+        const cooling = (activeComponentData.cooling ?? []).find(
           (cool) => cool.id === currentComponents.cooling
         );
         if (
@@ -4156,13 +5039,13 @@ export function PCBuilder({
 
       // PSU Length-Case Compatibility
       if (category === "psu" && currentComponents.case) {
-        const pcCase = activeComponentData.case.find(
+        const pcCase = (activeComponentData.case ?? []).find(
           (c) => c.id === currentComponents.case
         );
         if (
           pcCase &&
           pcCase.maxPsuLength &&
-          component.length > pcCase.maxPsuLength
+          (component.length ?? 0) > (pcCase?.maxPsuLength ?? 0)
         ) {
           return false;
         }
@@ -4213,7 +5096,7 @@ export function PCBuilder({
 
       // CPU-Motherboard Socket Compatibility
       if (category === "cpu" && currentComponents.motherboard) {
-        const motherboard = activeComponentData.motherboard.find(
+        const motherboard = activeComponentData.motherboard?.find(
           (mb) => mb.id === currentComponents.motherboard
         );
         if (motherboard && component.socket !== motherboard.socket) {
@@ -4224,7 +5107,7 @@ export function PCBuilder({
       }
 
       if (category === "motherboard" && currentComponents.cpu) {
-        const cpu = activeComponentData.cpu.find(
+        const cpu = activeComponentData.cpu?.find(
           (c) => c.id === currentComponents.cpu
         );
         if (cpu && component.socket !== cpu.socket) {
@@ -4236,12 +5119,13 @@ export function PCBuilder({
 
       // GPU-Case Clearance
       if (category === "gpu" && currentComponents.case) {
-        const pcCase = activeComponentData.case.find(
+        const pcCase = (activeComponentData.case ?? []).find(
           (c) => c.id === currentComponents.case
         );
         if (
           pcCase &&
-          pcCase.maxGpuLength &&
+          typeof pcCase.maxGpuLength === "number" &&
+          typeof component.length === "number" &&
           component.length > pcCase.maxGpuLength
         ) {
           issues.push(
@@ -4251,13 +5135,13 @@ export function PCBuilder({
       }
 
       if (category === "case" && currentComponents.gpu) {
-        const gpu = activeComponentData.gpu.find(
+        const gpu = (activeComponentData.gpu ?? []).find(
           (g) => g.id === currentComponents.gpu
         );
         if (
           gpu &&
-          gpu.length &&
-          component.maxGpuLength &&
+          typeof gpu.length === "number" &&
+          typeof component.maxGpuLength === "number" &&
           gpu.length > component.maxGpuLength
         ) {
           issues.push(
@@ -4268,12 +5152,13 @@ export function PCBuilder({
 
       // RAM-Motherboard Compatibility
       if (category === "ram" && currentComponents.motherboard) {
-        const motherboard = activeComponentData.motherboard.find(
+        const motherboard = (activeComponentData.motherboard ?? []).find(
           (mb) => mb.id === currentComponents.motherboard
         );
         if (
           motherboard &&
           motherboard.ramSupport &&
+          component.type &&
           !(Array.isArray(motherboard.ramSupport)
             ? motherboard.ramSupport.includes(component.type)
             : motherboard.ramSupport.includes(component.type))
@@ -4285,11 +5170,12 @@ export function PCBuilder({
       }
 
       if (category === "motherboard" && currentComponents.ram) {
-        const ram = activeComponentData.ram.find(
+        const ram = (activeComponentData.ram ?? []).find(
           (r) => r.id === currentComponents.ram
         );
         if (
           ram &&
+          ram.type &&
           component.ramSupport &&
           !(Array.isArray(component.ramSupport)
             ? component.ramSupport.includes(ram.type)
@@ -4309,14 +5195,17 @@ export function PCBuilder({
 
       // Case-Motherboard Form Factor
       if (category === "case" && currentComponents.motherboard) {
-        const motherboard = activeComponentData.motherboard.find(
+        const motherboard = (activeComponentData.motherboard ?? []).find(
           (mb) => mb.id === currentComponents.motherboard
         );
         if (
           motherboard &&
+          motherboard.formFactor &&
           !safeIncludes(
-            component.compatibility,
-            motherboard.formFactor?.toLowerCase()
+            Array.isArray(component.compatibility)
+              ? component.compatibility
+              : undefined,
+            motherboard.formFactor.toLowerCase()
           )
         ) {
           issues.push(
@@ -4332,14 +5221,17 @@ export function PCBuilder({
       }
 
       if (category === "motherboard" && currentComponents.case) {
-        const pcCase = activeComponentData.case.find(
+        const pcCase = (activeComponentData.case ?? []).find(
           (c) => c.id === currentComponents.case
         );
         if (
           pcCase &&
+          component.formFactor &&
           !safeIncludes(
-            pcCase.compatibility,
-            component.formFactor?.toLowerCase()
+            Array.isArray(pcCase.compatibility)
+              ? pcCase.compatibility
+              : undefined,
+            component.formFactor.toLowerCase()
           )
         ) {
           issues.push(
@@ -4354,12 +5246,13 @@ export function PCBuilder({
         currentComponents.case &&
         component.type === "Air"
       ) {
-        const pcCase = activeComponentData.case.find(
+        const pcCase = (activeComponentData.case ?? []).find(
           (c) => c.id === currentComponents.case
         );
         if (
           pcCase &&
           pcCase.maxCpuCoolerHeight &&
+          component.height &&
           component.height > pcCase.maxCpuCoolerHeight
         ) {
           issues.push(
@@ -4369,7 +5262,7 @@ export function PCBuilder({
       }
 
       if (category === "case" && currentComponents.cooling) {
-        const cooling = activeComponentData.cooling.find(
+        const cooling = (activeComponentData?.cooling ?? []).find(
           (cool) => cool.id === currentComponents.cooling
         );
         if (
@@ -4425,898 +5318,1377 @@ export function PCBuilder({
   const filteredCount = filteredComponents.length;
 
   return (
-    <div className="min-h-screen py-20">
-      <div className="container mx-auto px-4">
-        {/* Stunning Hero Section */}
-        <div className="relative mb-20 overflow-visible">
-          {/* Removed decorative background to ensure full transparency under the menu bar */}
+    <ComponentErrorBoundary componentName="PCBuilder">
+      <div className="min-h-screen py-20">
+        <div className="container mx-auto px-4">
+          {/* Stunning Hero Section */}
+          <div className="relative mb-20 overflow-visible">
+            {/* Removed decorative background to ensure full transparency under the menu bar */}
 
-          <div className="relative">
-            {/* Top Badge */}
-            <div className="flex justify-center mb-8">
-              <div className="inline-flex items-center px-6 py-3 rounded-full bg-transparent border border-sky-500/30">
-                <Settings className="w-5 h-5 text-sky-400 mr-3 animate-spin-slow" />
-                <span className="text-sm font-semibold text-sky-300 tracking-wide">
-                  CUSTOM PC BUILDER
-                </span>
-              </div>
-            </div>
-
-            {/* Main Heading */}
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-center mb-6 leading-tight">
-              <span className="block bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(14,165,233,0.5)]">
-                Build Your
-              </span>
-              <span className="block bg-gradient-to-r from-sky-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent animate-gradient drop-shadow-[0_0_50px_rgba(14,165,233,0.8)]">
-                Dream PC
-              </span>
-            </h1>
-
-            {/* Subtitle */}
-            <p className="text-xl md:text-2xl text-gray-300 text-center max-w-3xl mx-auto mb-8 leading-relaxed">
-              Configure every component to create the{" "}
-              <span className="text-sky-400 font-semibold">perfect PC</span> for
-              your needs. From gaming powerhouses to workstation beasts.
-            </p>
-
-            {/* Feature Pills */}
-            <div className="flex flex-wrap justify-center gap-4 mb-12">
-              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
-                <CheckCircle className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
-                <span className="text-sm text-gray-300">
-                  Real-time Compatibility Check
-                </span>
-              </div>
-              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
-                <Cpu className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-                <span className="text-sm text-gray-300">
-                  Premium Components
-                </span>
-              </div>
-              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
-                <Zap className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-                <span className="text-sm text-gray-300">
-                  Performance Optimised
-                </span>
-              </div>
-            </div>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Button
-                onClick={handleStartBuildingCta}
-                className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-6 text-lg rounded-xl shadow-[0_0_30px_rgba(14,165,233,0.4)] hover:shadow-[0_0_50px_rgba(14,165,233,0.6)] transition-all duration-300 transform hover:scale-105"
-              >
-                <Settings className="w-5 h-5 mr-2" />
-                Start Building
-              </Button>
-              <Button
-                onClick={() => setShowEnthusiastBuilder(true)}
-                variant="outline"
-                className="border border-white/20 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-6 py-6 text-base rounded-xl transition-all duration-300"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Enthusiast Builder
-              </Button>
-              <Button
-                onClick={() => navigate("/visual-configurator")}
-                variant="outline"
-                className="border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 hover:text-white px-6 py-6 text-base rounded-xl transition-all duration-300 flex items-center"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                3D Builder
-                <Badge className="ml-2 bg-sky-500/20 border-sky-500/40 text-sky-300">
-                  3D Visualization
-                </Badge>
-              </Button>
-            </div>
-
-            {/* Stats Bar */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
-              <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
-                <div className="text-3xl font-bold text-sky-400 mb-1">
-                  {categories.reduce((sum, cat) => sum + cat.count, 0)}+
-                </div>
-                <div className="text-sm text-gray-400">Components</div>
-              </div>
-              <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
-                <div className="text-3xl font-bold text-blue-400 mb-1">8</div>
-                <div className="text-sm text-gray-400">Categories</div>
-              </div>
-              <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
-                <div className="text-3xl font-bold text-cyan-400 mb-1">
-                  100%
-                </div>
-                <div className="text-sm text-gray-400">Compatible</div>
-              </div>
-              <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
-                <div className="text-3xl font-bold text-sky-400 mb-1">Free</div>
-                <div className="text-sm text-gray-400">Building</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Loading CMS Data */}
-          {isLoadingCms && (
-            <div className="mt-8 p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20 max-w-2xl mx-auto">
-              <div className="flex items-center justify-center gap-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-400"></div>
-                <p className="text-sky-300">Loading components from CMS...</p>
-              </div>
-            </div>
-          )}
-
-          {/* Import notification */}
-          {recommendedBuild && (
-            <div className="mt-8 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 max-w-2xl mx-auto">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-                <div>
-                  <p className="text-green-300 font-medium">
-                    PC Finder Recommendation Imported
-                  </p>
-                  <p className="text-sm text-gray-400">
-                    Starting with {recommendedBuild.name} configuration
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1 space-y-6 order-2 lg:order-1">
-            {/* Build Summary */}
-            <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-4 sm:p-6">
-              <h3 className="text-lg sm:text-xl font-bold text-white mb-4">
-                Build Summary
-              </h3>
-
-              <div className="space-y-4">
-                {/* Recommended Build Price */}
-                {recommendedBuild && (
-                  <>
-                    <div className="p-3 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm text-green-300 font-medium">
-                          Recommended Build
-                        </span>
-                        <span className="text-lg font-bold text-green-300">
-                          £{recommendedBuild.price.toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-400 mb-3">
-                        {recommendedBuild.name}
-                      </p>
-                      <Button
-                        onClick={() => setShowBuildDetailsModal(true)}
-                        className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/30 hover:border-green-500/50"
-                        size="sm"
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Build Details
-                      </Button>
-                    </div>
-                    <Separator className="border-white/10" />
-                  </>
-                )}
-
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Components</span>
-                  <span className="text-white">
-                    {getSelectedComponentsCount()}/8
+            <div className="relative">
+              {/* Top Badge */}
+              <div className="flex justify-center mb-8">
+                <div className="inline-flex items-center px-6 py-3 rounded-full bg-transparent border border-sky-500/30">
+                  <Settings className="w-5 h-5 text-sky-400 mr-3 animate-spin-slow" />
+                  <span className="text-sm font-semibold text-sky-300 tracking-wide">
+                    CUSTOM PC BUILDER
                   </span>
                 </div>
+              </div>
 
-                <Progress
-                  value={(getSelectedComponentsCount() / 8) * 100}
-                  className="h-2"
+              {/* Main Heading */}
+              <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl xl:text-8xl font-black text-center mb-6 leading-tight px-4">
+                <span className="block bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(14,165,233,0.5)]">
+                  Build Your
+                </span>
+                <span className="block bg-gradient-to-r from-sky-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent animate-gradient drop-shadow-[0_0_50px_rgba(14,165,233,0.8)]">
+                  Dream PC
+                </span>
+              </h1>
+
+              {/* Subtitle */}
+              <p className="text-base sm:text-lg md:text-2xl text-gray-300 text-center max-w-3xl mx-auto mb-8 leading-relaxed px-4">
+                Configure every component to create the{" "}
+                <span className="text-sky-400 font-semibold">perfect PC</span>{" "}
+                for your needs. From gaming powerhouses to workstation beasts.
+              </p>
+
+              {/* Feature Pills */}
+              <div className="flex flex-wrap justify-center gap-4 mb-12">
+                <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
+                  <CheckCircle className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm text-gray-300">
+                    Real-time Compatibility Check
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
+                  <Cpu className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm text-gray-300">
+                    Premium Components
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
+                  <Zap className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm text-gray-300">
+                    Performance Optimised
+                  </span>
+                </div>
+              </div>
+
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+                <Button
+                  onClick={handleStartBuildingCta}
+                  className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-6 text-lg rounded-xl shadow-[0_0_30px_rgba(14,165,233,0.4)] hover:shadow-[0_0_50px_rgba(14,165,233,0.6)] transition-all duration-300 transform hover:scale-105"
+                >
+                  <Settings className="w-5 h-5 mr-2" />
+                  Start Building
+                </Button>
+                <Button
+                  onClick={() => setShowEnthusiastBuilder(true)}
+                  variant="outline"
+                  className="border border-white/20 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-6 py-6 text-base rounded-xl transition-all duration-300"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Enthusiast Builder
+                </Button>
+                <Button
+                  onClick={() => navigate("/visual-configurator")}
+                  variant="outline"
+                  className="border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 hover:text-white px-6 py-6 text-base rounded-xl transition-all duration-300 flex items-center"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  3D Builder
+                  <Badge className="ml-2 bg-sky-500/20 border-sky-500/40 text-sky-300">
+                    3D Visualization
+                  </Badge>
+                </Button>
+              </div>
+
+              {/* Stats Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto px-4 mb-8">
+                <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
+                  <div className="text-3xl font-bold text-sky-400 mb-1">
+                    {categories.reduce((sum, cat) => sum + cat.count, 0)}+
+                  </div>
+                  <div className="text-sm text-gray-400">Components</div>
+                </div>
+                <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
+                  <div className="text-3xl font-bold text-blue-400 mb-1">8</div>
+                  <div className="text-sm text-gray-400">Categories</div>
+                </div>
+                <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
+                  <div className="text-3xl font-bold text-cyan-400 mb-1">
+                    100%
+                  </div>
+                  <div className="text-sm text-gray-400">Compatible</div>
+                </div>
+                <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 transition-all duration-300">
+                  <div className="text-3xl font-bold text-sky-400 mb-1">
+                    Free
+                  </div>
+                  <div className="text-sm text-gray-400">Building</div>
+                </div>
+              </div>
+
+              {/* Social Proof - Builds Completed Today */}
+              <div className="flex justify-center px-4">
+                <BuildsCompletedToday
+                  className="max-w-md w-full animate-fade-in"
+                  showTrending={true}
                 />
+              </div>
 
-                <Separator className="border-white/10" />
-
-                <div className="space-y-2">
-                  {Object.entries(selectedComponents).map(
-                    ([category, componentId]) => {
-                      const component = (
-                        activeComponentData as ComponentDataMap
-                      )[category as keyof ComponentDataMap]?.find(
-                        (c) => c.id === componentId
-                      );
-                      return component ? (
-                        <div
-                          key={category}
-                          className="flex justify-between items-center text-sm"
-                        >
-                          <div className="flex flex-col">
-                            <span className="text-gray-400 text-xs">
-                              {getCategoryLabel(category)}
-                            </span>
-                            <span className="text-white font-medium truncate max-w-32">
-                              {component.name}
-                            </span>
-                          </div>
-                          <span className="text-white font-medium">
-                            £{(component.price ?? 0).toFixed(2)}
+              {/* Business Solutions Banner */}
+              <div className="mt-12 max-w-5xl mx-auto px-4">
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-sky-500 to-blue-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-300"></div>
+                  <div className="relative bg-gradient-to-r from-sky-950/50 to-blue-950/50 backdrop-blur-xl border border-sky-500/30 rounded-2xl p-8 hover:border-sky-400/50 transition-all duration-300">
+                    <div className="flex flex-col md:flex-row items-center gap-6">
+                      <div className="flex-shrink-0">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/40 flex items-center justify-center">
+                          <Building2 className="w-8 h-8 text-sky-400" />
+                        </div>
+                      </div>
+                      <div className="flex-1 text-center md:text-left">
+                        <h3 className="text-2xl font-bold mb-2">
+                          <span className="bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                            Business Solutions
+                          </span>
+                        </h3>
+                        <p className="text-gray-300 mb-4">
+                          Need workstations for your team? Explore our
+                          pre-configured business PCs with priority support
+                          packages.
+                        </p>
+                        <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                          <span className="text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
+                            Volume Discounts
+                          </span>
+                          <span className="text-xs px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                            3-5 Year Warranties
+                          </span>
+                          <span className="text-xs px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400">
+                            On-Site Support
                           </span>
                         </div>
-                      ) : null;
-                    }
+                      </div>
+                      <Button
+                        onClick={() => navigate("/business-solutions")}
+                        className="flex-shrink-0 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                      >
+                        <Building2 className="w-4 h-4 mr-2" />
+                        View Business PCs
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Loading CMS Data */}
+            {isLoadingCms && (
+              <div className="grid lg:grid-cols-4 gap-8 mt-8">
+                {/* Sidebar Skeletons */}
+                <div className="lg:col-span-1 space-y-6">
+                  <BuildSummarySkeleton />
+                  <CategoryNavSkeleton />
+                </div>
+
+                {/* Main Content Skeletons */}
+                <div className="lg:col-span-3 space-y-6">
+                  <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6 animate-pulse">
+                    <div className="h-8 bg-white/10 rounded w-48 mb-4"></div>
+                    <div className="h-12 bg-white/10 rounded mb-4"></div>
+                    <div className="flex gap-4 mb-6">
+                      <div className="h-10 bg-white/10 rounded flex-1"></div>
+                      <div className="h-10 bg-white/10 rounded w-32"></div>
+                    </div>
+                  </Card>
+
+                  <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {[...Array(6)].map((_, i) => (
+                      <ComponentCardSkeleton key={i} viewMode={viewMode} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Import notification */}
+            {recommendedBuild && (
+              <div className="mt-8 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 max-w-2xl mx-auto">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-400" />
+                  <div>
+                    <p className="text-green-300 font-medium">
+                      PC Finder Recommendation Imported
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Starting with {recommendedBuild.name} configuration
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid lg:grid-cols-4 gap-8">
+            {/* Sidebar */}
+            <div className="lg:col-span-1 space-y-6 order-2 lg:order-1">
+              {/* Build Summary */}
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-4 sm:p-6">
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-4">
+                  Build Summary
+                </h3>
+
+                <div className="space-y-4">
+                  {/* Recommended Build Price */}
+                  {recommendedBuild && (
+                    <>
+                      <div className="p-3 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm text-green-300 font-medium">
+                            Recommended Build
+                          </span>
+                          <span className="text-lg font-bold text-green-300">
+                            £{(recommendedBuild.price ?? 0).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-3">
+                          {recommendedBuild.name}
+                        </p>
+                        <Button
+                          onClick={() => setShowBuildDetailsModal(true)}
+                          className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/30 hover:border-green-500/50"
+                          size="sm"
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Build Details
+                        </Button>
+                      </div>
+                      <Separator className="border-white/10" />
+                    </>
                   )}
 
-                  {/* Peripherals */}
-                  {Object.entries(selectedPeripherals).map(
-                    ([category, items]) => {
-                      if (!Array.isArray(items) || items.length === 0)
-                        return null;
-                      return items.map((itemId: string) => {
-                        const peripheral = (
-                          activeOptionalExtrasData as Record<
-                            string,
-                            PCOptionalExtra[]
-                          >
-                        )[category]?.find((p) => p.id === itemId);
-                        return peripheral ? (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Components</span>
+                    <span className="text-white">
+                      {getSelectedComponentsCount()}/8
+                    </span>
+                  </div>
+
+                  <Progress
+                    value={(getSelectedComponentsCount() / 8) * 100}
+                    className="h-2"
+                  />
+
+                  <Separator className="border-white/10" />
+
+                  <div className="space-y-2">
+                    {Object.entries(selectedComponents).map(
+                      ([category, componentId]) => {
+                        const component = (
+                          activeComponentData as ComponentDataMap
+                        )[category as keyof ComponentDataMap]?.find(
+                          (c) => c.id === componentId
+                        );
+                        return component ? (
                           <div
-                            key={`${category}-${itemId}`}
+                            key={category}
                             className="flex justify-between items-center text-sm"
                           >
                             <div className="flex flex-col">
-                              <span className="text-green-400 text-xs flex items-center gap-1">
-                                <Plus className="w-3 h-3" />
+                              <span className="text-gray-400 text-xs">
                                 {getCategoryLabel(category)}
                               </span>
                               <span className="text-white font-medium truncate max-w-32">
-                                {peripheral.name}
+                                {component.name}
                               </span>
                             </div>
                             <span className="text-white font-medium">
-                              £{(peripheral.price ?? 0).toFixed(2)}
+                              £{(component.price ?? 0).toFixed(2)}
                             </span>
                           </div>
                         ) : null;
-                      });
-                    }
-                  )}
-                </div>
+                      }
+                    )}
 
-                <Separator className="border-white/10" />
-
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-bold text-white">
-                    Current Total
-                  </span>
-                  <span className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
-                    £{getTotalPrice().toLocaleString()}
-                  </span>
-                </div>
-
-                {/* Price difference indicator */}
-                {recommendedBuild && getTotalPrice() > 0 && (
-                  <div
-                    className={`text-sm text-center p-2 rounded-lg ${
-                      getTotalPrice() > recommendedBuild.price
-                        ? "bg-red-500/10 text-red-300 border border-red-500/20"
-                        : getTotalPrice() < recommendedBuild.price
-                        ? "bg-green-500/10 text-green-300 border border-green-500/20"
-                        : "bg-blue-500/10 text-blue-300 border border-blue-500/20"
-                    }`}
-                  >
-                    {getTotalPrice() > recommendedBuild.price
-                      ? `+£${(
-                          getTotalPrice() - recommendedBuild.price
-                        ).toLocaleString()} over budget`
-                      : getTotalPrice() < recommendedBuild.price
-                      ? `£${(
-                          recommendedBuild.price - getTotalPrice()
-                        ).toLocaleString()} under budget`
-                      : "Matches recommended budget"}
-                  </div>
-                )}
-
-                {/* Expert Build Comments */}
-                {getSelectedComponentsCount() >= 3 &&
-                  generateBuildComments().length > 0 && (
-                    <div className="space-y-3 p-3 sm:p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-6 h-6 rounded-full bg-sky-500/20 flex items-center justify-center flex-shrink-0">
-                          <Sparkles className="w-3 h-3 text-sky-400" />
-                        </div>
-                        <h4 className="text-sm sm:text-base font-bold text-white">
-                          Kevin's Insight
-                        </h4>
-                      </div>
-                      <div className="space-y-3 max-h-48 sm:max-h-64 overflow-y-auto scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-sky-500/30">
-                        {generateBuildComments()
-                          .slice(0, 3)
-                          .map((comment, idx) => (
-                            <p
-                              key={idx}
-                              className="text-xs sm:text-sm text-gray-300 leading-relaxed break-words"
+                    {/* Peripherals */}
+                    {Object.entries(selectedPeripherals).map(
+                      ([category, items]) => {
+                        if (!Array.isArray(items) || items.length === 0)
+                          return null;
+                        return items.map((itemId: string) => {
+                          const peripheral = (
+                            activeOptionalExtrasData as Record<
+                              string,
+                              PCOptionalExtra[]
                             >
-                              {comment}
-                            </p>
-                          ))}
+                          )[category]?.find((p) => p.id === itemId);
+                          return peripheral ? (
+                            <div
+                              key={`${category}-${itemId}`}
+                              className="flex justify-between items-center text-sm"
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-green-400 text-xs flex items-center gap-1">
+                                  <Plus className="w-3 h-3" />
+                                  {getCategoryLabel(category)}
+                                </span>
+                                <span className="text-white font-medium truncate max-w-32">
+                                  {peripheral.name}
+                                </span>
+                              </div>
+                              <span className="text-white font-medium">
+                                £{(peripheral.price ?? 0).toFixed(2)}
+                              </span>
+                            </div>
+                          ) : null;
+                        });
+                      }
+                    )}
+                  </div>
+
+                  <Separator className="border-white/10" />
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-bold text-white">
+                      Current Total
+                    </span>
+                    <span className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                      £{getTotalPrice().toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Price difference indicator */}
+                  {recommendedBuild &&
+                    recommendedBuild.price &&
+                    getTotalPrice() > 0 && (
+                      <div
+                        className={`text-sm text-center p-2 rounded-lg ${
+                          getTotalPrice() > recommendedBuild.price
+                            ? "bg-red-500/10 text-red-300 border border-red-500/20"
+                            : getTotalPrice() < recommendedBuild.price
+                            ? "bg-green-500/10 text-green-300 border border-green-500/20"
+                            : "bg-blue-500/10 text-blue-300 border border-blue-500/20"
+                        }`}
+                      >
+                        {getTotalPrice() > recommendedBuild.price
+                          ? `+£${(
+                              getTotalPrice() - recommendedBuild.price
+                            ).toLocaleString()} over budget`
+                          : getTotalPrice() < recommendedBuild.price
+                          ? `£${(
+                              recommendedBuild.price - getTotalPrice()
+                            ).toLocaleString()} under budget`
+                          : "Matches recommended budget"}
+                      </div>
+                    )}
+
+                  {/* Expert Build Comments */}
+                  {getSelectedComponentsCount() >= 3 &&
+                    generateBuildComments().length > 0 && (
+                      <div className="space-y-3 p-3 sm:p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-6 h-6 rounded-full bg-sky-500/20 flex items-center justify-center flex-shrink-0">
+                            <Sparkles className="w-3 h-3 text-sky-400" />
+                          </div>
+                          <h4 className="text-sm sm:text-base font-bold text-white">
+                            Kevin's Insight
+                          </h4>
+                        </div>
+                        <div className="space-y-3 max-h-48 sm:max-h-64 overflow-y-auto scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-sky-500/30">
+                          {generateBuildComments()
+                            .slice(0, 3)
+                            .map((comment, idx) => (
+                              <p
+                                key={idx}
+                                className="text-xs sm:text-sm text-gray-300 leading-relaxed break-words"
+                              >
+                                {comment}
+                              </p>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Compatibility Status */}
+                  {compatibilityIssues.length > 0 && (
+                    <Alert className="border-yellow-500/20 bg-yellow-500/10">
+                      <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                      <AlertDescription className="text-yellow-300">
+                        {compatibilityIssues.length} compatibility{" "}
+                        {compatibilityIssues.length === 1 ? "issue" : "issues"}{" "}
+                        detected
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-3">
+                    <Button
+                      onClick={handleCheckoutWithCompatibility}
+                      className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
+                      disabled={getSelectedComponentsCount() === 0}
+                    >
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Add to Cart
+                    </Button>
+
+                    {getSelectedComponentsCount() > 0 && (
+                      <>
+                        <Button
+                          onClick={handleClearBuild}
+                          variant="outline"
+                          className="w-full border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Clear Build
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            logger.debug("Share Build button clicked");
+                            try {
+                              const base = window.location.href.split("?")[0];
+                              logger.debug("Base URL", { base });
+                              logger.debug("Selected components", {
+                                selectedComponents,
+                              });
+                              logger.debug("Selected peripherals", {
+                                selectedPeripherals,
+                              });
+
+                              const shareUrl = buildFullShareUrl(
+                                base,
+                                selectedComponents,
+                                selectedPeripherals
+                              );
+                              logger.debug("Generated share URL", { shareUrl });
+
+                              if (shareUrl === base) {
+                                logger.warn(
+                                  "⚠️ No components selected to share"
+                                );
+                                toast.warning(
+                                  "Select parts to share your build."
+                                );
+                                return;
+                              }
+
+                              // Try to copy to clipboard
+                              if (
+                                navigator.clipboard &&
+                                navigator.clipboard.writeText
+                              ) {
+                                await navigator.clipboard.writeText(shareUrl);
+                                toast.success(
+                                  "Build link copied to clipboard! 🎉"
+                                );
+                                logger.debug("Build link copied to clipboard", {
+                                  shareUrl,
+                                });
+                              } else {
+                                // Fallback for browsers without clipboard API
+                                logger.warn(
+                                  "Clipboard API not available, using fallback"
+                                );
+                                const textArea =
+                                  document.createElement("textarea");
+                                textArea.value = shareUrl;
+                                textArea.style.position = "fixed";
+                                textArea.style.left = "-999999px";
+                                document.body.appendChild(textArea);
+                                textArea.select();
+                                try {
+                                  document.execCommand("copy");
+                                  toast.success(
+                                    "Build link copied to clipboard! 🎉"
+                                  );
+                                  logger.debug("Build link copied (fallback)", {
+                                    shareUrl,
+                                  });
+                                } catch (err) {
+                                  toast.error(
+                                    "Please copy the link manually from the address bar."
+                                  );
+                                  logger.error("Copy fallback failed", {
+                                    error:
+                                      err instanceof Error
+                                        ? err.message
+                                        : String(err),
+                                  });
+                                }
+                                document.body.removeChild(textArea);
+                              }
+                            } catch (e) {
+                              logger.error("❌ Failed to copy build link:", e);
+                              toast.error("Failed to copy build link.");
+                            }
+                          }}
+                          variant="secondary"
+                          className="w-full bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40"
+                        >
+                          <Share2 className="w-4 h-4 mr-2" />
+                          Share Build
+                        </Button>
+
+                        {/* Save for Comparison Button */}
+                        <Button
+                          onClick={handleSaveForComparison}
+                          variant="secondary"
+                          className="w-full bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40"
+                        >
+                          <Bookmark className="w-4 h-4 mr-2" />
+                          Save for Comparison
+                        </Button>
+
+                        {/* Compare Builds Button */}
+                        {savedBuildsForComparison.length > 0 && (
+                          <Button
+                            onClick={() => setShowComparisonModal(true)}
+                            variant="secondary"
+                            className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40"
+                          >
+                            <TrendingUp className="w-4 h-4 mr-2" />
+                            Compare Builds ({savedBuildsForComparison.length})
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </Card>
+
+              {/* Category Navigation */}
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-4 sm:p-6 lg:block">
+                <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4">
+                  Components
+                </h3>
+                <div className="space-y-2">
+                  {categories.map((category) => {
+                    const Icon = category.icon;
+                    const isSelected = activeCategory === category.id;
+                    const hasComponent =
+                      selectedComponents[
+                        category.id as keyof SelectedComponentIds
+                      ];
+
+                    return (
+                      <button
+                        key={category.id}
+                        onClick={() =>
+                          setActiveCategory(
+                            category.id as keyof SelectedComponentIds
+                          )
+                        }
+                        className={`w-full flex items-center justify-between p-2.5 sm:p-3 rounded-lg transition-all duration-300 text-sm sm:text-base ${
+                          isSelected
+                            ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
+                            : "hover:bg-white/10 text-gray-300 hover:text-white"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                          <Icon className="w-4 h-4 flex-shrink-0" />
+                          <span className="font-medium truncate">
+                            {category.label}
+                          </span>
+                          {hasComponent && (
+                            <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
+                          )}
+                        </div>
+                        <Badge
+                          variant="secondary"
+                          className="text-xs flex-shrink-0"
+                        >
+                          {category.count}
+                        </Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+            </div>
+
+            {/* Main Content */}
+            <div
+              ref={buildSectionRef}
+              className="lg:col-span-3 space-y-6 order-1 lg:order-2"
+            >
+              {/* Build Overview - Selected Components Display */}
+              {Object.keys(selectedComponents).length > 0 && (
+                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <CheckCircle className="w-6 h-6 text-green-400" />
+                        Your Build Components
+                      </h2>
+                      <p className="text-gray-400 mt-1">
+                        Review your selections and swap components as needed
+                      </p>
+                    </div>
+                    <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-300">
+                      {Object.keys(selectedComponents).length}/8 Components
+                    </Badge>
+                  </div>
+
+                  <div className="grid gap-4">
+                    {Object.entries(selectedComponents).map(
+                      ([category, componentId]) => {
+                        const component = (
+                          activeComponentData as ComponentDataMap
+                        )[category as keyof ComponentDataMap]?.find(
+                          (c) => c.id === componentId
+                        );
+
+                        if (!component) return null;
+
+                        const categoryLabel = getCategoryLabel(category);
+                        const image = getComponentImage(component);
+
+                        return (
+                          <Card
+                            key={category}
+                            className="bg-white/5 border-white/10 p-4 hover:border-sky-500/30 transition-all"
+                          >
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                              {/* Image */}
+                              <div className="sm:col-span-2">
+                                <div className="relative aspect-square w-full max-w-[120px] rounded-lg overflow-hidden bg-white/5 border border-white/10">
+                                  <ProgressiveImage
+                                    src={image}
+                                    alt={component.name || "Component"}
+                                    className="w-full h-full p-2"
+                                    shimmer
+                                    lazy
+                                    aspectRatio="1/1"
+                                    placeholderSrc="/vortexpcs-logo.png"
+                                    srcSet={`${image}?w=64 64w, ${image}?w=96 96w, ${image}?w=128 128w, ${image}?w=160 160w`}
+                                    sizes="(max-width: 640px) 25vw, 120px"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Details */}
+                              <div className="sm:col-span-7 space-y-2">
+                                <div>
+                                  <Badge
+                                    variant="outline"
+                                    className="mb-2 text-xs border-sky-500/30 text-sky-400"
+                                  >
+                                    {categoryLabel}
+                                  </Badge>
+                                  <h3 className="text-lg font-bold text-white">
+                                    {component.name}
+                                  </h3>
+                                  {component.brand && (
+                                    <p className="text-sm text-gray-400">
+                                      {component.brand}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Key Specs */}
+                                {component.description && (
+                                  <p className="text-sm text-gray-300 line-clamp-2">
+                                    {component.description}
+                                  </p>
+                                )}
+
+                                {/* Category-specific specs */}
+                                <div className="flex flex-wrap gap-2">
+                                  {category === "cpu" && component.cores && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
+                                      {component.cores} Cores
+                                    </Badge>
+                                  )}
+                                  {category === "gpu" && component.vram && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
+                                      {component.vram}GB VRAM
+                                    </Badge>
+                                  )}
+                                  {category === "ram" && component.capacity && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
+                                      {component.capacity}GB
+                                    </Badge>
+                                  )}
+                                  {category === "psu" && component.wattage && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
+                                      {component.wattage}W
+                                    </Badge>
+                                  )}
+                                  {category === "storage" &&
+                                  component.storageCapacity ? (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
+                                      {String(component.storageCapacity)}
+                                    </Badge>
+                                  ) : null}
+                                  {component.inStock !== undefined && (
+                                    <Badge
+                                      className={
+                                        component.inStock
+                                          ? "bg-green-500/20 border-green-500/40 text-green-400"
+                                          : "bg-red-500/20 border-red-500/40 text-red-400"
+                                      }
+                                    >
+                                      {component.inStock
+                                        ? "In Stock"
+                                        : "Out of Stock"}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Price & Actions */}
+                              <div className="sm:col-span-3 flex flex-col items-end gap-3">
+                                <div className="text-right">
+                                  <div className="text-2xl font-bold text-white">
+                                    £{(component.price ?? 0).toFixed(0)}
+                                  </div>
+                                  {component.rating && (
+                                    <div className="flex items-center gap-1 text-sm text-yellow-400 justify-end mt-1">
+                                      <span>★</span>
+                                      <span>{component.rating}/5</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-col gap-2 w-full">
+                                  <Button
+                                    onClick={() => {
+                                      setActiveCategory(
+                                        category as keyof SelectedComponentIds
+                                      );
+                                      // Scroll to build section
+                                      requestAnimationFrame(() => {
+                                        buildSectionRef.current?.scrollIntoView(
+                                          {
+                                            behavior: "smooth",
+                                            block: "start",
+                                          }
+                                        );
+                                      });
+                                    }}
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10 w-full"
+                                  >
+                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                    Swap Component
+                                  </Button>
+                                  <Button
+                                    onClick={() => {
+                                      const newComponents = {
+                                        ...selectedComponents,
+                                      };
+                                      delete newComponents[
+                                        category as keyof SelectedComponentIds
+                                      ];
+                                      setSelectedComponents(newComponents);
+                                    }}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 w-full"
+                                  >
+                                    <X className="w-4 h-4 mr-2" />
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      }
+                    )}
+                  </div>
+
+                  {/* Missing Components Warning */}
+                  {Object.keys(selectedComponents).length < 8 && (
+                    <div className="mt-4 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-yellow-300">
+                            Incomplete Build
+                          </p>
+                          <p className="text-sm text-yellow-400/80 mt-1">
+                            You still need to select{" "}
+                            {8 - Object.keys(selectedComponents).length} more
+                            component
+                            {8 - Object.keys(selectedComponents).length > 1
+                              ? "s"
+                              : ""}{" "}
+                            to complete your build.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
+                </Card>
+              )}
 
-                {/* Compatibility Status */}
-                {compatibilityIssues.length > 0 && (
-                  <Alert className="border-yellow-500/20 bg-yellow-500/10">
-                    <AlertTriangle className="w-4 h-4 text-yellow-400" />
-                    <AlertDescription className="text-yellow-300">
-                      {compatibilityIssues.length} compatibility{" "}
-                      {compatibilityIssues.length === 1 ? "issue" : "issues"}{" "}
-                      detected
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <div className="space-y-3">
-                  <Button
-                    onClick={handleCheckoutWithCompatibility}
-                    className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
-                    disabled={getSelectedComponentsCount() === 0}
-                  >
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    Add to Cart
-                  </Button>
-
-                  {getSelectedComponentsCount() > 0 && (
-                    <Button
-                      onClick={handleClearBuild}
-                      variant="outline"
-                      className="w-full border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Clear Build
-                    </Button>
+              {/* Component Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-white capitalize">
+                    {activeCategory === "case"
+                      ? "PC Cases"
+                      : activeCategory === "motherboard"
+                      ? "Motherboards"
+                      : activeCategory === "cpu"
+                      ? "Processors"
+                      : activeCategory === "gpu"
+                      ? "Graphics Cards (GPU)"
+                      : activeCategory === "ram"
+                      ? "Memory (RAM)"
+                      : activeCategory === "psu"
+                      ? "Power Supply Units (PSU)"
+                      : activeCategory.charAt(0).toUpperCase() +
+                        activeCategory.slice(1)}
+                  </h2>
+                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
+                    Choose the perfect{" "}
+                    {activeCategory === "case"
+                      ? "PC case"
+                      : activeCategory === "motherboard"
+                      ? "motherboard"
+                      : activeCategory === "cpu"
+                      ? "processor"
+                      : activeCategory === "gpu"
+                      ? "graphics card"
+                      : activeCategory === "ram"
+                      ? "memory"
+                      : activeCategory === "psu"
+                      ? "power supply"
+                      : activeCategory}{" "}
+                    for your build
+                  </p>
+                  {/* Compatibility Status */}
+                  {Object.keys(selectedComponents).length > 0 && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-sky-500/10 border border-sky-500/20">
+                        <div className="w-2 h-2 rounded-full bg-sky-400"></div>
+                        <span className="text-xs text-sky-300">
+                          {filteredCount} of {totalComponentsInCategory}{" "}
+                          compatible
+                        </span>
+                      </div>
+                      {filteredCount < totalComponentsInCategory && (
+                        <button
+                          onClick={() => setShowIncompatibilityModal(true)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                        >
+                          <AlertTriangle className="w-3 h-3 text-amber-400" />
+                          <span className="text-xs text-amber-300">
+                            {totalComponentsInCategory - filteredCount}{" "}
+                            incompatible
+                          </span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
-            </Card>
 
-            {/* Category Navigation */}
-            <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
-              <h3 className="text-lg font-bold text-white mb-4">Components</h3>
-              <div className="space-y-2">
-                {categories.map((category) => {
-                  const Icon = category.icon;
-                  const isSelected = activeCategory === category.id;
-                  const hasComponent = selectedComponents[category.id];
-
-                  return (
-                    <button
-                      key={category.id}
-                      onClick={() => setActiveCategory(category.id)}
-                      className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-300 ${
-                        isSelected
-                          ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
-                          : "hover:bg-white/10 text-gray-300 hover:text-white"
+                <div className="flex items-center gap-3">
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center gap-1 p-1 rounded-lg bg-white/10">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode("grid")}
+                      className={`p-2 ${
+                        viewMode === "grid"
+                          ? "bg-sky-500/20 text-sky-300"
+                          : "text-gray-400"
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <Icon className="w-4 h-4" />
-                        <span className="font-medium">{category.label}</span>
-                        {hasComponent && (
-                          <CheckCircle className="w-4 h-4 text-green-400" />
-                        )}
-                      </div>
-                      <Badge variant="secondary" className="text-xs">
-                        {category.count}
-                      </Badge>
-                    </button>
-                  );
-                })}
+                      <Grid className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode("list")}
+                      className={`p-2 ${
+                        viewMode === "list"
+                          ? "bg-sky-500/20 text-sky-300"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      <List className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Sort Dropdown */}
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-40 bg-white/10 border-white/20 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/90 border-white/10 text-white">
+                      <SelectItem value="price">Price: Low to High</SelectItem>
+                      <SelectItem value="price-desc">
+                        Price: High to Low
+                      </SelectItem>
+                      <SelectItem value="rating">Highest Rated</SelectItem>
+                      <SelectItem value="name">Name A-Z</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </Card>
+
+              {/* Components Grid/List */}
+              <div
+                className={
+                  viewMode === "grid"
+                    ? "grid md:grid-cols-2 xl:grid-cols-3 gap-6"
+                    : "space-y-4"
+                }
+              >
+                {sortedComponents.map((component) => (
+                  <MemoComponentCard
+                    key={component.id}
+                    component={component as PCBuilderComponent}
+                    category={activeCategory}
+                    isSelected={
+                      selectedComponents[activeCategory] === component.id
+                    }
+                    onSelect={handleComponentSelect}
+                    viewMode={viewMode}
+                    onSetActiveCategory={setActiveCategory}
+                  />
+                ))}
+              </div>
+
+              {sortedComponents.length === 0 && (
+                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-12 text-center">
+                  <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-white mb-2">
+                    No Components Found
+                  </h3>
+                  <p className="text-gray-400">
+                    No {activeCategory} components match your current filters.
+                  </p>
+                </Card>
+              )}
+            </div>
           </div>
 
-          {/* Main Content */}
-          <div
-            ref={buildSectionRef}
-            className="lg:col-span-3 space-y-6 order-1 lg:order-2"
+          {/* Optional Peripherals Section */}
+          <div className="mt-8 sm:mt-16 px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-8 sm:mb-12">
+              <div className="inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 mb-3 sm:mb-4">
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 mr-1.5 sm:mr-2" />
+                <span className="text-xs sm:text-sm text-green-300">
+                  Optional Extras
+                </span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-white via-green-100 to-emerald-200 bg-clip-text text-transparent px-4">
+                Enhance Your Setup
+              </h2>
+              <p className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto px-4">
+                Complete your gaming experience with premium peripherals
+              </p>
+            </div>
+
+            <Tabs defaultValue="keyboard" className="space-y-6 sm:space-y-8">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-2 rounded-xl gap-2 h-auto">
+                <TabsTrigger
+                  value="keyboard"
+                  className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
+                >
+                  <Keyboard className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Keyboards</span>
+                  <span className="sm:hidden">Keys</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="mouse"
+                  className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
+                >
+                  <Mouse className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Mice</span>
+                  <span className="sm:hidden">Mice</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="monitor"
+                  className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
+                >
+                  <Monitor className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Monitors</span>
+                  <span className="sm:hidden">Mon</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="gamepad"
+                  className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
+                >
+                  <Settings className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Gamepads</span>
+                  <span className="sm:hidden">Pad</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="mousepad"
+                  className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
+                >
+                  <Package className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Mousepads</span>
+                  <span className="sm:hidden">Mat</span>
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Keyboards */}
+              <TabsContent value="keyboard" className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white">
+                      Gaming Keyboards
+                    </h3>
+                    <p className="text-gray-400 mt-1 text-sm sm:text-base">
+                      Premium mechanical keyboards for the ultimate typing
+                      experience
+                    </p>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="text-sm self-start sm:self-auto"
+                  >
+                    {(selectedPeripherals.keyboard || []).length} selected
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+                  {activeOptionalExtrasData.keyboard.map((keyboard) => (
+                    <MemoPeripheralCard
+                      key={keyboard.id}
+                      peripheral={keyboard as PCOptionalExtra}
+                      category="keyboard"
+                      isSelected={(selectedPeripherals.keyboard || []).includes(
+                        keyboard.id
+                      )}
+                      onToggle={handlePeripheralToggle}
+                      viewMode={viewMode}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+
+              {/* Mice */}
+              <TabsContent value="mouse" className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white">
+                      Gaming Mice
+                    </h3>
+                    <p className="text-gray-400 mt-1 text-sm sm:text-base">
+                      Precision gaming mice with cutting-edge sensors
+                    </p>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="text-sm self-start sm:self-auto"
+                  >
+                    {(selectedPeripherals.mouse || []).length} selected
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+                  {activeOptionalExtrasData.mouse.map((mouse) => (
+                    <MemoPeripheralCard
+                      key={mouse.id}
+                      peripheral={mouse as PCOptionalExtra}
+                      category="mouse"
+                      isSelected={(selectedPeripherals.mouse || []).includes(
+                        mouse.id
+                      )}
+                      onToggle={handlePeripheralToggle}
+                      viewMode={viewMode}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+
+              {/* Monitors */}
+              <TabsContent value="monitor" className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white">
+                      Gaming Monitors
+                    </h3>
+                    <p className="text-gray-400 mt-1 text-sm sm:text-base">
+                      High-refresh displays for competitive gaming and immersive
+                      visuals
+                    </p>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="text-sm self-start sm:self-auto"
+                  >
+                    {(selectedPeripherals.monitor || []).length} selected
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+                  {activeOptionalExtrasData.monitor.map((monitor) => (
+                    <MemoPeripheralCard
+                      key={monitor.id}
+                      peripheral={monitor as PCOptionalExtra}
+                      category="monitor"
+                      isSelected={(selectedPeripherals.monitor || []).includes(
+                        monitor.id
+                      )}
+                      onToggle={handlePeripheralToggle}
+                      viewMode={viewMode}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+
+              {/* Gamepads */}
+              <TabsContent value="gamepad" className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white">
+                      Gaming Controllers
+                    </h3>
+                    <p className="text-gray-400 mt-1 text-sm sm:text-base">
+                      Professional-grade controllers for console and PC gaming
+                    </p>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="text-sm self-start sm:self-auto"
+                  >
+                    {(selectedPeripherals.gamepad || []).length} selected
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+                  {activeOptionalExtrasData.gamepad.map((gamepad) => (
+                    <MemoPeripheralCard
+                      key={gamepad.id}
+                      peripheral={gamepad as PCOptionalExtra}
+                      category="gamepad"
+                      isSelected={(selectedPeripherals.gamepad || []).includes(
+                        gamepad.id
+                      )}
+                      onToggle={handlePeripheralToggle}
+                      viewMode={viewMode}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+
+              {/* Mousepads */}
+              <TabsContent value="mousepad" className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white">
+                      Gaming Mousepads
+                    </h3>
+                    <p className="text-gray-400 mt-1 text-sm sm:text-base">
+                      Premium surfaces for optimal mouse tracking and comfort
+                    </p>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="text-sm self-start sm:self-auto"
+                  >
+                    {(selectedPeripherals.mousepad || []).length} selected
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+                  {activeOptionalExtrasData.mousepad.map((mousepad) => (
+                    <MemoPeripheralCard
+                      key={mousepad.id}
+                      peripheral={mousepad as PCOptionalExtra}
+                      category="mousepad"
+                      isSelected={(selectedPeripherals.mousepad || []).includes(
+                        mousepad.id
+                      )}
+                      onToggle={handlePeripheralToggle}
+                      viewMode={viewMode}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Compatibility Alert Dialog */}
+          {showCompatibilityDialog && (
+            <CompatibilityAlert
+              compatibilityIssues={compatibilityIssues}
+              onAccept={handleCompatibilityAccept}
+              onCancel={handleCompatibilityCancel}
+            />
+          )}
+
+          {/* Incompatibility Details Modal */}
+          <AlertDialog
+            open={showIncompatibilityModal}
+            onOpenChange={setShowIncompatibilityModal}
           >
-            {/* Component Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-white capitalize">
-                  {activeCategory === "case"
-                    ? "PC Cases"
-                    : activeCategory === "motherboard"
-                    ? "Motherboards"
-                    : activeCategory === "cpu"
-                    ? "Processors"
-                    : activeCategory === "gpu"
-                    ? "Graphics Cards (GPU)"
-                    : activeCategory === "ram"
-                    ? "Memory (RAM)"
-                    : activeCategory === "psu"
-                    ? "Power Supply Units (PSU)"
-                    : activeCategory.charAt(0).toUpperCase() +
-                      activeCategory.slice(1)}
-                </h2>
-                <p className="text-gray-400 mt-1 text-sm sm:text-base">
-                  Choose the perfect{" "}
-                  {activeCategory === "case"
-                    ? "PC case"
-                    : activeCategory === "motherboard"
-                    ? "motherboard"
-                    : activeCategory === "cpu"
-                    ? "processor"
-                    : activeCategory === "gpu"
-                    ? "graphics card"
-                    : activeCategory === "ram"
-                    ? "memory"
-                    : activeCategory === "psu"
-                    ? "power supply"
-                    : activeCategory}{" "}
-                  for your build
-                </p>
-                {/* Compatibility Status */}
-                {Object.keys(selectedComponents).length > 0 && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-sky-500/10 border border-sky-500/20">
-                      <div className="w-2 h-2 rounded-full bg-sky-400"></div>
-                      <span className="text-xs text-sky-300">
-                        {filteredCount} of {totalComponentsInCategory}{" "}
-                        compatible
-                      </span>
+            <AlertDialogContent className="max-w-3xl bg-black/95 border-white/10 text-white">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-2xl bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent flex items-center gap-3">
+                  <AlertTriangle className="w-6 h-6 text-amber-400" />
+                  Incompatible{" "}
+                  {activeCategory.charAt(0).toUpperCase() +
+                    activeCategory.slice(1)}{" "}
+                  Components
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-gray-400">
+                  These components are not compatible with your current build.
+                  Here's why and how to fix it:
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {getIncompatibilityDetails(
+                  activeCategory,
+                  selectedComponents
+                ).map((detail, index) => (
+                  <div
+                    key={index}
+                    className="border border-amber-500/20 rounded-lg p-4 bg-amber-500/5"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-16 h-16 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
+                        <Package className="w-6 h-6 text-gray-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-white mb-1">
+                          {detail.component.name}
+                        </h4>
+                        <p className="text-sm text-gray-400 mb-3">
+                          £{detail.component.price?.toFixed(2)}
+                        </p>
+
+                        <div className="space-y-2">
+                          {detail.issues.map(
+                            (issue: string, issueIndex: number) => (
+                              <div
+                                key={issueIndex}
+                                className="flex items-start gap-2"
+                              >
+                                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                                <p className="text-sm text-amber-200">
+                                  {issue}
+                                </p>
+                              </div>
+                            )
+                          )}
+                        </div>
+
+                        <div className="mt-3 p-3 rounded-lg bg-sky-500/10 border border-sky-500/20">
+                          <p className="text-sm text-sky-300">
+                            <strong>How to fix:</strong>{" "}
+                            {detail.issues[0]?.includes("Socket")
+                              ? "Choose a compatible CPU and motherboard with matching sockets"
+                              : detail.issues[0]?.includes("Length") ||
+                                detail.issues[0]?.includes("clearance")
+                              ? "Select a larger case or smaller component"
+                              : detail.issues[0]?.includes("Memory type")
+                              ? "Choose compatible RAM type supported by your motherboard"
+                              : detail.issues[0]?.includes("Form factor")
+                              ? "Select compatible motherboard and case form factors"
+                              : "Review component specifications and choose compatible alternatives"}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    {filteredCount < totalComponentsInCategory && (
-                      <button
-                        onClick={() => setShowIncompatibilityModal(true)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-colors cursor-pointer"
-                      >
-                        <AlertTriangle className="w-3 h-3 text-amber-400" />
-                        <span className="text-xs text-amber-300">
-                          {totalComponentsInCategory - filteredCount}{" "}
-                          incompatible
-                        </span>
-                      </button>
-                    )}
+                  </div>
+                ))}
+
+                {getIncompatibilityDetails(activeCategory, selectedComponents)
+                  .length === 0 && (
+                  <div className="text-center py-8 text-gray-400">
+                    <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No incompatible components found for this category.</p>
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-3">
-                {/* View Mode Toggle */}
-                <div className="flex items-center gap-1 p-1 rounded-lg bg-white/10">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setViewMode("grid")}
-                    className={`p-2 ${
-                      viewMode === "grid"
-                        ? "bg-sky-500/20 text-sky-300"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    <Grid className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setViewMode("list")}
-                    className={`p-2 ${
-                      viewMode === "list"
-                        ? "bg-sky-500/20 text-sky-300"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    <List className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Sort Dropdown */}
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-40 bg-white/10 border-white/20 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-black/90 border-white/10 text-white">
-                    <SelectItem value="price">Price: Low to High</SelectItem>
-                    <SelectItem value="price-desc">
-                      Price: High to Low
-                    </SelectItem>
-                    <SelectItem value="rating">Highest Rated</SelectItem>
-                    <SelectItem value="name">Name A-Z</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Components Grid/List */}
-            <div
-              className={
-                viewMode === "grid"
-                  ? "grid md:grid-cols-2 xl:grid-cols-3 gap-6"
-                  : "space-y-4"
-              }
-            >
-              {sortedComponents.map((component) => (
-                <ComponentCard
-                  key={component.id}
-                  component={component}
-                  category={activeCategory}
-                  isSelected={
-                    selectedComponents[activeCategory] === component.id
-                  }
-                  onSelect={handleComponentSelect}
-                  viewMode={viewMode}
-                />
-              ))}
-            </div>
-
-            {sortedComponents.length === 0 && (
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-12 text-center">
-                <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">
-                  No Components Found
-                </h3>
-                <p className="text-gray-400">
-                  No {activeCategory} components match your current filters.
-                </p>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        {/* Optional Peripherals Section */}
-        <div className="mt-8 sm:mt-16 px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-8 sm:mb-12">
-            <div className="inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 mb-3 sm:mb-4">
-              <Plus className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 mr-1.5 sm:mr-2" />
-              <span className="text-xs sm:text-sm text-green-300">
-                Optional Extras
-              </span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-white via-green-100 to-emerald-200 bg-clip-text text-transparent px-4">
-              Enhance Your Setup
-            </h2>
-            <p className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto px-4">
-              Complete your gaming experience with premium peripherals
-            </p>
-          </div>
-
-          <Tabs defaultValue="keyboard" className="space-y-6 sm:space-y-8">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-2 rounded-xl gap-2 h-auto">
-              <TabsTrigger
-                value="keyboard"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
-              >
-                <Keyboard className="w-4 h-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Keyboards</span>
-                <span className="sm:hidden">Keys</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="mouse"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
-              >
-                <Mouse className="w-4 h-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Mice</span>
-                <span className="sm:hidden">Mice</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="monitor"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
-              >
-                <Monitor className="w-4 h-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Monitors</span>
-                <span className="sm:hidden">Mon</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="gamepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
-              >
-                <Settings className="w-4 h-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Gamepads</span>
-                <span className="sm:hidden">Pad</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="mousepad"
-                className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
-              >
-                <Package className="w-4 h-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Mousepads</span>
-                <span className="sm:hidden">Mat</span>
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Keyboards */}
-            <TabsContent value="keyboard" className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-white">
-                    Gaming Keyboards
-                  </h3>
-                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
-                    Premium mechanical keyboards for the ultimate typing
-                    experience
-                  </p>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="text-sm self-start sm:self-auto"
+              <AlertDialogFooter>
+                <AlertDialogAction
+                  onClick={() => setShowIncompatibilityModal(false)}
+                  className="bg-sky-600 hover:bg-sky-500 text-white"
                 >
-                  {(selectedPeripherals.keyboard || []).length} selected
-                </Badge>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {activeOptionalExtrasData.keyboard.map((keyboard) => (
-                  <PeripheralCard
-                    key={keyboard.id}
-                    peripheral={keyboard}
-                    category="keyboard"
-                    isSelected={(selectedPeripherals.keyboard || []).includes(
-                      keyboard.id
-                    )}
-                    onToggle={handlePeripheralToggle}
-                    viewMode={viewMode}
-                  />
-                ))}
-              </div>
-            </TabsContent>
+                  Got it, thanks!
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-            {/* Mice */}
-            <TabsContent value="mouse" className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-white">
-                    Gaming Mice
-                  </h3>
-                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
-                    Precision gaming mice with cutting-edge sensors
-                  </p>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="text-sm self-start sm:self-auto"
-                >
-                  {(selectedPeripherals.mouse || []).length} selected
-                </Badge>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {activeOptionalExtrasData.mouse.map((mouse) => (
-                  <PeripheralCard
-                    key={mouse.id}
-                    peripheral={mouse}
-                    category="mouse"
-                    isSelected={(selectedPeripherals.mouse || []).includes(
-                      mouse.id
-                    )}
-                    onToggle={handlePeripheralToggle}
-                    viewMode={viewMode}
-                  />
-                ))}
-              </div>
-            </TabsContent>
-
-            {/* Monitors */}
-            <TabsContent value="monitor" className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-white">
-                    Gaming Monitors
-                  </h3>
-                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
-                    High-refresh displays for competitive gaming and immersive
-                    visuals
-                  </p>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="text-sm self-start sm:self-auto"
-                >
-                  {(selectedPeripherals.monitor || []).length} selected
-                </Badge>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {activeOptionalExtrasData.monitor.map((monitor) => (
-                  <PeripheralCard
-                    key={monitor.id}
-                    peripheral={monitor}
-                    category="monitor"
-                    isSelected={(selectedPeripherals.monitor || []).includes(
-                      monitor.id
-                    )}
-                    onToggle={handlePeripheralToggle}
-                    viewMode={viewMode}
-                  />
-                ))}
-              </div>
-            </TabsContent>
-
-            {/* Gamepads */}
-            <TabsContent value="gamepad" className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-white">
-                    Gaming Controllers
-                  </h3>
-                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
-                    Professional-grade controllers for console and PC gaming
-                  </p>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="text-sm self-start sm:self-auto"
-                >
-                  {(selectedPeripherals.gamepad || []).length} selected
-                </Badge>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {activeOptionalExtrasData.gamepad.map((gamepad) => (
-                  <PeripheralCard
-                    key={gamepad.id}
-                    peripheral={gamepad}
-                    category="gamepad"
-                    isSelected={(selectedPeripherals.gamepad || []).includes(
-                      gamepad.id
-                    )}
-                    onToggle={handlePeripheralToggle}
-                    viewMode={viewMode}
-                  />
-                ))}
-              </div>
-            </TabsContent>
-
-            {/* Mousepads */}
-            <TabsContent value="mousepad" className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-white">
-                    Gaming Mousepads
-                  </h3>
-                  <p className="text-gray-400 mt-1 text-sm sm:text-base">
-                    Premium surfaces for optimal mouse tracking and comfort
-                  </p>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="text-sm self-start sm:self-auto"
-                >
-                  {(selectedPeripherals.mousepad || []).length} selected
-                </Badge>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
-                {activeOptionalExtrasData.mousepad.map((mousepad) => (
-                  <PeripheralCard
-                    key={mousepad.id}
-                    peripheral={mousepad}
-                    category="mousepad"
-                    isSelected={(selectedPeripherals.mousepad || []).includes(
-                      mousepad.id
-                    )}
-                    onToggle={handlePeripheralToggle}
-                    viewMode={viewMode}
-                  />
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Compatibility Alert Dialog */}
-        {showCompatibilityDialog && (
-          <CompatibilityAlert
-            compatibilityIssues={compatibilityIssues}
-            onAccept={handleCompatibilityAccept}
-            onCancel={handleCompatibilityCancel}
+          {/* Build Details Modal */}
+          <BuildDetailsModal
+            isOpen={showBuildDetailsModal}
+            onClose={() => setShowBuildDetailsModal(false)}
+            recommendedBuild={recommendedBuild}
+            selectedComponents={selectedComponents}
+            componentData={activeComponentData}
           />
-        )}
 
-        {/* Incompatibility Details Modal */}
-        <AlertDialog
-          open={showIncompatibilityModal}
-          onOpenChange={setShowIncompatibilityModal}
-        >
-          <AlertDialogContent className="max-w-3xl bg-black/95 border-white/10 text-white">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-2xl bg-gradient-to-r from-white to-sky-200 bg-clip-text text-transparent flex items-center gap-3">
-                <AlertTriangle className="w-6 h-6 text-amber-400" />
-                Incompatible{" "}
-                {activeCategory.charAt(0).toUpperCase() +
-                  activeCategory.slice(1)}{" "}
-                Components
-              </AlertDialogTitle>
-              <AlertDialogDescription className="text-gray-400">
-                These components are not compatible with your current build.
-                Here's why and how to fix it:
-              </AlertDialogDescription>
-            </AlertDialogHeader>
+          {/* Enthusiast Builder Modal */}
+          <EnthusiastBuilder
+            isOpen={showEnthusiastBuilder}
+            onClose={() => setShowEnthusiastBuilder(false)}
+          />
 
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {getIncompatibilityDetails(
-                activeCategory,
-                selectedComponents
-              ).map((detail, index) => (
-                <div
-                  key={index}
-                  className="border border-amber-500/20 rounded-lg p-4 bg-amber-500/5"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-16 h-16 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
-                      <Package className="w-6 h-6 text-gray-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-white mb-1">
-                        {detail.component.name}
-                      </h4>
-                      <p className="text-sm text-gray-400 mb-3">
-                        £{detail.component.price?.toFixed(2)}
-                      </p>
+          {/* Build Comparison Modal */}
+          <BuildComparisonModal
+            open={showComparisonModal}
+            onClose={() => setShowComparisonModal(false)}
+            builds={savedBuildsForComparison}
+            onRemoveBuild={handleRemoveBuildFromComparison}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            componentData={activeComponentData as Record<string, Array<any>>}
+            optionalExtrasData={
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              activeOptionalExtrasData as Record<string, Array<any>>
+            }
+          />
 
-                      <div className="space-y-2">
-                        {detail.issues.map(
-                          (issue: string, issueIndex: number) => (
-                            <div
-                              key={issueIndex}
-                              className="flex items-start gap-2"
-                            >
-                              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                              <p className="text-sm text-amber-200">{issue}</p>
-                            </div>
-                          )
-                        )}
-                      </div>
+          {/* Product Comparison Modal */}
+          {showProductComparison && compareProducts.length > 0 && (
+            <ProductComparison
+              products={compareProducts}
+              onRemove={handleRemoveFromComparison}
+              onClear={handleClearComparison}
+              onAddToCart={handleAddComparisonToCart}
+              category={activeCategory}
+            />
+          )}
 
-                      <div className="mt-3 p-3 rounded-lg bg-sky-500/10 border border-sky-500/20">
-                        <p className="text-sm text-sky-300">
-                          <strong>How to fix:</strong>{" "}
-                          {detail.issues[0]?.includes("Socket")
-                            ? "Choose a compatible CPU and motherboard with matching sockets"
-                            : detail.issues[0]?.includes("Length") ||
-                              detail.issues[0]?.includes("clearance")
-                            ? "Select a larger case or smaller component"
-                            : detail.issues[0]?.includes("Memory type")
-                            ? "Choose compatible RAM type supported by your motherboard"
-                            : detail.issues[0]?.includes("Form factor")
-                            ? "Select compatible motherboard and case form factors"
-                            : "Review component specifications and choose compatible alternatives"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {getIncompatibilityDetails(activeCategory, selectedComponents)
-                .length === 0 && (
-                <div className="text-center py-8 text-gray-400">
-                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No incompatible components found for this category.</p>
-                </div>
-              )}
-            </div>
-
-            <AlertDialogFooter>
-              <AlertDialogAction
-                onClick={() => setShowIncompatibilityModal(false)}
-                className="bg-sky-600 hover:bg-sky-500 text-white"
+          {/* Floating Compare Button */}
+          {compareProducts.length > 0 && !showProductComparison && (
+            <div className="fixed bottom-6 right-6 z-40">
+              <Button
+                onClick={() => setShowProductComparison(true)}
+                className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 shadow-2xl rounded-full px-6 py-6 flex items-center gap-3 animate-pulse hover:animate-none"
               >
-                Got it, thanks!
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Build Details Modal */}
-        <BuildDetailsModal
-          isOpen={showBuildDetailsModal}
-          onClose={() => setShowBuildDetailsModal(false)}
-          recommendedBuild={recommendedBuild}
-          selectedComponents={selectedComponents}
-          componentData={activeComponentData}
-        />
-
-        {/* Enthusiast Builder Modal */}
-        <EnthusiastBuilder
-          isOpen={showEnthusiastBuilder}
-          onClose={() => setShowEnthusiastBuilder(false)}
-        />
+                <ArrowLeftRight className="w-5 h-5" />
+                <span className="font-semibold">
+                  Compare ({compareProducts.length})
+                </span>
+                {compareProducts.length >= 2 && (
+                  <Badge className="bg-green-500/20 border-green-500/40 text-green-400">
+                    Ready
+                  </Badge>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </ComponentErrorBoundary>
   );
 }

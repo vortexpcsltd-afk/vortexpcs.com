@@ -34,36 +34,36 @@ import { cn } from "./utils";
  */
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-all duration-300 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500 relative overflow-hidden",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-all duration-300 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500 relative overflow-hidden min-h-[44px] md:min-h-[40px] min-w-[44px] md:min-w-[40px]",
   {
     variants: {
       variant: {
         default:
-          "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/20 hover:shadow-xl hover:shadow-sky-500/30 hover:scale-105 active:scale-100 btn-premium-glow btn-3d",
+          "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/20 hover:shadow-xl hover:shadow-sky-500/30 hover:scale-105 active:scale-[0.98] btn-premium-glow btn-3d",
         primary:
-          "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/20 hover:shadow-xl hover:shadow-sky-500/30 hover:scale-105 active:scale-100 btn-premium-glow btn-3d",
+          "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/20 hover:shadow-xl hover:shadow-sky-500/30 hover:scale-105 active:scale-[0.98] btn-premium-glow btn-3d",
         secondary:
-          "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 hover:shadow-xl hover:shadow-cyan-500/30 hover:scale-105 active:scale-100 btn-premium-glow btn-3d",
+          "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 hover:shadow-xl hover:shadow-cyan-500/30 hover:scale-105 active:scale-[0.98] btn-premium-glow btn-3d",
         success:
-          "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/30 hover:scale-105 active:scale-100 btn-premium-glow btn-3d",
+          "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/30 hover:scale-105 active:scale-[0.98] btn-premium-glow btn-3d",
         danger:
-          "bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg shadow-red-500/20 hover:shadow-xl hover:shadow-red-500/30 hover:scale-105 active:scale-100 btn-premium-glow btn-3d",
+          "bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg shadow-red-500/20 hover:shadow-xl hover:shadow-red-500/30 hover:scale-105 active:scale-[0.98] btn-premium-glow btn-3d",
         warning:
-          "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 hover:scale-105 active:scale-100 btn-premium-glow btn-3d",
+          "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 hover:scale-105 active:scale-[0.98] btn-premium-glow btn-3d",
         outline:
-          "border-2 border-sky-500 bg-transparent text-sky-400 hover:bg-sky-500 hover:text-white hover:border-sky-400 shadow-md hover:shadow-lg hover:shadow-sky-500/20 hover:scale-105 active:scale-100 transition-all duration-300",
+          "border-2 border-sky-500 bg-transparent text-sky-400 hover:bg-sky-500 hover:text-white hover:border-sky-400 shadow-md hover:shadow-lg hover:shadow-sky-500/20 hover:scale-105 active:scale-[0.98] transition-all duration-300",
         ghost:
-          "bg-white/5 backdrop-blur-sm text-gray-300 hover:bg-white/10 hover:text-white border border-white/10 hover:border-white/20 hover:scale-105 active:scale-100 transition-all duration-300",
-        link: "text-sky-400 underline-offset-4 hover:underline hover:text-sky-300 transition-colors",
+          "bg-white/5 backdrop-blur-sm text-gray-300 hover:bg-white/10 hover:text-white border border-white/10 hover:border-white/20 hover:scale-105 active:scale-[0.98] transition-all duration-300",
+        link: "text-sky-400 underline-offset-4 hover:underline hover:text-sky-300 transition-colors min-h-[unset] min-w-[unset]",
         premium:
-          "bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 hover:from-purple-500 hover:via-pink-500 hover:to-blue-500 text-white shadow-lg shadow-purple-500/20 hover:shadow-2xl hover:shadow-purple-500/40 hover:scale-105 active:scale-100 btn-shimmer btn-3d animate-gradient bg-[length:200%_100%]",
+          "bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 hover:from-purple-500 hover:via-pink-500 hover:to-blue-500 text-white shadow-lg shadow-purple-500/20 hover:shadow-2xl hover:shadow-purple-500/40 hover:scale-105 active:scale-[0.98] btn-shimmer btn-3d animate-gradient bg-[length:200%_100%]",
       },
       size: {
-        default: "h-10 px-5 py-2.5 has-[>svg]:px-4",
-        sm: "h-8 rounded-md gap-1.5 px-3 text-xs has-[>svg]:px-2.5",
-        lg: "h-12 rounded-lg px-7 text-base has-[>svg]:px-5",
-        xl: "h-14 rounded-xl px-8 text-lg has-[>svg]:px-6",
-        icon: "size-10 rounded-lg",
+        default: "h-11 px-5 py-2.5 has-[>svg]:px-4 text-base md:text-sm",
+        sm: "h-9 rounded-md gap-1.5 px-4 text-sm md:text-xs has-[>svg]:px-3",
+        lg: "h-12 rounded-lg px-7 text-lg md:text-base has-[>svg]:px-5",
+        xl: "h-14 rounded-xl px-8 text-xl md:text-lg has-[>svg]:px-6",
+        icon: "size-11 md:size-10 rounded-lg",
       },
     },
     defaultVariants: {
@@ -94,4 +94,5 @@ function Button({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { Button, buttonVariants };

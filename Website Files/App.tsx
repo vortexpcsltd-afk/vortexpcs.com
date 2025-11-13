@@ -1,32 +1,96 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Button } from "./components/ui/button";
+import { logger } from "./services/logger";
+import type { CartItem, ContentfulAsset, ContentfulImage } from "./types";
+import { Toaster } from "./components/ui/sonner";
+import { PageErrorBoundary } from "./components/ErrorBoundary";
 import { PCFinderSpectacular as PCFinder } from "./components/PCFinderSpectacular";
-import { PCBuilder } from "./components/PCBuilder";
-import { VisualPCConfigurator } from "./components/VisualPCConfigurator";
-import { AIAssistant } from "./components/AIAssistant";
-import { MemberArea } from "./components/MemberArea";
-import { AdminPanel } from "./components/AdminPanel";
-import { RepairService } from "./components/RepairService";
+import ServiceWorkerUpdateToast from "./components/ServiceWorkerUpdateToast";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
+const PCBuilder = lazy(() =>
+  import("./components/PCBuilder").then((m) => ({ default: m.PCBuilder }))
+);
+const VisualPCConfigurator = lazy(() =>
+  import("./components/VisualPCConfigurator").then((m) => ({
+    default: m.VisualPCConfigurator,
+  }))
+);
+const AIAssistant = lazy(() =>
+  import("./components/AIAssistant").then((m) => ({ default: m.AIAssistant }))
+);
+const MemberArea = lazy(() =>
+  import("./components/MemberArea").then((m) => ({ default: m.MemberArea }))
+);
+const AdminPanel = lazy(() =>
+  import("./components/AdminPanel").then((m) => ({ default: m.AdminPanel }))
+);
+const RepairService = lazy(() =>
+  import("./components/RepairService").then((m) => ({
+    default: m.RepairService,
+  }))
+);
 import { AboutUs } from "./components/AboutUs";
-import { Contact } from "./components/Contact";
-import { FAQPage } from "./components/FAQPage";
+const Contact = lazy(() =>
+  import("./components/Contact").then((m) => ({ default: m.Contact }))
+);
+const FAQPage = lazy(() =>
+  import("./components/FAQPage").then((m) => ({ default: m.FAQPage }))
+);
 import { Footer } from "./components/Footer";
 import { LoginDialog } from "./components/LoginDialog";
 import { ShoppingCartModal } from "./components/ShoppingCartModal";
-import { OrderSuccess } from "./components/OrderSuccess";
-import { CheckoutPage } from "./components/CheckoutPage";
+const OrderSuccess = lazy(() =>
+  import("./components/OrderSuccess").then((m) => ({
+    default: m.OrderSuccess,
+  }))
+);
+const CheckoutPage = lazy(() =>
+  import("./components/CheckoutPage").then((m) => ({
+    default: m.CheckoutPage,
+  }))
+);
+const BlogList = lazy(() =>
+  import("./components/BlogList").then((m) => ({ default: m.BlogList }))
+);
+const BlogPost = lazy(() =>
+  import("./components/BlogPost").then((m) => ({ default: m.BlogPost }))
+);
+const BlogAuthor = lazy(() =>
+  import("./components/BlogAuthor").then((m) => ({ default: m.BlogAuthor }))
+);
+const LoggedOutPage = lazy(() =>
+  import("./components/LoggedOutPage").then((m) => ({
+    default: m.LoggedOutPage,
+  }))
+);
 import { HomePage } from "./components/HomePage";
+import { BusinessSolutions } from "./components/BusinessSolutions";
+import { BusinessDashboard } from "./components/BusinessDashboard";
 import { TermsPage } from "./components/TermsPage";
 import { WarrantyPage } from "./components/WarrantyPage";
 import { TechnicalSupportPage } from "./components/TechnicalSupportPage";
 import { ReturnsRefundsPage } from "./components/ReturnsRefundsPage";
 import { OurProcessPage } from "./components/OurProcessPage";
 import { QualityStandardsPage } from "./components/QualityStandardsPage";
-import { CmsDiagnostics } from "./components/CmsDiagnostics";
+const CmsDiagnostics = lazy(() =>
+  import("./components/CmsDiagnostics").then((m) => ({
+    default: m.CmsDiagnostics,
+  }))
+);
 import { PrivacyPage } from "./components/PrivacyPage";
 import { CookiePolicyPage } from "./components/CookiePolicyPage";
+import { NotFoundPage } from "./components/NotFoundPage";
+import { Breadcrumbs } from "./components/Breadcrumbs";
+import { getBreadcrumbs } from "./utils/breadcrumbHelpers";
+import { ExitIntentModal } from "./components/ExitIntentModal";
+import { useExitIntent } from "./hooks/useExitIntent";
+import {
+  OrganizationSchema,
+  WebsiteSchema,
+  ServiceSchema,
+} from "./components/SchemaMarkup";
 import {
   Shield,
   Settings,
@@ -43,7 +107,9 @@ import {
   Home,
   Info,
   Phone,
+  Building2,
 } from "lucide-react";
+import { Card } from "./components/ui/card";
 import { fetchSettings, fetchPageContent } from "./services/cms";
 import { trackPageView, trackEvent } from "./services/database";
 const vortexLogo = "/vortexpcs-logo.png";
@@ -61,15 +127,11 @@ export default function App() {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [loginTab, setLoginTab] = useState("login");
   const [showCartModal, setShowCartModal] = useState(false);
-  const [cartItems, setCartItems] = useState<
-    Array<{
-      id: string;
-      name: string;
-      category: string;
-      price: number;
-      quantity: number;
-    }>
-  >([]);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [exitModalVariant, setExitModalVariant] = useState<
+    "discount" | "newsletter" | "cart" | "builder"
+  >("discount");
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
   // Simulate login state and cookie consent
   useEffect(() => {
@@ -82,8 +144,8 @@ export default function App() {
           const latestVersion = data?.version || "unknown";
           const prior = localStorage.getItem("vortex_app_version");
           if (prior && prior !== latestVersion) {
-            console.log(
-              `🔄 New site version detected: ${latestVersion} (was ${prior}). Reloading to get the latest assets...`
+            logger.info(
+              `New site version detected: ${latestVersion} (was ${prior}). Reloading to get the latest assets...`
             );
             localStorage.setItem("vortex_app_version", latestVersion);
             // Avoid reload loops in rare cases
@@ -98,10 +160,11 @@ export default function App() {
           } else if (!prior) {
             localStorage.setItem("vortex_app_version", latestVersion);
           }
-          console.log(`🧩 App version: ${latestVersion}`);
+          logger.info(`App version: ${latestVersion}`);
         }
       } catch (e) {
         // Best-effort only; ignore errors
+        logger.debug("Failed to check app version", { error: e });
       }
     })();
 
@@ -146,10 +209,15 @@ export default function App() {
     const path = location.pathname.replace(/^\/+/, "");
     const view = path === "" ? "home" : path;
     setCurrentView(view);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [location.pathname]);
 
-  // Firestore Analytics: track page views on SPA navigation (gated by cookie consent)
+    // Smooth scroll to top on navigation
+    try {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      // Fallback for browsers that don't support smooth scrolling
+      window.scrollTo(0, 0);
+    }
+  }, [location.pathname]); // Firestore Analytics: track page views on SPA navigation (gated by cookie consent)
   useEffect(() => {
     const consent = localStorage.getItem("vortex_cookie_consent");
     if (consent === "accepted") {
@@ -162,7 +230,9 @@ export default function App() {
         trackPageView(uid, page);
       } catch (e) {
         // Best-effort only
-        console.warn("Analytics tracking skipped due to parse error", e);
+        logger.warn("Analytics tracking skipped due to parse error", {
+          error: e,
+        });
       }
     }
   }, [currentView]);
@@ -215,7 +285,9 @@ export default function App() {
           home?.metaDescription || settings?.metaDescription || "";
         setMeta("description", description);
 
-        const keywords = home?.seo?.keywords || "";
+        const keywords =
+          (typeof home?.seo?.keywords === "string" ? home.seo.keywords : "") ||
+          "";
         setMeta("keywords", keywords);
 
         const author = settings?.siteName || "Vortex PCs";
@@ -225,10 +297,23 @@ export default function App() {
         let ogImage = "";
         if (home?.heroBackgroundImage) {
           // Support multiple shapes returned by Contentful (raw asset or simplified URL)
-          const hb = home.heroBackgroundImage as any;
-          if (hb?.fields?.file?.url) ogImage = `https:${hb.fields.file.url}`;
-          else if (hb?.url) ogImage = hb.url;
-          else if (typeof hb === "string") ogImage = hb;
+          const hb = home.heroBackgroundImage as
+            | ContentfulAsset
+            | ContentfulImage
+            | string
+            | undefined;
+          if (
+            hb &&
+            typeof hb === "object" &&
+            "fields" in hb &&
+            hb.fields?.file?.url
+          ) {
+            ogImage = `https:${hb.fields.file.url}`;
+          } else if (hb && typeof hb === "object" && "url" in hb) {
+            ogImage = hb.url;
+          } else if (typeof hb === "string") {
+            ogImage = hb;
+          }
         }
         if (!ogImage && settings?.logoUrl) ogImage = settings.logoUrl;
 
@@ -248,7 +333,7 @@ export default function App() {
         setMeta("twitter:description", description);
         if (ogImage) setMeta("twitter:image", ogImage);
       } catch (error) {
-        console.error("Failed to hydrate meta from CMS:", error);
+        logger.error("Failed to hydrate meta from CMS", error);
       }
     })();
 
@@ -257,8 +342,45 @@ export default function App() {
     };
   }, []);
 
+  // Exit Intent Detection - Show modal when user attempts to leave
+  useExitIntent(
+    () => {
+      // Don't show if user has already seen it or dismissed it recently
+      const hasSeenExitModal = sessionStorage.getItem("vortex_exit_modal_seen");
+      const isLoggedInUser = isLoggedIn;
+
+      if (hasSeenExitModal || isLoggedInUser) return;
+
+      // Determine which variant to show based on current view
+      let variant: "discount" | "newsletter" | "cart" | "builder" = "discount";
+
+      if (
+        currentView === "checkout" ||
+        (cartItems.length > 0 && currentView !== "home")
+      ) {
+        variant = "cart";
+      } else if (currentView === "pc-builder" || currentView === "pc-finder") {
+        variant = "builder";
+      } else if (currentView === "home") {
+        variant = "discount";
+      } else {
+        variant = "newsletter";
+      }
+
+      setExitModalVariant(variant);
+      setShowExitModal(true);
+      sessionStorage.setItem("vortex_exit_modal_seen", "true");
+    },
+    {
+      enabled: true,
+      sensitivity: 20,
+      delayMs: 500,
+      triggerOnce: true,
+    }
+  );
+
   // Add item to cart
-  const addToCart = (item: any) => {
+  const addToCart = (item: CartItem) => {
     setCartItems((prevItems) => {
       // Check if item already exists in cart
       const existingItem = prevItems.find((i) => i.id === item.id);
@@ -303,10 +425,8 @@ export default function App() {
     { id: "contact", label: "Contact", icon: Phone },
   ];
 
-  // Admin-only diagnostics shortcut
-  const navItems = isAdmin
-    ? [...navigation, { id: "cms-diagnostics", label: "CMS", icon: Settings }]
-    : navigation;
+  // Use navigation items directly (CMS moved to admin section)
+  const navItems = navigation;
 
   // Navigate helper for child components expecting setCurrentView
   const onNavigate = (view: string) => {
@@ -315,114 +435,351 @@ export default function App() {
   };
 
   const renderCurrentView = () => {
+    // Blog detail route: /blog/:slug
+    if (currentView.startsWith("blog/")) {
+      const slug = currentView.slice(5);
+      return (
+        <PageErrorBoundary pageName="Blog Post">
+          <BlogPost slug={slug} />
+        </PageErrorBoundary>
+      );
+    }
+    // Author route: /author/:slug
+    if (currentView.startsWith("author/")) {
+      const slug = currentView.slice(7);
+      return (
+        <PageErrorBoundary pageName="Author">
+          <BlogAuthor authorSlug={slug} />
+        </PageErrorBoundary>
+      );
+    }
     switch (currentView) {
+      case "logged-out":
+        return (
+          <PageErrorBoundary pageName="Logged Out">
+            <LoggedOutPage />
+          </PageErrorBoundary>
+        );
       case "pc-finder":
         return (
-          <PCFinder
-            setCurrentView={onNavigate}
-            _setRecommendedBuild={setRecommendedBuild}
-          />
+          <PageErrorBoundary pageName="PC Finder">
+            <PCFinder
+              setCurrentView={onNavigate}
+              _setRecommendedBuild={setRecommendedBuild}
+            />
+          </PageErrorBoundary>
         );
       case "pc-builder":
         return (
-          <PCBuilder
-            recommendedBuild={recommendedBuild}
-            onAddToCart={addToCart}
-            onOpenCart={() => setShowCartModal(true)}
-          />
+          <PageErrorBoundary pageName="PC Builder">
+            <PCBuilder
+              recommendedBuild={recommendedBuild}
+              onAddToCart={(item) => {
+                // Convert PCBuilderComponent to CartItem
+                addToCart({
+                  id: item.id,
+                  name: item.name || "Component",
+                  price: item.price || 0,
+                  quantity: 1,
+                  category: item.category || "pc-component",
+                  image:
+                    typeof item.image === "string" ? item.image : undefined,
+                });
+              }}
+              onOpenCart={() => setShowCartModal(true)}
+            />
+          </PageErrorBoundary>
         );
       case "visual-configurator":
-        return <VisualPCConfigurator />;
+        return (
+          <PageErrorBoundary pageName="Visual Configurator">
+            <VisualPCConfigurator />
+          </PageErrorBoundary>
+        );
       case "repair":
-        return <RepairService onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="Repair Service">
+            <RepairService onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
+      case "business-solutions":
+        return (
+          <PageErrorBoundary pageName="Business Solutions">
+            <BusinessSolutions setCurrentView={onNavigate} />
+          </PageErrorBoundary>
+        );
+      case "business-dashboard": {
+        // Require authentication and business account type
+        if (!isLoggedIn) {
+          return (
+            <PageErrorBoundary pageName="Access Denied">
+              <div className="min-h-screen flex items-center justify-center text-white py-12 px-4">
+                <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-8 max-w-md text-center">
+                  <Shield className="w-16 h-16 text-sky-400 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold mb-4">
+                    Authentication Required
+                  </h2>
+                  <p className="text-gray-400 mb-6">
+                    You must be logged in to access the Business Dashboard.
+                  </p>
+                  <Button
+                    onClick={() => setShowLoginDialog(true)}
+                    className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                  >
+                    Sign In
+                  </Button>
+                </Card>
+              </div>
+            </PageErrorBoundary>
+          );
+        }
+
+        // Check if user has business account type
+        const userStr = localStorage.getItem("vortex_user");
+        const userData = userStr ? JSON.parse(userStr) : null;
+        const accountType = userData?.accountType || "personal";
+
+        if (accountType !== "business") {
+          return (
+            <PageErrorBoundary pageName="Access Denied">
+              <div className="min-h-screen flex items-center justify-center text-white py-12 px-4">
+                <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-8 max-w-md text-center">
+                  <Building2 className="w-16 h-16 text-amber-400 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold mb-4">
+                    Business Account Required
+                  </h2>
+                  <p className="text-gray-400 mb-6">
+                    The Business Dashboard is only accessible to verified
+                    business customers. Business accounts are created by our
+                    team during onboarding.
+                  </p>
+                  <Button
+                    onClick={() => setCurrentView("business-solutions")}
+                    className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                  >
+                    Learn About Business Solutions
+                  </Button>
+                </Card>
+              </div>
+            </PageErrorBoundary>
+          );
+        }
+
+        return (
+          <PageErrorBoundary pageName="Business Dashboard">
+            <BusinessDashboard setCurrentView={onNavigate} />
+          </PageErrorBoundary>
+        );
+      }
       case "about":
-        return <AboutUs onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="About Us">
+            <AboutUs onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
       case "faq":
-        return <FAQPage onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="FAQ">
+            <FAQPage onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
       case "contact":
-        return <Contact onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="Contact">
+            <Contact onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
+      case "blog":
+        return (
+          <PageErrorBoundary pageName="Blog">
+            <BlogList />
+          </PageErrorBoundary>
+        );
       case "member":
         return (
-          <MemberArea
-            isLoggedIn={isLoggedIn}
-            setIsLoggedIn={setIsLoggedIn}
-            onNavigate={onNavigate}
-          />
+          <PageErrorBoundary pageName="Member Area">
+            <MemberArea
+              isLoggedIn={isLoggedIn}
+              setIsLoggedIn={setIsLoggedIn}
+              onNavigate={onNavigate}
+            />
+          </PageErrorBoundary>
         );
       case "admin":
-        return isAdmin ? <AdminPanel /> : <div>Access Denied</div>;
+        return (
+          <PageErrorBoundary pageName="Admin Panel">
+            {isAdmin ? <AdminPanel /> : <div>Access Denied</div>}
+          </PageErrorBoundary>
+        );
       case "order-success":
-        return <OrderSuccess onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="Order Success">
+            <OrderSuccess onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
       case "checkout":
         return (
-          <CheckoutPage
-            cartItems={cartItems}
-            onNavigate={onNavigate}
-            onBackToCart={() => setShowCartModal(true)}
-          />
+          <PageErrorBoundary pageName="Checkout">
+            <CheckoutPage
+              cartItems={cartItems}
+              onNavigate={onNavigate}
+              onBackToCart={() => setShowCartModal(true)}
+              onTriggerLogin={() => setShowLoginDialog(true)}
+            />
+          </PageErrorBoundary>
         );
       case "terms":
-        return <TermsPage />;
+        return (
+          <PageErrorBoundary pageName="Terms & Conditions">
+            <TermsPage />
+          </PageErrorBoundary>
+        );
       case "warranty":
-        return <WarrantyPage onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="Warranty">
+            <WarrantyPage onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
       case "process":
-        return <OurProcessPage onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="Our Process">
+            <OurProcessPage onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
       case "support":
-        return <TechnicalSupportPage onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="Technical Support">
+            <TechnicalSupportPage onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
       case "quality":
-        return <QualityStandardsPage onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="Quality Standards">
+            <QualityStandardsPage onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
       case "returns":
-        return <ReturnsRefundsPage onNavigate={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="Returns & Refunds">
+            <ReturnsRefundsPage onNavigate={onNavigate} />
+          </PageErrorBoundary>
+        );
       case "privacy":
-        return <PrivacyPage />;
+        return (
+          <PageErrorBoundary pageName="Privacy Policy">
+            <PrivacyPage />
+          </PageErrorBoundary>
+        );
       case "cookies":
-        return <CookiePolicyPage />;
+        return (
+          <PageErrorBoundary pageName="Cookie Policy">
+            <CookiePolicyPage />
+          </PageErrorBoundary>
+        );
       case "cms-diagnostics":
-        return <CmsDiagnostics />;
-      default:
-        return <HomePage setCurrentView={onNavigate} />;
+        return (
+          <PageErrorBoundary pageName="CMS Diagnostics">
+            <CmsDiagnostics />
+          </PageErrorBoundary>
+        );
+      default: {
+        // Check if it's a valid route - if not, show 404
+        const validRoutes = [
+          "home",
+          "logged-out",
+          "pc-finder",
+          "pc-builder",
+          "visual-configurator",
+          "business-solutions",
+          "business-dashboard",
+          "blog",
+          "author",
+          "repair",
+          "about",
+          "faq",
+          "contact",
+          "member",
+          "admin",
+          "order-success",
+          "checkout",
+          "terms",
+          "warranty",
+          "process",
+          "support",
+          "quality",
+          "returns",
+          "privacy",
+          "cookies",
+          "cms-diagnostics",
+        ];
+
+        // If currentView is not in valid routes and not empty/home, show 404
+        if (
+          currentView &&
+          currentView !== "home" &&
+          !validRoutes.includes(currentView)
+        ) {
+          return (
+            <PageErrorBoundary pageName="404">
+              <NotFoundPage onNavigate={onNavigate} />
+            </PageErrorBoundary>
+          );
+        }
+
+        // Default to home page
+        return (
+          <PageErrorBoundary pageName="Home">
+            <HomePage setCurrentView={onNavigate} />
+          </PageErrorBoundary>
+        );
+      }
     }
   };
 
   return (
     <AuthProvider>
+      {/* Schema.org Structured Data for SEO */}
+      <OrganizationSchema />
+      <WebsiteSchema />
+      <ServiceSchema />
+
       <div className="min-h-screen bg-black text-white overflow-x-hidden">
         {/* Animated Background */}
-        <div className="fixed inset-0 z-0">
+        <div className="fixed inset-0 z-0 pointer-events-none select-none">
           {/* Base gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-black via-slate-950 to-blue-950"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-slate-950 to-blue-950 will-change-opacity"></div>
 
           {/* Animated gradient orbs */}
-          <div className="absolute top-0 -left-40 w-80 h-80 bg-sky-500/20 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute top-0 -left-40 w-80 h-80 bg-sky-500/20 rounded-full blur-2xl md:blur-3xl animate-pulse"></div>
           <div
-            className="absolute top-40 -right-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl animate-pulse"
+            className="absolute top-40 -right-40 w-96 h-96 bg-blue-600/20 rounded-full blur-2xl md:blur-3xl animate-pulse"
             style={{ animationDelay: "1s" }}
           ></div>
           <div
-            className="absolute -bottom-40 left-1/3 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse"
+            className="absolute -bottom-40 left-1/3 w-96 h-96 bg-cyan-500/10 rounded-full blur-2xl md:blur-3xl animate-pulse"
             style={{ animationDelay: "2s" }}
           ></div>
 
           {/* Grid pattern */}
           <div
-            className="absolute inset-0 opacity-10"
+            className="absolute inset-0 opacity-10 will-change-opacity"
             style={{
               backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%230ea5e9' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
             }}
           ></div>
 
-          {/* Scanline effect */}
+          {/* Main Content */}
           <div
-            className="absolute inset-0 bg-gradient-to-b from-transparent via-sky-500/5 to-transparent opacity-30 animate-pulse"
+            className="absolute inset-0 bg-gradient-to-b from-transparent via-sky-500/5 to-transparent opacity-30 animate-pulse will-change-opacity"
             style={{ animationDuration: "3s" }}
           ></div>
         </div>
 
         <div className="relative z-10">
           {/* Header */}
-          <header className="backdrop-blur-2xl bg-black/40 border-b border-white/10 fixed top-0 left-0 right-0 z-50 shadow-lg shadow-sky-500/10">
+          <header className="backdrop-blur-xl md:backdrop-blur-2xl bg-black/40 border-b border-white/10 fixed top-0 left-0 right-0 z-50 shadow-lg shadow-sky-500/10 will-change-transform">
             <div className="container mx-auto px-4 md:px-6 lg:px-8">
-              <div className="flex items-center justify-between h-24">
+              <div className="flex items-center justify-between h-20 md:h-36">
                 {/* Logo */}
                 <div
                   className="cursor-pointer group"
@@ -431,19 +788,23 @@ export default function App() {
                     setIsMenuOpen(false);
                   }}
                 >
-                  <div className="relative h-12 sm:h-14 md:h-16 w-auto flex items-center justify-center transition-all duration-300 group-hover:scale-110">
+                  <div className="relative h-10 md:h-12 lg:h-14 xl:h-16 w-auto flex items-center justify-center transition-all duration-300 group-hover:scale-110">
                     <img
                       src={vortexLogo}
                       alt="Vortex PCs"
                       width="120"
                       height="64"
                       loading="eager"
+                      fetchPriority="high"
+                      decoding="async"
                       onError={(e) => {
-                        console.error("Logo failed to load:", vortexLogo);
+                        logger.error("Logo failed to load", undefined, {
+                          vortexLogo,
+                        });
                         e.currentTarget.style.border = "2px solid red";
                       }}
                       onLoad={() =>
-                        console.log("Logo loaded successfully:", vortexLogo)
+                        logger.debug("Logo loaded successfully", { vortexLogo })
                       }
                       className="h-full w-auto object-contain min-w-[80px] sm:min-w-[120px] drop-shadow-[0_0_20px_rgba(14,165,233,0.6)] group-hover:drop-shadow-[0_0_32px_rgba(14,165,233,0.8)] transition-all"
                     />
@@ -490,14 +851,24 @@ export default function App() {
                         Account
                       </Button>
                       {isAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate("/admin")}
-                          className="text-red-400 hover:text-red-300 px-4 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                        >
-                          Admin
-                        </Button>
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate("/admin")}
+                            className="text-red-400 hover:text-red-300 px-4 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                          >
+                            Admin
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate("/cms-diagnostics")}
+                            className="text-sky-400 hover:text-sky-300 px-4 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                          >
+                            CMS
+                          </Button>
+                        </>
                       )}
                     </div>
                   ) : (
@@ -635,16 +1006,28 @@ export default function App() {
                         <span>My Account</span>
                       </button>
                       {isAdmin && (
-                        <button
-                          onClick={() => {
-                            navigate("/admin");
-                            setIsMenuOpen(false);
-                          }}
-                          className="flex items-center space-x-2.5 px-5 py-4 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                        >
-                          <Shield className="w-5 h-5" />
-                          <span>Admin Panel</span>
-                        </button>
+                        <>
+                          <button
+                            onClick={() => {
+                              navigate("/admin");
+                              setIsMenuOpen(false);
+                            }}
+                            className="flex items-center space-x-2.5 px-5 py-4 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                          >
+                            <Shield className="w-5 h-5" />
+                            <span>Admin Panel</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigate("/cms-diagnostics");
+                              setIsMenuOpen(false);
+                            }}
+                            className="flex items-center space-x-2.5 px-5 py-4 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 rounded-lg transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                          >
+                            <Settings className="w-5 h-5" />
+                            <span>CMS Diagnostics</span>
+                          </button>
+                        </>
                       )}
                       <button
                         onClick={() => {
@@ -691,15 +1074,41 @@ export default function App() {
 
           {/* Main Content */}
           <main
-            className={`min-h-screen pt-24 ${
+            className={`min-h-screen pt-20 md:pt-24 ${
               currentView === "faq" ? "pb-0" : "pb-20"
             }`}
           >
-            {renderCurrentView()}
+            {/* Breadcrumbs - Show on all pages except home */}
+            {currentView !== "home" && (
+              <div className="container mx-auto">
+                <Breadcrumbs
+                  items={getBreadcrumbs(currentView)}
+                  onNavigate={onNavigate}
+                />
+              </div>
+            )}
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center py-32">
+                  <div className="text-center">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-600 to-blue-600 animate-pulse mx-auto mb-6 shadow-lg shadow-sky-500/30"></div>
+                    <p className="text-gray-400 text-lg">Loading module...</p>
+                  </div>
+                </div>
+              }
+            >
+              {renderCurrentView()}
+            </Suspense>
           </main>
 
           {/* Footer */}
           <Footer onNavigate={onNavigate} />
+
+          {/* Service Worker Update Toast */}
+          <ServiceWorkerUpdateToast />
+
+          {/* PWA Install Prompt */}
+          <PWAInstallPrompt />
 
           {/* Cookie Consent Banner */}
           {showCookieConsent && (
@@ -718,37 +1127,66 @@ export default function App() {
 
           {/* AI Assistant Modal */}
           {showAIAssistant && (
-            <AIAssistant
-              isOpen={showAIAssistant}
-              onClose={() => setShowAIAssistant(false)}
-            />
+            // Wrap lazy-loaded assistant in Suspense so it actually renders (fixes "live chat stopped" issue if fallback missing)
+            <Suspense
+              fallback={
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-r from-sky-600 to-blue-600 animate-pulse shadow-lg shadow-sky-500/40" />
+                    <p className="text-sky-300 tracking-wide">
+                      Loading VortexAI Assistant…
+                    </p>
+                  </div>
+                </div>
+              }
+            >
+              <AIAssistant
+                isOpen={showAIAssistant}
+                onClose={() => setShowAIAssistant(false)}
+              />
+            </Suspense>
           )}
 
           {/* Login Dialog */}
           <LoginDialog
             isOpen={showLoginDialog}
             onClose={() => setShowLoginDialog(false)}
-            onLogin={(firebaseUser) => {
-              console.log("🔐 Login - Firebase User:", firebaseUser);
-              console.log("🔐 Login - User Role:", firebaseUser.role);
+            onLogin={async (firebaseUser) => {
+              logger.debug("Login - Firebase User", {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+              });
+
+              // Fetch user profile to get role
+              const { getUserProfile } = await import("./services/auth");
+              let userRole = "user";
+              try {
+                const profile = await getUserProfile(firebaseUser.uid);
+                userRole = profile?.role || "user";
+              } catch (error) {
+                logger.warn(
+                  "Could not fetch user profile, defaulting to user role",
+                  { error }
+                );
+              }
 
               // Case-insensitive admin check
-              const isAdminUser = firebaseUser.role?.toLowerCase() === "admin";
-              console.log("🔐 Login - Is Admin?:", isAdminUser);
+              const isAdminUser = userRole.toLowerCase() === "admin";
+              logger.debug("Login - Is Admin?", { isAdminUser, userRole });
 
               // Save user data to state and localStorage
               const userData = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
                 displayName: firebaseUser.displayName,
-                role: firebaseUser.role || "user",
+                role: userRole,
               };
               localStorage.setItem("vortex_user", JSON.stringify(userData));
               setIsLoggedIn(true);
               setIsAdmin(isAdminUser);
 
               const targetView = isAdminUser ? "admin" : "member";
-              console.log("🔐 Login - Redirecting to:", targetView);
+              logger.debug("Login - Redirecting to", { targetView });
               navigate(`/${targetView}`);
             }}
             activeTab={loginTab}
@@ -792,10 +1230,35 @@ export default function App() {
             }}
           />
 
+          {/* Exit Intent Modal */}
+          <ExitIntentModal
+            isOpen={showExitModal}
+            onClose={() => setShowExitModal(false)}
+            variant={exitModalVariant}
+            onSubscribe={(email) => {
+              logger.debug("Exit modal email subscription", { email });
+              // Track subscription
+              try {
+                const consent = localStorage.getItem("vortex_cookie_consent");
+                if (consent === "accepted") {
+                  const raw = localStorage.getItem("vortex_user");
+                  const user = raw ? JSON.parse(raw) : null;
+                  const uid = user?.uid || null;
+                  trackEvent(uid, "newsletter_signup", {
+                    source: "exit_intent",
+                    variant: exitModalVariant,
+                  });
+                }
+              } catch {
+                // analytics best-effort only
+              }
+            }}
+          />
+
           {/* Floating Live Chat Button */}
           <button
             onClick={() => setShowAIAssistant(true)}
-            className="fixed bottom-8 right-8 z-50 group"
+            className="fixed bottom-8 right-8 z-[60] group"
             aria-label="Open Live Chat"
           >
             {/* Pulsing glow effect */}
@@ -819,6 +1282,9 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {/* Toast notifications */}
+      <Toaster position="top-right" richColors closeButton />
     </AuthProvider>
   );
 }

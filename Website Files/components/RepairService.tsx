@@ -25,6 +25,7 @@ import { Progress } from "./ui/progress";
 import { Separator } from "./ui/separator";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { SecurityBadges, PaymentProviderLogos } from "./SecurityBadges";
 import {
   Wrench,
   Truck,
@@ -56,6 +57,7 @@ import {
 } from "@stripe/react-stripe-js";
 import { stripePromise } from "../config/stripe";
 import { createPaymentIntent } from "../services/payment";
+import { logger } from "../services/logger";
 import { TermsPage } from "./TermsPage";
 import { PrivacyPage } from "./PrivacyPage";
 
@@ -133,7 +135,7 @@ function PaymentFormInner({
             }),
           });
         } catch (emailError) {
-          console.error("Email notification failed:", emailError);
+          logger.error("Email notification failed:", emailError);
           // Don't block success flow if email fails
         }
 
@@ -146,7 +148,7 @@ function PaymentFormInner({
         err instanceof Error
           ? err.message
           : "Payment failed. Please try again.";
-      console.error("Payment error:", err);
+      logger.error("Payment error:", err);
       setError(errorMessage);
     } finally {
       setProcessing(false);
@@ -187,11 +189,17 @@ function PaymentFormInner({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+        </div>
+      </Card>
 
-          <div className="flex items-center gap-2 text-sm text-gray-400 bg-white/5 p-4 rounded-lg border border-white/10">
-            <Shield className="w-4 h-4 text-green-400" />
-            <span>Your payment information is secure and encrypted</span>
-          </div>
+      {/* Trust Badges */}
+      <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
+        <h3 className="text-lg font-semibold text-white mb-4 text-center">
+          Your Security is Our Priority
+        </h3>
+        <SecurityBadges variant="grid" />
+        <div className="mt-6 pt-6 border-t border-white/10">
+          <PaymentProviderLogos />
         </div>
       </Card>
 
@@ -545,15 +553,12 @@ function BookingForm(props: BookingFormProps) {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  console.log("===BUTTON CLICKED===");
-                  console.log(
-                    "Find Address button clicked, postcode:",
-                    postcode
-                  );
-                  console.log("isLoadingAddresses:", isLoadingAddresses);
-                  console.log("About to call handlePostcodeLookup");
+                  logger.debug("Button clicked");
+                  logger.debug("Find Address button clicked", { postcode });
+                  logger.debug("Loading state", { isLoadingAddresses });
+                  logger.debug("About to call handlePostcodeLookup");
                   handlePostcodeLookup();
-                  console.log("handlePostcodeLookup called");
+                  logger.debug("handlePostcodeLookup called");
                 }}
                 className="bg-blue-600 hover:bg-blue-500"
                 disabled={isLoadingAddresses || postcode.trim().length === 0}
@@ -1326,17 +1331,17 @@ export function RepairService({
 
   // Real postcode lookup via provider (getaddress.io if configured) with fallback
   const handlePostcodeLookup = useCallback(async () => {
-    console.log("=== handlePostcodeLookup called ===");
-    console.log("Current postcode value:", postcode);
+    logger.debug("handlePostcodeLookup called");
+    logger.debug("Current postcode value", { postcode });
 
     const trimmedPostcode = postcode.trim();
     const normalizedNoSpace = trimmedPostcode.replace(/\s+/g, "").toUpperCase();
 
-    console.log("Trimmed postcode:", trimmedPostcode);
-    console.log("Normalized no-space:", normalizedNoSpace);
+    logger.debug("Trimmed postcode", { trimmedPostcode });
+    logger.debug("Normalized no-space", { normalizedNoSpace });
 
     if (!trimmedPostcode) {
-      console.log("Postcode is empty");
+      logger.debug("Postcode is empty");
       setPostcodeError("Please enter a postcode");
       return;
     }
@@ -1344,42 +1349,44 @@ export function RepairService({
     // Basic UK postcode format validation (more lenient)
     const postcodeRegex = /^[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}$/i;
     if (!postcodeRegex.test(trimmedPostcode)) {
-      console.log("Postcode failed regex validation");
+      logger.debug("Postcode failed regex validation");
       setPostcodeError(
         "Please enter a valid UK postcode format (e.g. SW1A 1AA)"
       );
       return;
     }
 
-    console.log("Postcode passed validation, starting lookup...");
+    logger.debug("Postcode passed validation, starting lookup...");
     setIsLoadingAddresses(true);
     setPostcodeError("");
     setFoundAddresses([]);
     setSelectedAddress("");
 
     try {
-      console.log("Looking up addresses via provider for:", trimmedPostcode);
+      logger.debug("Looking up addresses via provider", { trimmedPostcode });
       const addresses = await lookupAddresses(trimmedPostcode);
       if (addresses.length > 0) {
-        console.log("Provider returned addresses:", addresses.length);
+        logger.debug("Provider returned addresses", {
+          count: addresses.length,
+        });
         setFoundAddresses(addresses);
         setPostcode(trimmedPostcode.toUpperCase());
-        console.log("Addresses set successfully");
+        logger.debug("Addresses set successfully");
       } else {
-        console.error("No addresses returned for postcode:", trimmedPostcode);
+        logger.error("No addresses returned for postcode:", trimmedPostcode);
         setPostcodeError(
           "No addresses found for this postcode. Please check and try again or enter your address manually."
         );
         setShowManualEntry(true);
       }
     } catch (error) {
-      console.error("Postcode lookup error:", error);
+      logger.error("Postcode lookup error:", error);
       setPostcodeError(
         "Unable to look up postcode. Please enter your address manually."
       );
       setShowManualEntry(true);
     } finally {
-      console.log("Lookup complete, setting loading to false");
+      logger.debug("Lookup complete, setting loading to false");
       setIsLoadingAddresses(false);
     }
   }, [postcode]); // Dependencies: only recreate if postcode changes
@@ -1395,13 +1402,15 @@ export function RepairService({
               UK-Wide PC Repair Service
             </Badge>
 
-            <h1 className="text-5xl md:text-7xl font-black mb-6 bg-gradient-to-r from-white via-sky-200 to-cyan-400 bg-clip-text text-transparent leading-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black mb-6 bg-gradient-to-r from-white via-sky-200 to-cyan-400 bg-clip-text text-transparent leading-tight px-4">
               Expert PC Repair
               <br />
-              <span className="text-4xl md:text-5xl">Done Right</span>
+              <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl">
+                Done Right
+              </span>
             </h1>
 
-            <p className="text-xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed px-4">
               Professional PC repair services with UK-wide collection and return
               from £29.99. Expert diagnostics, genuine parts, and comprehensive
               warranty on all repairs.
@@ -1475,10 +1484,10 @@ export function RepairService({
           {/* Repair Services */}
           <section className="mb-20">
             <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent px-4">
                 Our Repair Services
               </h2>
-              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto px-4">
                 Comprehensive PC repair solutions for all your needs
               </p>
             </div>
@@ -1514,10 +1523,10 @@ export function RepairService({
           {/* Repair Process */}
           <section className="mb-20">
             <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent px-4">
                 How It Works
               </h2>
-              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto px-4">
                 Simple, transparent process for all repairs
               </p>
             </div>
@@ -1552,10 +1561,10 @@ export function RepairService({
           {/* Booking Form */}
           <section className="mb-20" ref={bookingFormRef}>
             <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent px-4">
                 Book Your Repair
               </h2>
-              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto px-4">
                 Get started with your PC repair in just a few steps
               </p>
             </div>
@@ -1588,10 +1597,10 @@ export function RepairService({
           {/* Testimonials */}
           <section className="mb-20">
             <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-4 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent px-4">
                 What Our Customers Say
               </h2>
-              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto px-4">
                 Trusted by thousands across the UK
               </p>
             </div>
@@ -1636,21 +1645,21 @@ export function RepairService({
 
           {/* Coverage Area */}
           <section className="mb-20">
-            <Card className="bg-gradient-to-br from-sky-950/30 to-blue-950/30 backdrop-blur-xl border border-sky-500/30 p-8 md:p-12 hover:border-sky-400/50 transition-all duration-500 overflow-hidden relative">
+            <Card className="bg-gradient-to-br from-sky-950/30 to-blue-950/30 backdrop-blur-xl border border-sky-500/30 p-6 sm:p-8 md:p-12 hover:border-sky-400/50 transition-all duration-500 overflow-hidden relative">
               <div className="relative z-10">
-                <h3 className="text-3xl md:text-4xl font-black text-white mb-4">
+                <h3 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-4 text-center">
                   UK-Wide Coverage
                 </h3>
-                <p className="text-gray-300 text-lg mb-8 max-w-2xl mx-auto">
+                <p className="text-gray-300 text-base sm:text-lg mb-8 max-w-2xl mx-auto text-center px-4">
                   Professional PC repair and collection service available
                   throughout England, Scotland, Wales, and Northern Ireland
                 </p>
 
                 {/* UK Map Silhouette */}
-                <div className="flex justify-center items-center gap-8 mb-8">
-                  <div className="relative">
+                <div className="flex flex-col md:flex-row justify-center items-center gap-6 md:gap-8 mb-8">
+                  <div className="relative order-2 md:order-1">
                     {/* UK Map Outline */}
-                    <div className="relative w-56 h-72 md:w-64 md:h-80 flex items-center justify-center">
+                    <div className="relative w-40 h-52 sm:w-48 sm:h-60 md:w-64 md:h-80 flex items-center justify-center mx-auto">
                       <img
                         src="/uk-map-outline.png"
                         alt="UK Map"
@@ -1665,37 +1674,37 @@ export function RepairService({
                     </div>
                   </div>
 
-                  <div className="text-left space-y-4 max-w-md">
+                  <div className="w-full md:w-auto text-left space-y-4 max-w-md order-1 md:order-2 px-4 md:px-0">
                     <div className="flex items-start gap-3">
-                      <Truck className="w-6 h-6 text-sky-400 flex-shrink-0 mt-1" />
+                      <Truck className="w-5 h-5 sm:w-6 sm:h-6 text-sky-400 flex-shrink-0 mt-1" />
                       <div>
-                        <h4 className="font-bold text-white mb-1">
+                        <h4 className="font-bold text-white mb-1 text-sm sm:text-base">
                           Nationwide Collection
                         </h4>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-xs sm:text-sm text-gray-400">
                           Prices start from £29.99 for collection and delivery
                           via DPD
                         </p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
-                      <Clock className="w-6 h-6 text-sky-400 flex-shrink-0 mt-1" />
+                      <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-sky-400 flex-shrink-0 mt-1" />
                       <div>
-                        <h4 className="font-bold text-white mb-1">
+                        <h4 className="font-bold text-white mb-1 text-sm sm:text-base">
                           Fast Service
                         </h4>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-xs sm:text-sm text-gray-400">
                           Standard, express, and same-day options available
                         </p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
-                      <Shield className="w-6 h-6 text-sky-400 flex-shrink-0 mt-1" />
+                      <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-sky-400 flex-shrink-0 mt-1" />
                       <div>
-                        <h4 className="font-bold text-white mb-1">
+                        <h4 className="font-bold text-white mb-1 text-sm sm:text-base">
                           Fully Insured
                         </h4>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-xs sm:text-sm text-gray-400">
                           Your PC is protected during transit and repair
                         </p>
                       </div>

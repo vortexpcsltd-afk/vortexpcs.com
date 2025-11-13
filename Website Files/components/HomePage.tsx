@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { logger } from "../services/logger";
 import {
   Zap,
   Shield,
@@ -15,16 +16,22 @@ import {
   type Settings,
   type Testimonial,
   type FeatureItem,
-  type CompanyStats,
   type PageContent,
 } from "../services/cms";
+import {
+  HeroSkeleton,
+  FeaturedBuildSkeleton,
+  TestimonialSkeleton,
+  ProductCardSkeleton,
+  GridSkeleton,
+} from "./SkeletonComponents";
 
 interface HomePageProps {
   setCurrentView: (view: string) => void;
 }
 
 export function HomePage({ setCurrentView }: HomePageProps) {
-  console.log("🏠 HomePage component rendered");
+  logger.debug("🏠 HomePage component rendered");
 
   const cmsDisabled =
     (import.meta.env as { VITE_CMS_DISABLED?: string })?.VITE_CMS_DISABLED ===
@@ -34,18 +41,16 @@ export function HomePage({ setCurrentView }: HomePageProps) {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [heroFeatures, setHeroFeatures] = useState<FeatureItem[]>([]);
   const [mainFeatures, setMainFeatures] = useState<FeatureItem[]>([]);
-  const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
+  // Removed companyStats state (no longer used)
   const [loading, setLoading] = useState(true);
 
-  const heroBackground = "/gaming-keyboard.jpeg";
-
   useEffect(() => {
-    console.log("🔄 HomePage useEffect running, cmsDisabled:", cmsDisabled);
+    logger.debug("HomePage useEffect running", { cmsDisabled });
 
     const loadContent = async () => {
       // Optional dev escape hatch: force fallback content to preview local hero edits
       if (cmsDisabled) {
-        console.warn(
+        logger.warn(
           "CMS disabled via VITE_CMS_DISABLED, using fallback content"
         );
         setPageContent({
@@ -62,7 +67,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       }
 
       try {
-        console.log("🚀 Loading Contentful CMS content...");
+        logger.debug("🚀 Loading Contentful CMS content...");
 
         // Import CMS services dynamically
         const {
@@ -90,7 +95,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           fetchCompanyStats(),
         ]);
 
-        console.log("📊 Contentful API Results:", {
+        logger.debug("📊 Contentful API Results:", {
           settings: contentfulSettings.status,
           pageContent: contentfulPageContent.status,
           testimonials: contentfulTestimonials.status,
@@ -104,10 +109,9 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           contentfulSettings.value
         ) {
           setSettings(contentfulSettings.value);
-          console.log(
-            "✅ Contentful settings loaded:",
-            contentfulSettings.value
-          );
+          logger.debug("Contentful settings loaded", {
+            settings: contentfulSettings.value,
+          });
         }
 
         if (
@@ -115,16 +119,14 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           contentfulPageContent.value
         ) {
           setPageContent(contentfulPageContent.value);
-          console.log(
-            "✅ Contentful page content loaded:",
-            contentfulPageContent.value
-          );
-          console.log(
-            "🎉 Hero title from Contentful:",
-            contentfulPageContent.value.heroTitle
-          );
+          logger.debug("Contentful page content loaded", {
+            pageContent: contentfulPageContent.value,
+          });
+          logger.debug("Hero title from Contentful", {
+            heroTitle: contentfulPageContent.value.heroTitle,
+          });
         } else {
-          console.log("⚠️ FALLBACK: Using hardcoded hero content");
+          logger.debug("⚠️ FALLBACK: Using hardcoded hero content");
           setPageContent({
             id: 1,
             pageSlug: "home",
@@ -141,10 +143,9 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           contentfulTestimonials.value
         ) {
           setTestimonials(contentfulTestimonials.value);
-          console.log(
-            "✅ Contentful testimonials loaded:",
-            contentfulTestimonials.value
-          );
+          logger.debug("Contentful testimonials loaded", {
+            count: contentfulTestimonials.value.length,
+          });
         }
 
         if (
@@ -152,10 +153,9 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           contentfulHeroFeatures.value
         ) {
           setHeroFeatures(contentfulHeroFeatures.value);
-          console.log(
-            "✅ Contentful hero features loaded:",
-            contentfulHeroFeatures.value
-          );
+          logger.debug("Contentful hero features loaded", {
+            count: contentfulHeroFeatures.value.length,
+          });
         }
 
         if (
@@ -163,27 +163,17 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           contentfulMainFeatures.value
         ) {
           setMainFeatures(contentfulMainFeatures.value);
-          console.log(
-            "✅ Contentful main features loaded:",
-            contentfulMainFeatures.value
-          );
+          logger.debug("Contentful main features loaded", {
+            count: contentfulMainFeatures.value.length,
+          });
         }
 
-        if (
-          contentfulCompanyStats.status === "fulfilled" &&
-          contentfulCompanyStats.value
-        ) {
-          setCompanyStats(contentfulCompanyStats.value);
-          console.log(
-            "✅ Contentful company stats loaded:",
-            contentfulCompanyStats.value
-          );
-        }
+        // Removed company stats logic
 
-        console.log("🎉 All Contentful content loaded successfully!");
+        logger.debug("🎉 All Contentful content loaded successfully!");
       } catch (error) {
-        console.error("❌ Failed to load Contentful content:", error);
-        console.log("🔄 Using fallback content...");
+        logger.error("❌ Failed to load Contentful content:", error);
+        logger.debug("🔄 Using fallback content...");
 
         // Fallback data when Contentful is unavailable
         setPageContent({
@@ -206,10 +196,62 @@ export function HomePage({ setCurrentView }: HomePageProps) {
   // Show loading state while fetching data
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-sky-500 mb-4 mx-auto"></div>
-          <p className="text-gray-400">Loading amazing content...</p>
+      <div className="min-h-screen bg-black text-white overflow-x-hidden">
+        {/* Animated Background */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-950 via-black to-sky-950 animate-gradient"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-900/20 via-black to-black"></div>
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10">
+          {/* Hero Skeleton */}
+          <HeroSkeleton />
+
+          {/* Featured Builds Section Skeleton */}
+          <section className="py-20 px-4">
+            <div className="max-w-7xl mx-auto">
+              <div className="text-center mb-12 space-y-4">
+                <div className="h-12 w-64 bg-white/10 rounded mx-auto"></div>
+                <div className="h-6 w-96 bg-white/10 rounded mx-auto"></div>
+              </div>
+              <GridSkeleton
+                count={3}
+                columns={3}
+                SkeletonComponent={FeaturedBuildSkeleton}
+              />
+            </div>
+          </section>
+
+          {/* Features Section Skeleton */}
+          <section className="py-20 px-4 bg-white/5">
+            <div className="max-w-7xl mx-auto">
+              <div className="text-center mb-12 space-y-4">
+                <div className="h-12 w-48 bg-white/10 rounded mx-auto"></div>
+                <div className="h-6 w-80 bg-white/10 rounded mx-auto"></div>
+              </div>
+              <GridSkeleton
+                count={6}
+                columns={3}
+                SkeletonComponent={ProductCardSkeleton}
+              />
+            </div>
+          </section>
+
+          {/* Testimonials Section Skeleton */}
+          <section className="py-20 px-4">
+            <div className="max-w-7xl mx-auto">
+              <div className="text-center mb-12 space-y-4">
+                <div className="h-12 w-56 bg-white/10 rounded mx-auto"></div>
+                <div className="h-6 w-72 bg-white/10 rounded mx-auto"></div>
+              </div>
+              <GridSkeleton
+                count={3}
+                columns={3}
+                SkeletonComponent={TestimonialSkeleton}
+              />
+            </div>
+          </section>
         </div>
       </div>
     );
@@ -333,22 +375,31 @@ export function HomePage({ setCurrentView }: HomePageProps) {
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 safe-px py-12 sm:py-16">
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
-          style={{ backgroundImage: `url(${heroBackground})` }}
-        ></div>
+        {/* Hero background image */}
+        <img
+          src="/gaming-keyboard.webp"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover object-center opacity-20"
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/70"></div>
 
-        <div className="relative z-10 text-center max-w-6xl mx-auto px-4 sm:px-6 w-full">
-          <Badge className="mb-4 sm:mb-6 md:mb-8 bg-transparent border-sky-500/40 text-sky-400 px-3 sm:px-4 py-2 text-xs sm:text-sm md:text-base font-normal inline-flex items-center gap-2 animate-fade-in">
-            <Star
-              className="fill-transparent stroke-yellow-500 border-yellow-500"
-              style={{ width: "16px", height: "16px" }}
-              strokeWidth={1.5}
-            />
-            {pageContent?.heroBadgeText ||
-              "Custom PCs built for speed, power, and precision"}
-          </Badge>
+        <div className="relative z-10 text-center max-w-6xl mx-auto px-4 sm:px-6 w-full mb-0 sm:mb-[100px]">
+          <div className="flex justify-center mb-4 sm:mb-6 md:mb-8 w-full px-2">
+            <Badge className="bg-transparent border-sky-500/40 text-sky-400 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-[9px] sm:text-xs md:text-sm lg:text-base font-normal flex flex-wrap items-center justify-center gap-1 sm:gap-2 animate-fade-in max-w-[calc(100%-16px)] sm:max-w-full text-center leading-snug">
+              <Star
+                className="fill-transparent stroke-yellow-500 border-yellow-500 flex-shrink-0"
+                style={{ minWidth: "12px", width: "12px", height: "12px" }}
+                strokeWidth={1.5}
+              />
+              <span className="text-center">
+                {pageContent?.heroBadgeText ||
+                  "Custom PCs built for speed, power, and precision"}
+              </span>
+            </Badge>
+          </div>
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 sm:mb-6 animate-float break-words leading-tight px-2">
             <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
@@ -356,10 +407,24 @@ export function HomePage({ setCurrentView }: HomePageProps) {
             </span>
           </h1>
 
-          <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-4 sm:mb-6 text-gray-300 max-w-4xl mx-auto animate-float animation-delay-200 px-2">
-            {pageContent?.heroSubtitle ||
-              "Custom PCs built for speed, power, and precision."}
-          </p>
+          <div className="mb-4 sm:mb-6 animate-float animation-delay-200">
+            {/* Responsive subtitle with delivery promise */}
+            <div className="flex flex-col items-center w-full">
+              <span
+                className="block text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-3xl px-2 sm:px-0 break-words text-center"
+                style={{ wordBreak: "break-word", whiteSpace: "normal" }}
+              >
+                {pageContent?.heroSubtitle ||
+                  "Custom PCs built for speed, power, and precision."}
+              </span>
+              <span
+                className="block text-base sm:text-lg md:text-xl lg:text-2xl text-cyan-300 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-3xl px-2 sm:px-0 break-words mt-1 text-center"
+                style={{ wordBreak: "break-word", whiteSpace: "normal" }}
+              >
+                Delivered within 5 days.
+              </span>
+            </div>
+          </div>
 
           <p className="text-sm sm:text-base md:text-lg mb-6 sm:mb-8 md:mb-10 text-gray-400 max-w-3xl mx-auto animate-fade-in animation-delay-400 px-4 leading-relaxed">
             {pageContent?.heroDescription ||
@@ -453,86 +518,6 @@ export function HomePage({ setCurrentView }: HomePageProps) {
                 </div>
               </Card>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Track Record Section */}
-      <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8 sm:mb-10 md:mb-12">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 px-4">
-              <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                Our Track Record
-              </span>
-            </h2>
-            <p className="text-base sm:text-lg text-gray-400 px-4">
-              Real numbers that reflect our commitment to quality and service
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 max-w-5xl mx-auto">
-            {/* Years Experience */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-3 sm:p-4 md:p-6">
-              <div className="flex items-center justify-center mb-2 sm:mb-3">
-                <Shield className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-sky-400" />
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                {companyStats?.yearsExperience ?? 0}+
-              </div>
-              <div className="mt-1 text-xs sm:text-sm md:text-base text-gray-400">
-                Years Experience
-              </div>
-            </Card>
-
-            {/* Customers Served */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-3 sm:p-4 md:p-6">
-              <div className="flex items-center justify-center mb-2 sm:mb-3">
-                <Users className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-sky-400" />
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                {(() => {
-                  const n = companyStats?.customersServed ?? 0;
-                  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}m`;
-                  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-                  return n;
-                })()}
-              </div>
-              <div className="mt-1 text-xs sm:text-sm md:text-base text-gray-400">
-                Customers Served
-              </div>
-            </Card>
-
-            {/* PC Builds Completed */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-3 sm:p-4 md:p-6">
-              <div className="flex items-center justify-center mb-2 sm:mb-3">
-                <Wrench className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-sky-400" />
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                {(() => {
-                  const n = companyStats?.pcBuildsCompleted ?? 0;
-                  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}m`;
-                  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-                  return n;
-                })()}
-              </div>
-              <div className="mt-1 text-xs sm:text-sm md:text-base text-gray-400">
-                PC Builds Completed
-              </div>
-            </Card>
-
-            {/* Satisfaction Rate */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 hover:border-sky-500/30 transition-all duration-300 text-center p-3 sm:p-4 md:p-6">
-              <div className="flex items-center justify-center mb-2 sm:mb-3">
-                <Star className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-sky-400" />
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                {companyStats?.satisfactionRate ?? 0}%
-              </div>
-              <div className="mt-1 text-xs sm:text-sm md:text-base text-gray-400">
-                Customer Satisfaction
-              </div>
-            </Card>
           </div>
         </div>
       </section>

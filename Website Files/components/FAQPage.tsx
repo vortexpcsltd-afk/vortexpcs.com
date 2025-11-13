@@ -26,6 +26,8 @@ import {
   type FAQItem,
   type PageContent,
 } from "../services/cms";
+import { logger } from "../services/logger";
+import { FAQItemSkeleton, PageHeaderSkeleton } from "./SkeletonComponents";
 
 interface FAQ {
   id: string;
@@ -57,7 +59,7 @@ export function FAQPage({ onNavigate }: FAQPageProps) {
         setFaqItems(faqData);
         setPageContent(pageData);
       } catch (error) {
-        console.error("Failed to load FAQ content:", error);
+        logger.error("Failed to load FAQ content:", error);
         // Fallback to hardcoded data if CMS fails
         setFaqItems(getMockFAQData());
       } finally {
@@ -199,10 +201,42 @@ export function FAQPage({ onNavigate }: FAQPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-sky-500 mx-auto"></div>
-          <p className="text-gray-400 mt-4">Loading FAQ content...</p>
+      <div className="min-h-screen">
+        {/* Animated Background */}
+        <div className="fixed inset-0 bg-gradient-to-br from-blue-900/20 via-cyan-900/10 to-sky-900/20 animate-gradient"></div>
+        <div
+          className="fixed inset-0 opacity-40"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }}
+        ></div>
+
+        <div className="relative z-10 py-24 px-4">
+          <div className="container mx-auto max-w-4xl">
+            <PageHeaderSkeleton />
+
+            {/* Search skeleton */}
+            <div className="mb-12">
+              <div className="h-14 bg-white/10 rounded-lg"></div>
+            </div>
+
+            {/* Category filters skeleton */}
+            <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-10 w-32 bg-white/10 rounded-full flex-shrink-0"
+                ></div>
+              ))}
+            </div>
+
+            {/* FAQ items skeleton */}
+            <div className="space-y-4">
+              {[...Array(8)].map((_, i) => (
+                <FAQItemSkeleton key={i} />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

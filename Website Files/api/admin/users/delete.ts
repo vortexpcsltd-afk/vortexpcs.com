@@ -1,28 +1,43 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-// Lazy import to avoid cold-start overhead when not needed
-let admin: typeof import("firebase-admin") | null = null;
+// Firebase Admin singleton (align with other endpoints)
+let admin: any = null;
 let initialized = false;
 
 async function getAdmin() {
-  if (!admin) {
-    admin = await import("firebase-admin");
-  }
+  if (admin && initialized) return admin;
+  const imported = await import("firebase-admin");
+  admin = (imported as any).default ? (imported as any).default : imported;
+
   if (!initialized) {
     try {
-      if (!admin.apps.length) {
-        admin.initializeApp({
-          credential: admin.credential.applicationDefault(),
-          projectId: process.env.FIREBASE_PROJECT_ID,
-        });
+      // Prefer explicit base64 credential (Vercel-friendly)
+      const saB64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+      if (saB64) {
+        const json = Buffer.from(saB64, "base64").toString("utf-8");
+        const creds = JSON.parse(json);
+        if (!(admin as any).apps?.length) {
+          admin.initializeApp({
+            credential: admin.credential.cert(creds),
+            projectId: creds.project_id,
+          });
+        }
+      } else {
+        // Fallback to Application Default Credentials (useful locally)
+        if (!(admin as any).apps?.length) {
+          admin.initializeApp({
+            credential: admin.credential.applicationDefault(),
+            projectId: process.env.FIREBASE_PROJECT_ID,
+          });
+        }
       }
       initialized = true;
     } catch (e) {
-      // Initialization failed likely due to missing credentials
       initialized = false;
+      console.error("Firebase Admin init failed in delete user", e);
     }
   }
-  return admin!;
+  return admin;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -35,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!initialized) {
     return res.status(501).json({
       message:
-        "Firebase Admin SDK not initialized. Provide GOOGLE_APPLICATION_CREDENTIALS or set up Application Default Credentials and FIREBASE_PROJECT_ID.",
+        "Firebase Admin SDK not initialized. Configure FIREBASE_SERVICE_ACCOUNT_BASE64 (preferred) or ADC + FIREBASE_PROJECT_ID.",
     });
   }
 

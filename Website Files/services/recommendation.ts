@@ -1,6 +1,7 @@
 // Recommendation rules engine for PC Finder -> Component suggestions
 // Provides deterministic mapping from questionnaire answers to component tier selections.
 // Falls back to generic labels if CMS component data unavailable.
+import { logger } from "./logger";
 
 export interface FinderAnswers {
   purpose?: string; // gaming | creative | content_creation | professional | development | home
@@ -21,6 +22,7 @@ export interface RecommendedPartSummary {
   cooling: string;
   psu: string;
   case: string;
+  caseFans?: string;
 }
 
 export interface FulfilmentMeta {
@@ -83,6 +85,17 @@ const CASE_STYLES: Record<string, string> = {
   rgb_moderate: "Elegant Accent Lighting Mesh Case",
   minimal: "Stealth Black Silent Performance Case",
 };
+const CASE_FAN_TIERS: Record<Tier, string> = {
+  entry: "2x 120mm Performance Fans",
+  mid: "3x 120mm High-Airflow Fans",
+  high: "3x 140mm RGB Fans",
+  flagship: "6x 120mm ARGB Premium Fans",
+};
+const CASE_FAN_RGB: Record<string, string> = {
+  rgb_max: "Full ARGB Fan Kit (6x 120mm)",
+  rgb_moderate: "3x 120mm RGB Fans",
+  minimal: "3x 120mm Silent Fans",
+};
 
 function deriveTier(
   budget: number | undefined,
@@ -121,6 +134,7 @@ export function generateRecommendation(
   let storageTier: Tier = tier;
   let coolingTier: Tier = tier;
   let psuTier: Tier = tier;
+  let caseFanTier: Tier = tier;
 
   // Priority component boost
   if (answers.priority_component === "cpu") cpuTier = maybeBoost(cpuTier);
@@ -147,6 +161,14 @@ export function generateRecommendation(
   if (gpuTier === "high" && psuTier === "mid") psuTier = "high";
   if (gpuTier === "flagship") psuTier = "flagship";
 
+  // Case fan selection based on aesthetics or tier
+  let caseFanSelection: string;
+  if (answers.aesthetics && CASE_FAN_RGB[answers.aesthetics]) {
+    caseFanSelection = CASE_FAN_RGB[answers.aesthetics];
+  } else {
+    caseFanSelection = CASE_FAN_TIERS[caseFanTier];
+  }
+
   const parts: RecommendedPartSummary = {
     cpu: CPU_TIERS[cpuTier],
     gpu: selectGPU(answers.purpose, gpuTier),
@@ -155,6 +177,7 @@ export function generateRecommendation(
     cooling: COOLING_TIERS[coolingTier],
     psu: PSU_TIERS[psuTier],
     case: CASE_STYLES[answers.aesthetics || "minimal"],
+    caseFans: caseFanSelection,
   };
 
   // Fulfilment mapping
@@ -192,7 +215,7 @@ export function persistRecommendation(
     const payload = { answers, recommendation, timestamp: Date.now() };
     localStorage.setItem("pcfinder_recommendation", JSON.stringify(payload));
   } catch (e) {
-    console.warn("Failed to persist recommendation", e);
+    logger.warn("Failed to persist recommendation", { error: e });
   }
 }
 
@@ -205,7 +228,7 @@ export function loadPersistedRecommendation(): {
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (e) {
-    console.warn("Failed to load persisted recommendation", e);
+    logger.warn("Failed to load persisted recommendation", { error: e });
     return null;
   }
 }

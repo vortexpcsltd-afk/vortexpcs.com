@@ -33,8 +33,18 @@
     "components",
     "styles",
     "config",
+    "services",
     "App.tsx",
     "vite-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.backup.tsx",
+    "backup-before-figma",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/test"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

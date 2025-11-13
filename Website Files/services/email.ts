@@ -1,39 +1,71 @@
+export type SendBulkEmailPayload = {
+  subject: string;
+  html: string;
+  preheader?: string;
+  recipients?: string[]; // if omitted and mode=all, server will load all customers
+  mode: "all" | "emails";
+};
+
+export async function sendBulkEmail(
+  payload: SendBulkEmailPayload
+): Promise<{ success: boolean; sent: number }> {
+  let idToken: string | null = null;
+  try {
+    const { auth } = await import("../config/firebase");
+    if (auth?.currentUser) {
+      const { getIdToken } = await import("firebase/auth");
+      idToken = await getIdToken(auth.currentUser, true);
+    }
+  } catch {
+    /* ignore token retrieval failure; endpoint will reject if not authorized */
+  }
+
+  const res = await fetch("/api/admin/email/send", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      err?.message || err?.error || `Email send failed (${res.status})`
+    );
+  }
+
+  return res.json();
+}
 /**
  * Email Service
  * Handles sending emails for contact forms, order confirmations, and business notifications
  */
 
 import nodemailer from "nodemailer";
+import { logger } from "./logger";
 
 // Email configuration function (called at runtime)
+type EnvMap = Record<string, string | undefined>;
+const safeMetaEnv = (import.meta as unknown as { env?: EnvMap }).env || {};
+const readEnv = (key: string): string | undefined =>
+  safeMetaEnv[key] ?? process.env[key];
+
 const getEmailConfig = () => ({
-  host:
-    (import.meta as any).env?.VITE_SMTP_HOST ||
-    process.env.VITE_SMTP_HOST ||
-    "smtp.gmail.com",
-  port: parseInt(
-    (import.meta as any).env?.VITE_SMTP_PORT ||
-      process.env.VITE_SMTP_PORT ||
-      "587"
-  ),
-  secure:
-    ((import.meta as any).env?.VITE_SMTP_SECURE ||
-      process.env.VITE_SMTP_SECURE) === "true", // true for 465, false for other ports
+  host: readEnv("VITE_SMTP_HOST") || "smtp.gmail.com",
+  port: parseInt(readEnv("VITE_SMTP_PORT") || "587"),
+  secure: (readEnv("VITE_SMTP_SECURE") || "false") === "true", // true for 465, false otherwise
   auth: {
-    user:
-      (import.meta as any).env?.VITE_SMTP_USER || process.env.VITE_SMTP_USER, // SMTP username
-    pass:
-      (import.meta as any).env?.VITE_SMTP_PASS || process.env.VITE_SMTP_PASS, // SMTP password or app password
+    user: readEnv("VITE_SMTP_USER"), // SMTP username
+    pass: readEnv("VITE_SMTP_PASS"), // SMTP password or app password
   },
 });
 
 // Business contact information function (called at runtime)
 const getBusinessInfo = () => ({
   name: "Vortex PCs Ltd",
-  email:
-    (import.meta as any).env?.VITE_BUSINESS_EMAIL ||
-    process.env.VITE_BUSINESS_EMAIL ||
-    "info@vortexpcs.com",
+  email: readEnv("VITE_BUSINESS_EMAIL") || "info@vortexpcs.com",
   phone: "01603 975440",
   address: "123 Tech Street, London, UK",
   website: "https://www.vortexpcs.com",
@@ -47,7 +79,7 @@ const getTransporter = () => {
     const emailConfig = getEmailConfig();
     // Check if email is configured
     if (!emailConfig.auth.user || !emailConfig.auth.pass) {
-      console.warn(
+      logger.warn(
         "Email service not configured. Set VITE_SMTP_USER and VITE_SMTP_PASS environment variables."
       );
       return null;
@@ -412,7 +444,7 @@ export const sendContactFormEmail = async (
 ): Promise<boolean> => {
   const transporter = getTransporter();
   if (!transporter) {
-    console.error("Email service not configured");
+    logger.error("Email service not configured");
     return false;
   }
 
@@ -438,10 +470,10 @@ export const sendContactFormEmail = async (
       html: autoReply.html,
     });
 
-    console.log("✅ Contact form emails sent successfully");
+    logger.debug("✅ Contact form emails sent successfully");
     return true;
   } catch (error) {
-    console.error("❌ Failed to send contact form emails:", error);
+    logger.error("❌ Failed to send contact form emails:", error);
     return false;
   }
 };
@@ -454,7 +486,7 @@ export const sendOrderConfirmationEmail = async (
 ): Promise<boolean> => {
   const transporter = getTransporter();
   if (!transporter) {
-    console.error("Email service not configured");
+    logger.error("Email service not configured");
     return false;
   }
 
@@ -470,10 +502,10 @@ export const sendOrderConfirmationEmail = async (
       html: emailTemplate.html,
     });
 
-    console.log("✅ Order confirmation email sent successfully");
+    logger.debug("✅ Order confirmation email sent successfully");
     return true;
   } catch (error) {
-    console.error("❌ Failed to send order confirmation email:", error);
+    logger.error("❌ Failed to send order confirmation email:", error);
     return false;
   }
 };
@@ -487,7 +519,7 @@ export const sendOrderNotificationEmail = async (
 ): Promise<boolean> => {
   const transporter = getTransporter();
   if (!transporter) {
-    console.error("Email service not configured");
+    logger.error("Email service not configured");
     return false;
   }
 
@@ -503,10 +535,10 @@ export const sendOrderNotificationEmail = async (
       html: emailTemplate.html,
     });
 
-    console.log("✅ Order notification email sent successfully");
+    logger.debug("✅ Order notification email sent successfully");
     return true;
   } catch (error) {
-    console.error("❌ Failed to send order notification email:", error);
+    logger.error("❌ Failed to send order notification email:", error);
     return false;
   }
 };
@@ -522,10 +554,10 @@ export const testEmailConfiguration = async (): Promise<boolean> => {
 
   try {
     await transporter.verify();
-    console.log("✅ Email configuration is valid");
+    logger.debug("✅ Email configuration is valid");
     return true;
   } catch (error) {
-    console.error("❌ Email configuration test failed:", error);
+    logger.error("❌ Email configuration test failed:", error);
     return false;
   }
 };

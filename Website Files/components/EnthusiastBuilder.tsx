@@ -21,6 +21,7 @@ import {
   Loader2,
   Send,
 } from "lucide-react";
+import { logger } from "../services/logger";
 
 interface Component {
   id: string;
@@ -41,6 +42,7 @@ const COMPONENT_CATEGORIES = [
   { value: "ram", label: "Memory (RAM)", icon: Zap },
   { value: "storage", label: "Storage", icon: HardDrive },
   { value: "cooling", label: "Cooling", icon: Fan },
+  { value: "caseFans", label: "Case Fans", icon: Fan },
   { value: "psu", label: "Power Supply", icon: Zap },
   { value: "case", label: "Case", icon: Disc },
   { value: "other", label: "Other Component", icon: Plus },
@@ -121,7 +123,7 @@ export function EnthusiastBuilder({ isOpen, onClose }: EnthusiastBuilderProps) {
 
       setSubmitted(true);
     } catch (err) {
-      console.error("Quote submission error:", err);
+      logger.error("Quote submission error:", err);
       setError(
         "Failed to submit your quote request. Please try again or call us at 01603 975440."
       );

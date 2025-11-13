@@ -2,25 +2,59 @@
 <html lang="en-GB">
   <head>
     <meta charset="UTF-8" />
-    <link
-      rel="icon"
-      type="image/png"
-      href="https://www.vortexpcs.com/vortexpcs-logo.png"
+    <link rel="icon" type="image/png" href="/vortexpcs-logo.png" />
+    <link rel="apple-touch-icon" href="/vortexpcs-logo.png" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
     />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Security Headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- Preload Critical Resources -->
+    <link
+      rel="preload"
+      href="/vortexpcs-logo.png"
+      as="image"
+      type="image/png"
+      fetchpriority="high"
+    />
+    <link
+      rel="preload"
+      href="/gaming-keyboard.webp"
+      as="image"
+      type="image/webp"
+      fetchpriority="high"
+    />
+
+    <!-- Resource Hints: improve connection setup for third-parties -->
+    <link rel="preconnect" href="https://images.ctfassets.net" crossorigin />
+    <link rel="preconnect" href="https://cdn.contentful.com" crossorigin />
+    <link rel="preconnect" href="https://js.stripe.com" crossorigin />
+    <link
+      rel="preconnect"
+      href="https://firestore.googleapis.com"
+      crossorigin
+    />
+
     <!-- Meta tags are populated from Contentful at runtime. Leave blank to allow dynamic injection. -->
     <meta name="description" content="" />
     <meta name="keywords" content="" />
     <meta name="author" content="" />
     <meta name="theme-color" content="#0ea5e9" />
-    <!-- Aggressive cache busting v2025-10-25-03 - FILE RENAME FIX -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Cache Control -->
     <meta
       http-equiv="Cache-Control"
       content="no-cache, no-store, must-revalidate, max-age=0"
     />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="cache-version" content="" />
+
     <title>Custom PCs Built to Order | Vortex PCs Ltd</title>
   </head>
   <body>

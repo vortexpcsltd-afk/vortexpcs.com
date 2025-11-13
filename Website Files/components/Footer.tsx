@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Mail,
   Phone,
@@ -14,6 +14,12 @@ import {
   Zap,
   ChevronRight,
 } from "lucide-react";
+import {
+  fetchContactInformation,
+  fetchSettings,
+  type ContactInformation,
+  type Settings,
+} from "../services/cms";
 const vortexLogo = "/vortexpcs-logo.png";
 
 interface FooterProps {
@@ -22,11 +28,28 @@ interface FooterProps {
 
 export function Footer({ onNavigate }: FooterProps) {
   const currentYear = new Date().getFullYear();
+  const [contactInfo, setContactInfo] = useState<ContactInformation | null>(
+    null
+  );
+  const [settings, setSettings] = useState<Settings | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const [ci, s] = await Promise.all([
+        fetchContactInformation(),
+        fetchSettings(),
+      ]);
+      setContactInfo(ci);
+      setSettings(s);
+    };
+    load();
+  }, []);
 
   const productLinks = [
     { label: "PC Finder", view: "pc-finder" },
     { label: "Custom PC Builder", view: "pc-builder" },
     { label: "3D Builder", view: "visual-configurator" },
+    { label: "Business Solutions", view: "business-solutions" },
     { label: "Gaming PCs", view: "home" },
     { label: "Workstation PCs", view: "home" },
   ];
@@ -44,7 +67,7 @@ export function Footer({ onNavigate }: FooterProps) {
     { label: "Our Process", view: "process" },
     { label: "Quality Standards", view: "quality" },
     { label: "Member Area", view: "member" },
-    { label: "Contact Us", view: "contact" },
+    { label: "Blog", view: "blog" },
   ];
 
   const legalLinks = [
@@ -229,32 +252,100 @@ export function Footer({ onNavigate }: FooterProps) {
               <ul className="space-y-4">
                 <li>
                   <a
-                    href="mailto:info@vortexpcs.com"
+                    href={`mailto:${
+                      contactInfo?.email || "info@vortexpcs.com"
+                    }`}
                     className="group flex items-start gap-3 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-colors"
                   >
                     <Mail className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
-                    <span>info@vortexpcs.com</span>
+                    <span>{contactInfo?.email || "info@vortexpcs.com"}</span>
                   </a>
                 </li>
                 <li>
                   <a
-                    href="tel:+441603975440"
+                    href={`tel:${(contactInfo?.phone || "01603 975440").replace(
+                      /\s+/g,
+                      ""
+                    )}`}
                     className="group flex items-start gap-3 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-colors"
                   >
                     <Phone className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
-                    <span>01603 975440</span>
+                    <span>{contactInfo?.phone || "01603 975440"}</span>
                   </a>
                 </li>
                 <li className="flex items-start gap-3 text-xs sm:text-sm text-gray-400">
                   <Clock className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
                   <div>
-                    <div>Mon-Fri: 9AM-6PM</div>
-                    <div>Sat: 10AM-4PM GMT</div>
+                    {contactInfo?.businessHours ? (
+                      (() => {
+                        // Group consecutive days with same hours
+                        const hours = contactInfo.businessHours!;
+                        const grouped: Array<{ label: string; hours: string }> =
+                          [];
+
+                        // Check Mon-Fri
+                        const weekdayHours = hours.monday;
+                        const allWeekdaysSame = [
+                          "tuesday",
+                          "wednesday",
+                          "thursday",
+                          "friday",
+                        ].every((day) => hours[day] === weekdayHours);
+
+                        if (allWeekdaysSame && weekdayHours) {
+                          grouped.push({
+                            label: "Mon-Fri",
+                            hours: weekdayHours,
+                          });
+                        } else {
+                          // List individually if different
+                          [
+                            "monday",
+                            "tuesday",
+                            "wednesday",
+                            "thursday",
+                            "friday",
+                          ].forEach((day) => {
+                            if (hours[day]) {
+                              grouped.push({
+                                label:
+                                  day.charAt(0).toUpperCase() + day.slice(1, 3),
+                                hours: hours[day],
+                              });
+                            }
+                          });
+                        }
+
+                        // Add Saturday
+                        if (hours.saturday) {
+                          grouped.push({ label: "Sat", hours: hours.saturday });
+                        }
+
+                        // Add Sunday
+                        if (hours.sunday) {
+                          grouped.push({ label: "Sun", hours: hours.sunday });
+                        }
+
+                        return grouped.map((item, index) => (
+                          <div key={index}>
+                            {item.label}: {item.hours}
+                          </div>
+                        ));
+                      })()
+                    ) : (
+                      <>
+                        <div>Mon-Fri: 08:30-18:00</div>
+                        <div>Sat: 09:00-16:00</div>
+                        <div>Sun: Closed</div>
+                      </>
+                    )}
                   </div>
                 </li>
                 <li className="flex items-start gap-3 text-xs sm:text-sm text-gray-400">
                   <MapPin className="w-4 h-4 mt-0.5 text-sky-400 flex-shrink-0" />
-                  <span>London, United Kingdom</span>
+                  <span>
+                    {contactInfo?.address || "London, United Kingdom"}
+                  </span>
                 </li>
               </ul>
 
@@ -262,7 +353,7 @@ export function Footer({ onNavigate }: FooterProps) {
               <div className="pt-2">
                 <div className="flex gap-2">
                   <a
-                    href="https://facebook.com"
+                    href={settings?.socialLinks?.facebook || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Follow us on Facebook"
@@ -271,7 +362,7 @@ export function Footer({ onNavigate }: FooterProps) {
                     <Facebook className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
                   </a>
                   <a
-                    href="https://twitter.com"
+                    href={settings?.socialLinks?.twitter || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Follow us on Twitter"
@@ -280,7 +371,7 @@ export function Footer({ onNavigate }: FooterProps) {
                     <Twitter className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
                   </a>
                   <a
-                    href="https://instagram.com"
+                    href={settings?.socialLinks?.instagram || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Follow us on Instagram"
@@ -289,7 +380,7 @@ export function Footer({ onNavigate }: FooterProps) {
                     <Instagram className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
                   </a>
                   <a
-                    href="https://linkedin.com"
+                    href={settings?.socialLinks?.linkedin || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Follow us on LinkedIn"
@@ -298,7 +389,7 @@ export function Footer({ onNavigate }: FooterProps) {
                     <Linkedin className="w-4 h-4 text-gray-400 group-hover:text-sky-400 transition-colors" />
                   </a>
                   <a
-                    href="https://youtube.com"
+                    href={settings?.socialLinks?.youtube || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Subscribe to our YouTube channel"
@@ -343,9 +434,13 @@ export function Footer({ onNavigate }: FooterProps) {
             {/* Copyright and badges */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="text-xs text-gray-500 text-center md:text-left">
-                <p>&copy; {currentYear} Vortex PCs Ltd. All rights reserved.</p>
+                <p>
+                  {contactInfo?.copyrightText ||
+                    `© ${currentYear} Vortex PCs Ltd. All rights reserved.`}
+                </p>
                 <p className="mt-1 text-gray-600">
-                  Company Registration No. 16474994
+                  {contactInfo?.companyRegistrationNumber &&
+                    `Company Registration No. ${contactInfo.companyRegistrationNumber}`}
                 </p>
               </div>
 

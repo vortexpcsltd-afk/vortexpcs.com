@@ -15,6 +15,7 @@
  */
 
 import { loadStripe, Stripe } from "@stripe/stripe-js";
+import { logger } from "../services/logger";
 
 // Publishable key - Safe to expose in frontend
 export const stripePublishableKey =
@@ -24,10 +25,10 @@ export const stripePublishableKey =
 if (import.meta.env.DEV) {
   const keyMode = stripePublishableKey.includes("_test_") ? "TEST" : "LIVE";
   const keyPreview = stripePublishableKey.substring(0, 20);
-  console.log(
-    "🔑 Stripe Key Check:",
-    stripePublishableKey ? `${keyPreview}... (Mode: ${keyMode})` : "NOT FOUND"
-  );
+  logger.debug("🔑 Stripe Key Check", {
+    preview: stripePublishableKey ? `${keyPreview}...` : "NONE",
+    mode: keyMode,
+  });
 }
 
 // Initialize Stripe only if properly configured
@@ -40,11 +41,11 @@ if (
 ) {
   stripePromise = loadStripe(stripePublishableKey);
   if (import.meta.env.DEV) {
-    console.log("✅ Stripe initialized successfully");
+    logger.debug("✅ Stripe initialized successfully");
   }
 } else {
   if (import.meta.env.DEV) {
-    console.warn(
+    logger.warn(
       "Stripe not configured. Payment features will be disabled. See .env.example"
     );
   }
@@ -69,5 +70,5 @@ export const stripeBackendUrl =
     : "https://www.vortexpcs.com");
 
 if (import.meta.env.DEV) {
-  console.log("🔧 Stripe Backend URL:", stripeBackendUrl);
+  logger.debug("🔧 Stripe Backend URL", { url: stripeBackendUrl });
 }

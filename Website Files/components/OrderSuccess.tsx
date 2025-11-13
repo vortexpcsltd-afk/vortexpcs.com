@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { CheckCircle2, Package, Mail, Home, Loader2 } from "lucide-react";
 import { verifyPayment } from "../services/payment";
-import { trackEvent } from "../services/database";
+import { trackEvent, createOrder } from "../services/database";
+import { toast } from "sonner";
+import { logger } from "../services/logger";
+import type { CartItem } from "../types";
 
 interface OrderSuccessProps {
   onNavigate: (view: string) => void;
@@ -11,14 +15,35 @@ interface OrderSuccessProps {
 
 export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
   const [loading, setLoading] = useState(true);
-  const [orderDetails, setOrderDetails] = useState<any>(null);
+  // Minimal shape for payment verification details used in UI
+  interface OrderDetails {
+    customerEmail?: string;
+    customerName?: string;
+    amountTotal?: number;
+    currency?: string;
+    status?: string;
+    devTest?: boolean;
+    shippingAddress?: {
+      line1?: string;
+      line2?: string;
+      city?: string;
+      postal_code?: string;
+      country?: string;
+    };
+  }
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
     const loadOrderDetails = async () => {
-      // Get session_id from URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const sessionId = urlParams.get("session_id");
+      // Get session_id from Router location first, then window, then localStorage fallback (for tests)
+      const search = location?.search || window.location.search || "";
+      const urlParams = new URLSearchParams(search);
+      const sessionId =
+        urlParams.get("session_id") ||
+        localStorage.getItem("stripe_session_id") ||
+        undefined;
 
       if (!sessionId) {
         setError("No session ID found");
@@ -31,8 +56,74 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
         const data = await verifyPayment(sessionId);
         setOrderDetails(data);
 
-        // TODO: Create order in Firebase Firestore
-        // This should be done in the webhook, but we can also do it here as backup
+        // Create order in Firebase Firestore
+        try {
+          // Get user info from localStorage
+          const raw = localStorage.getItem("vortex_user");
+          const user = raw ? JSON.parse(raw) : null;
+          const userId = user?.uid || `guest_${sessionId}`;
+
+          // Get cart items from localStorage (if available)
+          const cartRaw = localStorage.getItem("vortex_cart");
+          const cartItems = cartRaw ? JSON.parse(cartRaw) : [];
+
+          // Parse items from cart or create default item
+          const orderItems =
+            cartItems.length > 0
+              ? cartItems.map((item: CartItem) => ({
+                  productId: item.id || "unknown",
+                  productName: item.name || "PC Build",
+                  quantity: item.quantity || 1,
+                  price: item.price || 0,
+                }))
+              : [
+                  {
+                    productId: "custom_build",
+                    productName: "Custom PC Build",
+                    quantity: 1,
+                    price: (data?.amountTotal || 0) / 100,
+                  },
+                ];
+
+          // Create order data
+          const orderData = {
+            userId: userId,
+            orderId: sessionId,
+            customerName: data?.customerName || "Guest Customer",
+            customerEmail: data?.customerEmail || "no-email@provided.com",
+            items: orderItems,
+            total: (data?.amountTotal || 0) / 100,
+            status: "pending" as const,
+            progress: 0,
+            orderDate: new Date(),
+            estimatedCompletion: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+            address: {
+              line1: data?.shippingAddress?.line1 || "",
+              line2: data?.shippingAddress?.line2 || "",
+              city: data?.shippingAddress?.city || "",
+              postcode: data?.shippingAddress?.postal_code || "",
+              country: data?.shippingAddress?.country || "UK",
+            },
+            paymentId: sessionId,
+          };
+
+          // Save order to Firebase
+          const orderId = await createOrder(orderData);
+          logger.success("Order created successfully", { orderId });
+
+          // Clear cart after successful order creation
+          localStorage.removeItem("vortex_cart");
+
+          // Show success toast
+          toast.success("Order saved successfully!");
+        } catch (orderError) {
+          logger.error("Failed to create order in Firebase", orderError);
+          // Don't fail the whole flow if order creation fails
+          // The order should still be in Stripe's records
+          toast.error(
+            "Order saved to payment system, but failed to save to database. Our team has been notified."
+          );
+        }
 
         // Analytics: purchase event (gated by cookie consent)
         try {
@@ -53,16 +144,17 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
         } catch {
           // best-effort analytics only
         }
-      } catch (err: any) {
-        console.error("Payment verification error:", err);
-        setError(err.message || "Failed to verify payment");
+      } catch (err: unknown) {
+        const error = err as Error;
+        logger.error("Payment verification error", error);
+        setError(error.message || "Failed to verify payment");
       } finally {
         setLoading(false);
       }
     };
 
     loadOrderDetails();
-  }, []);
+  }, [location?.search]);
 
   if (loading) {
     return (

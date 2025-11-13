@@ -3,7 +3,7 @@
  * The most unforgettable PC finder experience on the web
  * Version: 2025-11-06-SPECTACULAR
  */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, type ComponentType } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -41,11 +41,9 @@ import {
   ChevronRight,
   Bookmark,
   Heart,
-  Rocket,
-  Trophy,
-  Target,
-  TrendingUp,
 } from "lucide-react";
+import { logger } from "../services/logger";
+import { ProgressiveImage } from "./ProgressiveImage";
 import {
   fetchPCBuilds,
   fetchCategories,
@@ -75,11 +73,105 @@ const PLACEHOLDER_IMAGE =
 `);
 
 // Image gallery component for products
+// --------------------
+// Types
+// --------------------
+type ImageSrc = string;
+
+type Purpose =
+  | "gaming"
+  | "creative"
+  | "content_creation"
+  | "professional"
+  | "development"
+  | "home";
+
+type GamingDetail =
+  | "1080p_budget"
+  | "1440p_high"
+  | "4k_ultra"
+  | "competitive"
+  | undefined;
+type CreativeDetail =
+  | "video_editing"
+  | "3d_rendering"
+  | "streaming"
+  | "photo_editing"
+  | undefined;
+type ContentCreationDetail =
+  | "streaming"
+  | "youtube"
+  | "podcasting"
+  | "social_media"
+  | undefined;
+type RGBPreference = "none" | "subtle" | "moderate" | "full" | undefined;
+type Timeline = "standard" | "rush" | "flexible" | undefined;
+type StorageNeeds = "500gb" | "1tb" | "2tb" | "1tb_plus_hdd" | undefined;
+
+interface Answers {
+  purpose?: Purpose;
+  budget?: number;
+  gaming_detail?: GamingDetail;
+  creative_detail?: CreativeDetail;
+  content_creation_detail?: ContentCreationDetail;
+  rgb_preference?: RGBPreference;
+  timeline?: Timeline;
+  storage_needs?: StorageNeeds;
+  [key: string]: string | number | boolean | undefined; // allow extra keyed answers without using any
+}
+
+interface Specs {
+  cpu: string;
+  gpu: string;
+  ram: string;
+  storage: string;
+  cooling: string;
+  motherboard?: string;
+  psu?: string;
+  case?: string;
+  caseFans?: string;
+  extras?: string;
+}
+
+interface BuildTemplate {
+  name: string;
+  basePrice: number;
+  category: string;
+  description: string;
+  specs: Specs;
+  features: string[];
+  targetUseCase: string[];
+  performanceScore: number;
+  valueScore: number;
+  futureProofScore: number;
+  powerEfficiency: number;
+}
+
+type ScoredBuild = BuildTemplate & {
+  score: number;
+  accuratePrice: number;
+  adjustedPrice: number;
+};
+
+interface RecommendedBuild {
+  name: string;
+  price: number;
+  category: string;
+  description: string;
+  specs: Specs;
+  features: string[];
+  images: ImageSrc[];
+  expertComments?: string[];
+  isFromContentful?: boolean;
+  intelligentScore?: number;
+  recommendation?: string;
+}
+
 const ProductImageGallery = ({
   images,
   productName,
 }: {
-  images: any[];
+  images: ImageSrc[];
   productName: string;
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -104,7 +196,7 @@ const ProductImageGallery = ({
     (src) => !isPlaceholderImage(src)
   );
   const hasRealImages = filteredImages.length > 0;
-  const productImages = hasRealImages ? filteredImages : [];
+  const productImages: ImageSrc[] = hasRealImages ? filteredImages : [];
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % productImages.length);
@@ -129,13 +221,15 @@ const ProductImageGallery = ({
         >
           {hasRealImages ? (
             <>
-              <img
+              <ProgressiveImage
                 src={productImages[currentImageIndex]}
                 alt={productName}
-                width="800"
-                height="500"
-                loading="lazy"
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                aspectRatio="16/10"
+                shimmer
+                lazy
+                srcSet={`${productImages[currentImageIndex]}?w=480 480w, ${productImages[currentImageIndex]}?w=768 768w, ${productImages[currentImageIndex]}?w=1024 1024w, ${productImages[currentImageIndex]}?w=1280 1280w`}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 75vw, 640px"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
@@ -202,7 +296,7 @@ const ProductImageGallery = ({
         {/* Thumbnail strip - only show if we have real images */}
         {hasRealImages && productImages.length > 1 && (
           <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
-            {productImages.slice(0, 6).map((image: any, index: number) => (
+            {productImages.slice(0, 6).map((image: ImageSrc, index: number) => (
               <button
                 key={index}
                 onClick={(e) => {
@@ -215,13 +309,14 @@ const ProductImageGallery = ({
                     : "border-white/10 hover:border-white/30"
                 }`}
               >
-                <img
+                <ProgressiveImage
                   src={image}
                   alt={`${productName} view ${index + 1}`}
-                  width="64"
-                  height="48"
-                  loading="lazy"
                   className="w-full h-full object-cover"
+                  aspectRatio="4/3"
+                  shimmer={false}
+                  srcSet={`${image}?w=120 120w, ${image}?w=160 160w, ${image}?w=240 240w`}
+                  sizes="(max-width: 640px) 80px, 64px"
                 />
               </button>
             ))}
@@ -247,13 +342,15 @@ const ProductImageGallery = ({
                 ratio={16 / 10}
                 className="overflow-hidden rounded-xl"
               >
-                <img
+                <ProgressiveImage
                   src={productImages[currentImageIndex]}
                   alt={productName}
-                  width="1200"
-                  height="750"
-                  loading="eager"
                   className="w-full h-full object-cover"
+                  aspectRatio="16/10"
+                  shimmer
+                  lazy={false}
+                  srcSet={`${productImages[currentImageIndex]}?w=640 640w, ${productImages[currentImageIndex]}?w=960 960w, ${productImages[currentImageIndex]}?w=1280 1280w, ${productImages[currentImageIndex]}?w=1600 1600w`}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 960px"
                 />
               </AspectRatio>
 
@@ -290,7 +387,7 @@ const ProductImageGallery = ({
 
             {/* Gallery thumbnails */}
             <div className="grid grid-cols-6 gap-3 mt-4">
-              {productImages.map((image: any, index: number) => (
+              {productImages.map((image: ImageSrc, index: number) => (
                 <button
                   key={index}
                   onClick={() => setCurrentImageIndex(index)}
@@ -300,13 +397,14 @@ const ProductImageGallery = ({
                       : "border-white/10 hover:border-white/30"
                   }`}
                 >
-                  <img
+                  <ProgressiveImage
                     src={image}
                     alt={`${productName} thumbnail ${index + 1}`}
-                    width="150"
-                    height="100"
-                    loading="lazy"
+                    aspectRatio="16/9"
                     className="w-full h-full object-cover"
+                    srcSet={`${image}?w=160 160w, ${image}?w=240 240w, ${image}?w=320 320w`}
+                    sizes="(max-width: 640px) 16vw, (max-width: 1024px) 10vw, 8vw"
+                    shimmer
                   />
                 </button>
               ))}
@@ -323,14 +421,14 @@ export function PCFinder({
   setRecommendedBuild,
 }: {
   setCurrentView: (view: string) => void;
-  setRecommendedBuild: (build: any) => void;
+  setRecommendedBuild: (build: RecommendedBuild) => void;
 }) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<any>({});
+  const [answers, setAnswers] = useState<Answers>({});
   const [showResults, setShowResults] = useState(false);
   const [questionHistory, setQuestionHistory] = useState<number[]>([]);
   const [strapiBuilds, setStrapiBuilds] = useState<PCBuild[]>([]);
-  const [_categories, setCategories] = useState<any[]>([]);
+  const [_categories, setCategories] = useState<unknown[]>([]);
   const [_loadingBuilds, setLoadingBuilds] = useState(false);
 
   // Load Strapi builds and categories on component mount
@@ -345,15 +443,17 @@ export function PCFinder({
         ]);
         setStrapiBuilds(builds);
         setCategories(cats);
-        console.log("✅ Loaded Contentful builds:", builds);
-        console.log("✅ Loaded Contentful categories:", cats);
-        console.log("✅ Loaded Contentful products:", products);
+        logger.debug("Loaded Contentful builds", { count: builds.length });
+        logger.debug("Loaded Contentful categories", { count: cats.length });
+        logger.debug("Loaded Contentful products", { count: products.length });
       } catch (error) {
-        console.error("Failed to load Contentful data:", error);
+        logger.error("Failed to load Contentful data", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         // Set empty arrays to indicate no CMS data available
         setStrapiBuilds([]);
         setCategories([]);
-        console.log("ℹ️ Using fallback recommendations without CMS data");
+        logger.debug("ℹ️ Using fallback recommendations without CMS data");
       } finally {
         setLoadingBuilds(false);
       }
@@ -427,7 +527,7 @@ export function PCFinder({
         title: "What type of gaming experience do you want?",
         subtitle: "Tell us about your gaming ambitions",
         type: "choice",
-        condition: (answers: any) => answers.purpose === "gaming",
+        condition: (answers: Answers) => answers.purpose === "gaming",
         options: [
           {
             value: "1080p_budget",
@@ -460,7 +560,7 @@ export function PCFinder({
         title: "What type of creative work do you do?",
         subtitle: "Different creative tasks have different hardware needs",
         type: "choice",
-        condition: (answers: any) => answers.purpose === "creative",
+        condition: (answers: Answers) => answers.purpose === "creative",
         options: [
           {
             value: "video_editing",
@@ -493,7 +593,7 @@ export function PCFinder({
         title: "What type of content do you create?",
         subtitle: "Let us tailor your PC for your content creation needs",
         type: "choice",
-        condition: (answers: any) => answers.purpose === "content_creation",
+        condition: (answers: Answers) => answers.purpose === "content_creation",
         options: [
           {
             value: "streaming",
@@ -621,7 +721,10 @@ export function PCFinder({
   const questions = getQuestions();
   const currentQuestion = questions[currentStep];
 
-  const handleAnswer = (questionId: string, value: any) => {
+  const handleAnswer = (
+    questionId: string,
+    value: string | number | boolean
+  ) => {
     const newAnswers = { ...answers, [questionId]: value };
     setAnswers(newAnswers);
     setQuestionHistory([...questionHistory, currentStep]);
@@ -641,7 +744,7 @@ export function PCFinder({
     }
   };
 
-  const generateRecommendations = (finalAnswers: any) => {
+  const generateRecommendations = (finalAnswers: Answers) => {
     // Enhanced recommendation logic
     const recommendations = generateBuildRecommendations(finalAnswers);
     setRecommendedBuild(recommendations[0]); // Set the primary recommendation
@@ -649,8 +752,11 @@ export function PCFinder({
   };
 
   // Generate personalized expert comments based on configuration
-  const generateExpertComments = (answers: any, buildCategory: any) => {
-    const comments = [];
+  const generateExpertComments = (
+    answers: Answers,
+    buildCategory: string
+  ): string[] => {
+    const comments: string[] = [];
 
     // Build category-specific insights (for diverse recommendations)
     if (
@@ -802,7 +908,7 @@ export function PCFinder({
     }
 
     // Budget-tier specific insights
-    if (answers.budget >= 3000) {
+    if ((answers.budget ?? 0) >= 3000) {
       comments.push(
         "At this tier, we source only flagship components with proven reliability. Every part is stress-tested for 24 hours before assembly to ensure absolute stability under sustained workloads."
       );
@@ -812,8 +918,11 @@ export function PCFinder({
   };
 
   // Function to adjust build specs based on RGB preference
-  const adjustSpecsForRGB = (originalSpecs: any, rgbPreference: string) => {
-    const specs = { ...originalSpecs };
+  const adjustSpecsForRGB = (
+    originalSpecs: Specs,
+    rgbPreference: string
+  ): Specs => {
+    const specs: Specs = { ...originalSpecs };
 
     if (rgbPreference === "none") {
       // Remove RGB mentions and use non-RGB variants
@@ -849,14 +958,14 @@ export function PCFinder({
 
   // Function to calculate accurate pricing from PC Builder components
   const calculateAccuratePrice = (
-    specs: any,
+    specs: Specs,
     rgbPreference?: string
   ): number => {
     let totalPrice = 0;
 
     // Ensure specs is an object and has required properties
     if (!specs || typeof specs !== "object") {
-      console.warn(
+      logger.warn(
         "Invalid specs object provided to calculateAccuratePrice:",
         specs
       );
@@ -864,7 +973,7 @@ export function PCFinder({
     }
 
     // Safe helper function to check includes
-    const safeIncludes = (str: any, search: string): boolean => {
+    const safeIncludes = (str: unknown, search: string): boolean => {
       return typeof str === "string" && str.includes(search);
     };
 
@@ -960,14 +1069,17 @@ export function PCFinder({
       motherboard: 89.99, // Budget motherboard
       case: 79.99, // Budget case
       psu: 69.99, // Budget PSU
+      caseFans: 29.99, // Case fans (typically 2-3 pack)
     };
 
     // RGB pricing adjustments
     let rgbCost = 0;
     if (rgbPreference === "full") {
       rgbCost = 150; // RGB RAM upgrade, RGB fans, LED strips, RGB cables
+      componentPrices.caseFans = 49.99; // Upgrade to RGB fans
     } else if (rgbPreference === "moderate") {
       rgbCost = 75; // RGB fans and some RGB components
+      componentPrices.caseFans = 39.99; // Some RGB fans
     } else if (rgbPreference === "subtle") {
       rgbCost = 30; // Minimal RGB accents
     }
@@ -982,6 +1094,7 @@ export function PCFinder({
       componentPrices.motherboard +
       componentPrices.case +
       componentPrices.psu +
+      componentPrices.caseFans +
       rgbCost;
 
     return Math.round(totalPrice);
@@ -1000,20 +1113,6 @@ export function PCFinder({
     size_constraints?: string;
   }
 
-  interface BuildTemplate {
-    name: string;
-    basePrice: number;
-    category: string;
-    description: string;
-    specs: any;
-    features: string[];
-    targetUseCase: string[];
-    performanceScore: number;
-    valueScore: number;
-    futureProofScore: number;
-    powerEfficiency: number;
-  }
-
   const buildTemplates: BuildTemplate[] = [
     {
       name: "Gaming Beast 4K",
@@ -1026,6 +1125,7 @@ export function PCFinder({
         ram: "32GB DDR5-6400 RGB",
         storage: "2TB NVMe Gen5 + 2TB HDD",
         cooling: "360mm RGB AIO",
+        caseFans: "3x 120mm RGB fans",
       },
       features: [
         "4K 60+ FPS",
@@ -1050,6 +1150,7 @@ export function PCFinder({
         ram: "32GB DDR5-6000 RGB",
         storage: "1TB NVMe Gen4 + 1TB HDD",
         cooling: "280mm AIO",
+        caseFans: "3x 120mm RGB fans",
       },
       features: [
         "1440p 120+ FPS",
@@ -1074,6 +1175,7 @@ export function PCFinder({
         ram: "16GB DDR5-5600",
         storage: "1TB NVMe Gen4",
         cooling: "240mm AIO",
+        caseFans: "2x 120mm fans",
       },
       features: [
         "1080p 144+ FPS",
@@ -1099,6 +1201,7 @@ export function PCFinder({
         ram: "64GB DDR5-6400",
         storage: "2TB NVMe Gen5 + 4TB HDD",
         cooling: "360mm AIO",
+        caseFans: "3x 140mm fans",
       },
       features: [
         "4K Video Editing",
@@ -1124,6 +1227,7 @@ export function PCFinder({
         ram: "32GB DDR5-6000 RGB",
         storage: "2TB NVMe Gen4 + 2TB HDD",
         cooling: "280mm RGB AIO",
+        caseFans: "3x 120mm RGB fans",
       },
       features: [
         "NVENC Encoder",
@@ -1149,6 +1253,7 @@ export function PCFinder({
         ram: "64GB DDR5-6000",
         storage: "2TB NVMe Gen4 + 2TB HDD",
         cooling: "280mm AIO",
+        caseFans: "3x 140mm fans",
       },
       features: [
         "16+ Cores",
@@ -1174,6 +1279,7 @@ export function PCFinder({
         ram: "16GB DDR5-5600",
         storage: "1TB NVMe Gen4",
         cooling: "240mm AIO",
+        caseFans: "2x 120mm fans",
       },
       features: [
         "Silent Operation",
@@ -1200,6 +1306,7 @@ export function PCFinder({
         ram: "16GB DDR5-5200",
         storage: "1TB NVMe Gen4",
         cooling: "Stock Cooler",
+        caseFans: "2x 120mm fans",
       },
       features: [
         "1080p 60+ FPS",
@@ -1330,7 +1437,9 @@ export function PCFinder({
     return Math.round(score);
   };
 
-  const generateBuildRecommendations = (answers: any): any[] => {
+  const generateBuildRecommendations = (
+    answers: Answers
+  ): RecommendedBuild[] => {
     const profile: UserProfile = {
       budget: answers.budget || 1500,
       purpose: answers.purpose || "gaming",
@@ -1360,10 +1469,12 @@ export function PCFinder({
       });
 
     // Sort by score and select diverse recommendations
-    let topBuilds = scoredBuilds.sort((a, b) => b.score - a.score);
+    let topBuilds: ScoredBuild[] = scoredBuilds.sort(
+      (a, b) => b.score - a.score
+    );
 
     // Ensure diversity by selecting builds from different categories/price points
-    const diverseBuilds: any[] = [];
+    const diverseBuilds: ScoredBuild[] = [];
     const usedCategories = new Set<string>();
 
     for (const build of topBuilds) {
@@ -1390,7 +1501,7 @@ export function PCFinder({
 
     // Fallback: if no builds are within budget, show the cheapest builds available
     if (topBuilds.length === 0) {
-      console.log(
+      logger.debug(
         `No builds found within budget of £${profile.budget}. Showing cheapest alternatives.`
       );
       const allBuildsWithPricing = buildTemplates.map((build) => {
@@ -1411,13 +1522,18 @@ export function PCFinder({
         .slice(0, 3); // Take 3 cheapest
     }
 
-    const builds: any[] = [];
+    const builds: RecommendedBuild[] = [];
 
     // First, add relevant Contentful builds if available
     if (strapiBuilds.length > 0) {
       const relevantBuilds = strapiBuilds.filter((build) => {
         // Filter by budget (if price is available)
-        if (build.price && build.price > answers.budget * 1.2) return false;
+        if (
+          answers.budget != null &&
+          build.price &&
+          build.price > answers.budget * 1.2
+        )
+          return false;
 
         // Filter by category/purpose match
         const category = build.category?.toLowerCase() || "";
@@ -1439,7 +1555,11 @@ export function PCFinder({
       relevantBuilds.slice(0, 3).forEach((build, index) => {
         builds.push({
           name: build.name,
-          price: build.price || Math.min(answers.budget, 2500),
+          price:
+            build.price ||
+            (answers.budget !== undefined
+              ? Math.min(answers.budget, 2500)
+              : 2500),
           category: build.category || "Custom Build",
           description:
             build.description ||
@@ -1519,7 +1639,7 @@ export function PCFinder({
     const recommendations = generateBuildRecommendations(answers);
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-blue-950 py-12 relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-blue-950 py-12 relative overflow-x-hidden">
         {/* Animated background effects */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl animate-float"></div>
@@ -1791,7 +1911,7 @@ export function PCFinder({
   }
 
   return (
-    <div className="min-h-screen py-20 relative overflow-hidden">
+    <div className="min-h-screen py-20 relative overflow-x-hidden">
       {/* Animated background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl animate-float"></div>
@@ -1878,7 +1998,7 @@ export function PCFinder({
                       option: {
                         value: string;
                         label: string;
-                        icon: any;
+                        icon: ComponentType<{ className?: string }>;
                         description: string;
                       },
                       optionIndex: number
@@ -1917,10 +2037,18 @@ export function PCFinder({
                     <div className="relative inline-block">
                       <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 to-blue-500/20 blur-2xl rounded-full"></div>
                       <div className="relative text-2xl md:text-3xl lg:text-5xl font-bold bg-gradient-to-r from-sky-400 via-cyan-300 to-blue-400 bg-clip-text text-transparent mb-2 animate-shimmer px-8 py-4">
-                        {currentQuestion.formatValue?.(
-                          answers[currentQuestion.id] ||
-                            currentQuestion.defaultValue
-                        )}
+                        {(() => {
+                          const sliderValue = Number(
+                            (answers[currentQuestion.id] as
+                              | number
+                              | undefined) ??
+                              (currentQuestion.defaultValue as
+                                | number
+                                | undefined) ??
+                              0
+                          );
+                          return currentQuestion.formatValue?.(sliderValue);
+                        })()}
                       </div>
                     </div>
                     <p className="text-sm md:text-base text-gray-400 mt-4">
@@ -1929,22 +2057,30 @@ export function PCFinder({
                   </div>
 
                   <div className="px-2 md:px-4 lg:px-8">
-                    <Slider
-                      value={[
-                        answers[currentQuestion.id] ||
-                          currentQuestion.defaultValue,
-                      ]}
-                      onValueChange={(value) =>
-                        setAnswers({
-                          ...answers,
-                          [currentQuestion.id]: value[0],
-                        })
-                      }
-                      min={currentQuestion.min}
-                      max={currentQuestion.max}
-                      step={currentQuestion.step}
-                      className="w-full"
-                    />
+                    {(() => {
+                      const sliderValue = Number(
+                        (answers[currentQuestion.id] as number | undefined) ??
+                          (currentQuestion.defaultValue as
+                            | number
+                            | undefined) ??
+                          0
+                      );
+                      return (
+                        <Slider
+                          value={[sliderValue]}
+                          onValueChange={(value) =>
+                            setAnswers({
+                              ...answers,
+                              [currentQuestion.id]: value[0],
+                            })
+                          }
+                          min={currentQuestion.min}
+                          max={currentQuestion.max}
+                          step={currentQuestion.step}
+                          className="w-full"
+                        />
+                      );
+                    })()}
                     <div className="flex justify-between mt-2 text-xs md:text-sm text-gray-400">
                       <span>
                         {currentQuestion.formatValue?.(
@@ -1964,8 +2100,11 @@ export function PCFinder({
                       onClick={() =>
                         handleAnswer(
                           currentQuestion.id,
-                          answers[currentQuestion.id] ||
-                            currentQuestion.defaultValue
+                          (answers[currentQuestion.id] as number | undefined) ??
+                            (currentQuestion.defaultValue as
+                              | number
+                              | undefined) ??
+                            0
                         )
                       }
                       className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 py-3 w-full sm:w-auto hover:scale-105 transition-all duration-300 shadow-lg shadow-sky-500/30 hover:shadow-sky-500/60"

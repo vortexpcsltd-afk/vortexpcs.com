@@ -10,6 +10,7 @@ import {
   stripeBackendUrl,
 } from "../config/stripe";
 import axios from "axios";
+import { logger } from "./logger";
 
 export interface CartItem {
   id: string;
@@ -44,7 +45,7 @@ export const createCheckoutSession = async (
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1"
   ) {
-    console.log("Using mock checkout session for development");
+    logger.debug("Using mock checkout session for development");
     return mockCreateCheckoutSession();
   }
 
@@ -63,12 +64,26 @@ export const createCheckoutSession = async (
     });
 
     return response.data;
-  } catch (error: any) {
-    console.error("Create checkout session error:", error);
+  } catch (error: unknown) {
+    logger.error("Create checkout session error:", error);
+
+    // Type-safe error handling for axios errors
+    if (error && typeof error === "object" && "response" in error) {
+      const axiosError = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      throw new Error(
+        axiosError.response?.data?.message ||
+          axiosError.message ||
+          "Failed to create checkout session"
+      );
+    }
+
     throw new Error(
-      error.response?.data?.message ||
-        error.message ||
-        "Failed to create checkout session"
+      error instanceof Error
+        ? error.message
+        : "Failed to create checkout session"
     );
   }
 };
@@ -101,9 +116,11 @@ export const redirectToCheckout = async (
     if (result.error) {
       throw new Error(result.error.message);
     }
-  } catch (error: any) {
-    console.error("Redirect to checkout error:", error);
-    throw new Error(error.message || "Failed to redirect to checkout");
+  } catch (error: unknown) {
+    logger.error("Redirect to checkout error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to redirect to checkout"
+    );
   }
 };
 
@@ -120,7 +137,7 @@ export const createPaymentIntent = async (
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1"
   ) {
-    console.log("Using mock payment intent for development");
+    logger.debug("Using mock payment intent for development");
     return mockCreatePaymentIntent(amount, currency, metadata);
   }
 
@@ -135,9 +152,11 @@ export const createPaymentIntent = async (
     });
 
     return response.data;
-  } catch (error: any) {
-    console.error("Create payment intent error:", error);
-    throw new Error(error.message || "Failed to create payment intent");
+  } catch (error: unknown) {
+    logger.error("Create payment intent error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to create payment intent"
+    );
   }
 };
 
@@ -150,7 +169,7 @@ export const verifyPayment = async (sessionId: string) => {
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1"
   ) {
-    console.log("Using mock payment verification for development");
+    logger.debug("Using mock payment verification for development");
     return mockVerifyPayment();
   }
 
@@ -160,12 +179,24 @@ export const verifyPayment = async (sessionId: string) => {
 
     const response = await axios.get(`${apiUrl}?session_id=${sessionId}`);
     return response.data;
-  } catch (error: any) {
-    console.error("Verify payment error:", error);
+  } catch (error: unknown) {
+    logger.error("Verify payment error:", error);
+
+    // Type-safe error handling for axios errors
+    if (error && typeof error === "object" && "response" in error) {
+      const axiosError = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      throw new Error(
+        axiosError.response?.data?.message ||
+          axiosError.message ||
+          "Failed to verify payment"
+      );
+    }
+
     throw new Error(
-      error.response?.data?.message ||
-        error.message ||
-        "Failed to verify payment"
+      error instanceof Error ? error.message : "Failed to verify payment"
     );
   }
 };
@@ -197,7 +228,7 @@ export const calculateCartTotal = (items: CartItem[]): number => {
 
 // Simulated backend session creation (DEVELOPMENT ONLY)
 export const mockCreateCheckoutSession = async (): Promise<CheckoutSession> => {
-  console.warn(
+  logger.warn(
     "Using development checkout - redirecting to success page for testing"
   );
 
@@ -219,7 +250,7 @@ export const mockCreateCheckoutSession = async (): Promise<CheckoutSession> => {
 
 // Mock payment verification for development
 export const mockVerifyPayment = async () => {
-  console.warn("Using mock payment verification for development");
+  logger.warn("Using mock payment verification for development");
 
   // Simulate successful payment verification
   return {
@@ -238,7 +269,7 @@ export const mockCreatePaymentIntent = async (
   currency: string = "gbp",
   _metadata?: Record<string, string>
 ): Promise<PaymentIntent> => {
-  console.warn("Using mock payment intent for development");
+  logger.warn("Using mock payment intent for development");
 
   // Simulate payment intent creation
   const clientSecret = `pi_mock_${Date.now()}_secret_${Math.random()
@@ -254,6 +285,6 @@ export const mockCreatePaymentIntent = async (
 
 // Development helper to simulate successful payment
 export const simulateSuccessfulPayment = () => {
-  console.log("Payment simulation - redirecting to success page");
+  logger.debug("Payment simulation - redirecting to success page");
   window.location.href = stripeConfig.successUrl;
 };

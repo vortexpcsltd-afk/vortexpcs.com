@@ -1,0 +1,9 @@
+# Ignore development-only and docs folders
+
+archive/ \*_/_.backup.tsx
+components/VisualPCConfigurator.backup.tsx
+
+# Common local-only
+
+.vscode/
+\*.log

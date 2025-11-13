@@ -5,6 +5,7 @@
 
 import type { User, UserCredential } from "firebase/auth";
 import { auth, googleProvider, db } from "../config/firebase";
+import { logger } from "./logger";
 
 export interface UserProfile {
   uid: string;
@@ -13,6 +14,7 @@ export interface UserProfile {
   role?: string;
   phone?: string;
   address?: string;
+  marketingOptOut?: boolean; // true means user opted out of marketing emails
   createdAt: Date;
   lastLogin: Date;
 }
@@ -52,6 +54,7 @@ export const registerUser = async (
       uid: user.uid,
       email: user.email!,
       displayName,
+      marketingOptOut: false,
       createdAt: new Date(),
       lastLogin: new Date(),
     };
@@ -59,11 +62,14 @@ export const registerUser = async (
     await setDoc(doc(db, "users", user.uid), userProfile);
 
     return user;
-  } catch (error: any) {
-    console.error("Registration error:", error);
+  } catch (error: unknown) {
+    logger.error("Registration error:", error);
 
     // Parse Firebase error codes and return user-friendly messages
-    const errorCode = error.code;
+    const errorCode =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: string }).code
+        : null;
 
     switch (errorCode) {
       case "auth/email-already-in-use":
@@ -120,11 +126,14 @@ export const loginUser = async (
     });
 
     return user;
-  } catch (error: any) {
-    console.error("Login error:", error);
+  } catch (error: unknown) {
+    logger.error("Login error:", error);
 
     // Parse Firebase error codes and return user-friendly messages
-    const errorCode = error.code;
+    const errorCode =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: string }).code
+        : null;
 
     switch (errorCode) {
       case "auth/invalid-email":
@@ -181,6 +190,7 @@ export const loginWithGoogle = async (): Promise<User> => {
         uid: user.uid,
         email: user.email!,
         displayName: user.displayName || "User",
+        marketingOptOut: false,
         createdAt: new Date(),
         lastLogin: new Date(),
       };
@@ -195,11 +205,14 @@ export const loginWithGoogle = async (): Promise<User> => {
     }
 
     return user;
-  } catch (error: any) {
-    console.error("Google login error:", error);
+  } catch (error: unknown) {
+    logger.error("Google login error:", error);
 
     // Parse Firebase error codes and return user-friendly messages
-    const errorCode = error.code;
+    const errorCode =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: string }).code
+        : null;
 
     switch (errorCode) {
       case "auth/popup-closed-by-user":
@@ -233,9 +246,13 @@ export const logoutUser = async (): Promise<void> => {
   try {
     const { signOut } = await import("firebase/auth");
     await signOut(auth);
-  } catch (error: any) {
-    console.error("Logout error:", error);
-    throw new Error(error.message || "Failed to log out");
+  } catch (error: unknown) {
+    logger.error("Logout error:", error);
+    const errorMessage =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message: unknown }).message)
+        : "Failed to log out";
+    throw new Error(errorMessage);
   }
 };
 
@@ -252,11 +269,14 @@ export const resetPassword = async (email: string): Promise<void> => {
   try {
     const { sendPasswordResetEmail } = await import("firebase/auth");
     await sendPasswordResetEmail(auth, email);
-  } catch (error: any) {
-    console.error("Password reset error:", error);
+  } catch (error: unknown) {
+    logger.error("Password reset error:", error);
 
     // Parse Firebase error codes and return user-friendly messages
-    const errorCode = error.code;
+    const errorCode =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: string }).code
+        : null;
 
     switch (errorCode) {
       case "auth/invalid-email":
@@ -296,9 +316,13 @@ export const getUserProfile = async (
     }
 
     return null;
-  } catch (error: any) {
-    console.error("Get user profile error:", error);
-    throw new Error(error.message || "Failed to get user profile");
+  } catch (error: unknown) {
+    logger.error("Get user profile error:", error);
+    const errorMessage =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message: unknown }).message)
+        : "Failed to get user profile";
+    throw new Error(errorMessage);
   }
 };
 
@@ -318,9 +342,13 @@ export const updateUserProfile = async (
   try {
     const { doc, updateDoc } = await import("firebase/firestore");
     await updateDoc(doc(db, "users", uid), updates);
-  } catch (error: any) {
-    console.error("Update user profile error:", error);
-    throw new Error(error.message || "Failed to update user profile");
+  } catch (error: unknown) {
+    logger.error("Update user profile error:", error);
+    const errorMessage =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message: unknown }).message)
+        : "Failed to update user profile";
+    throw new Error(errorMessage);
   }
 };
 
@@ -329,7 +357,7 @@ export const updateUserProfile = async (
  */
 export const getCurrentUser = (): User | null => {
   if (!auth) {
-    console.warn("Firebase auth not initialized");
+    logger.warn("Firebase auth not initialized");
     return null;
   }
   return auth.currentUser;
@@ -340,7 +368,7 @@ export const getCurrentUser = (): User | null => {
  */
 export const onAuthStateChanged = (callback: (user: User | null) => void) => {
   if (!auth) {
-    console.warn("Firebase auth not initialized");
+    logger.warn("Firebase auth not initialized");
     // Call callback immediately with null user and return a no-op unsubscribe function
     setTimeout(() => callback(null), 0);
     return () => {};
@@ -355,7 +383,7 @@ export const onAuthStateChanged = (callback: (user: User | null) => void) => {
       unsubscribe = firebaseOnAuthStateChanged(auth!, callback);
     })
     .catch((error) => {
-      console.error("Error loading Firebase auth:", error);
+      logger.error("Error loading Firebase auth:", error);
       callback(null);
     });
 

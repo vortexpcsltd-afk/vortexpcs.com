@@ -20,17 +20,19 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
+import type { User as FirebaseUser } from "firebase/auth";
 import {
   loginUser,
   registerUser,
   resetPassword,
   getUserProfile,
 } from "../services/auth";
+import { logger } from "../services/logger";
 
 interface LoginDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (user: any) => void;
+  onLogin: (user: FirebaseUser) => void;
   activeTab?: string;
 }
 
@@ -67,12 +69,11 @@ export function LoginDialog({
 
     try {
       const user = await loginUser(email, password);
-      console.log("✅ Login - Firebase Auth User:", user.uid, user.email);
+      logger.debug("Login successful", { uid: user.uid, email: user.email });
 
       // Fetch user profile from Firestore to get the role
       const userProfile = await getUserProfile(user.uid);
-      console.log("📄 Login - Firestore Profile:", userProfile);
-      console.log("👤 Login - User Role from Firestore:", userProfile?.role);
+      logger.debug("User profile fetched", { profile: userProfile });
 
       // Combine Firebase user with Firestore profile data
       const userWithRole = {
@@ -81,8 +82,7 @@ export function LoginDialog({
         displayName: user.displayName || userProfile?.displayName || email,
       };
 
-      console.log("🎯 Login - Final User Object:", userWithRole);
-      console.log("🎯 Login - Final Role:", userWithRole.role);
+      logger.debug("Login complete", { role: userWithRole.role });
 
       setSuccess("Login successful!");
       setTimeout(() => {
@@ -93,11 +93,13 @@ export function LoginDialog({
         setPassword("");
         setName("");
       }, 1000);
-    } catch (err: any) {
-      console.error("❌ Login Error:", err);
-      setError(
-        err.message || "Failed to login. Please check your credentials."
-      );
+    } catch (err: unknown) {
+      logger.error("Login failed", err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to login. Please check your credentials.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -131,8 +133,12 @@ export function LoginDialog({
         setPassword("");
         setName("");
       }, 1000);
-    } catch (err: any) {
-      setError(err.message || "Failed to create account. Please try again.");
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to create account. Please try again.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -151,8 +157,10 @@ export function LoginDialog({
     try {
       await resetPassword(email);
       setSuccess("Password reset email sent! Check your inbox.");
-    } catch (err: any) {
-      setError(err.message || "Failed to send reset email.");
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to send reset email.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

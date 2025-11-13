@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
-import type { FormEvent } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
+import { Switch } from "./ui/switch";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import {
   User,
@@ -32,13 +31,18 @@ import {
   getUserOrders,
   getUserConfigurations,
   deleteConfiguration,
-  createSupportTicket,
   getUserSupportTickets,
   createRefundRequest,
+  getUserRefundRequests,
   Order,
   SavedConfiguration,
+  type SupportTicket as DBSupportTicket,
+  type RefundRequest,
 } from "../services/database";
 import { useAuth } from "../contexts/AuthContext";
+import { ProfileSkeleton, OrderCardSkeleton } from "./SkeletonComponents";
+import TicketCenter from "./customer/TicketCenter";
+import { logger } from "../services/logger";
 
 interface MemberAreaProps {
   isLoggedIn: boolean;
@@ -51,6 +55,164 @@ export function MemberArea({
   setIsLoggedIn,
   onNavigate,
 }: MemberAreaProps) {
+  // Local helper component: Recent Activity Timeline
+  type TimelineBuildUpdate = {
+    note?: string;
+    progress?: number;
+    timestamp?:
+      | { toDate?: () => Date }
+      | Date
+      | string
+      | number
+      | null
+      | undefined;
+    [key: string]: unknown;
+  };
+
+  function toDateMaybe(
+    value: { toDate?: () => Date } | Date | string | number | null | undefined
+  ): Date | undefined {
+    try {
+      if (!value) return undefined;
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "toDate" in (value as object) &&
+        typeof (value as { toDate?: unknown }).toDate === "function"
+      ) {
+        const d = (value as { toDate: () => Date }).toDate();
+        return d instanceof Date ? d : undefined;
+      }
+      if (value instanceof Date) return value;
+      if (typeof value === "string" || typeof value === "number") {
+        const d = new Date(value);
+        return isNaN(d.getTime()) ? undefined : d;
+      }
+    } catch {
+      /* ignore */
+    }
+    return undefined;
+  }
+
+  function ActivityTimeline({
+    orders,
+    tickets,
+    refunds,
+  }: {
+    orders: Order[];
+    tickets: DBSupportTicket[];
+    refunds: RefundRequest[];
+  }) {
+    type Item = {
+      date: Date;
+      kind:
+        | "order-placed"
+        | "build-update"
+        | "ticket-opened"
+        | "refund-request";
+      title: string;
+      description?: string;
+    };
+
+    const items: Item[] = [];
+
+    // Orders placed
+    for (const o of orders) {
+      if (o.orderDate) {
+        items.push({
+          date: o.orderDate,
+          kind: "order-placed",
+          title: `Order #${o.orderId} placed`,
+          description: `Total £${o.total.toLocaleString()}`,
+        });
+      }
+      // Last build update per order, if any
+      const updates =
+        (o.buildUpdates as TimelineBuildUpdate[] | undefined) || [];
+      if (updates.length > 0) {
+        const last = updates[updates.length - 1];
+        const d = toDateMaybe(last.timestamp);
+        if (d) {
+          items.push({
+            date: d,
+            kind: "build-update",
+            title: `Build update for #${o.orderId}`,
+            description: `${last.progress ?? ""}% - ${
+              typeof last.note === "string" ? last.note : "Update"
+            }`,
+          });
+        }
+      }
+    }
+
+    // Tickets opened
+    for (const t of tickets) {
+      const d = toDateMaybe(t.createdAt as Date | string | number | undefined);
+      if (d) {
+        items.push({
+          date: d,
+          kind: "ticket-opened",
+          title: `Ticket opened: ${t.subject}`,
+          description: `${t.type} • ${t.status}`,
+        });
+      }
+    }
+
+    // Refunds requested
+    for (const r of refunds) {
+      const d = toDateMaybe(r.createdAt);
+      if (d) {
+        items.push({
+          date: d,
+          kind: "refund-request",
+          title: `Refund requested for order #${r.orderId}`,
+          description: `${r.status}`,
+        });
+      }
+    }
+
+    items.sort((a, b) => b.date.getTime() - a.date.getTime());
+    const top = items.slice(0, 8);
+
+    const iconFor = (kind: Item["kind"]) => {
+      switch (kind) {
+        case "order-placed":
+          return <Package className="w-4 h-4 text-blue-400" />;
+        case "build-update":
+          return <Activity className="w-4 h-4 text-sky-400" />;
+        case "ticket-opened":
+          return <MessageSquare className="w-4 h-4 text-emerald-400" />;
+        case "refund-request":
+          return <AlertCircle className="w-4 h-4 text-orange-400" />;
+      }
+    };
+
+    if (top.length === 0) {
+      return <p className="text-gray-400">No recent activity yet.</p>;
+    }
+
+    return (
+      <div className="space-y-3">
+        {top.map((it, idx) => (
+          <div
+            key={idx}
+            className="flex items-start gap-3 p-3 rounded-lg bg-white/5 border border-white/10"
+          >
+            <div className="mt-0.5">{iconFor(it.kind)}</div>
+            <div className="flex-1">
+              <div className="text-white font-medium">{it.title}</div>
+              {it.description && (
+                <div className="text-sm text-gray-400">{it.description}</div>
+              )}
+            </div>
+            <div className="text-xs text-gray-400 whitespace-nowrap truncate max-w-[120px] text-right ml-2">
+              {it.date.toLocaleString()}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   const { user, userProfile } = useAuth();
   const [editingProfile, setEditingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -65,21 +227,30 @@ export function MemberArea({
     email: "",
     phone: "",
     address: "",
+    marketingOptOut: false,
   });
-
-  const [supportForm, setSupportForm] = useState({
-    subject: "",
-    type: "general",
-    message: "",
-  });
-  const [supportSubmitting, setSupportSubmitting] = useState(false);
-  const [supportSuccess, setSupportSuccess] = useState(false);
 
   // New state for support tickets and refunds
-  const [supportTickets, setSupportTickets] = useState<any[]>([]);
+  interface BuildUpdate {
+    note?: string;
+    progress?: number;
+    timestamp?:
+      | { toDate?: () => Date }
+      | Date
+      | string
+      | number
+      | null
+      | undefined;
+    [key: string]: unknown;
+  }
+  const [supportTickets, setSupportTickets] = useState<DBSupportTicket[]>([]);
   const [activeSupportTab, setActiveSupportTab] = useState<
-    "progress" | "tickets" | "orders"
+    "progress" | "tickets" | "orders" | "center"
   >("progress");
+  const [refundRequests, setRefundRequests] = useState<RefundRequest[]>([]);
+  const [activeTab, setActiveTab] = useState<
+    "dashboard" | "orders" | "configurations" | "profile" | "support"
+  >("dashboard");
 
   // Load user data on component mount
   useEffect(() => {
@@ -89,11 +260,11 @@ export function MemberArea({
       try {
         setLoading(true);
 
-        console.log("📋 Member Area - Loading data for user:", user.uid);
+        logger.debug("Member Area - Loading data for user", { uid: user.uid });
 
         // Load user profile
         const profile = userProfile;
-        console.log("👤 Member Area - User profile:", profile);
+        logger.debug("Member Area - User profile", { profile });
 
         if (profile) {
           setProfileData({
@@ -101,28 +272,39 @@ export function MemberArea({
             email: profile.email || user.email || "",
             phone: profile.phone || "",
             address: profile.address || "",
+            marketingOptOut: !!profile.marketingOptOut,
           });
         }
 
         // Load orders
         const userOrders = await getUserOrders(user.uid);
-        console.log("📦 Member Area - Orders loaded:", userOrders.length);
+        logger.debug("Member Area - Orders loaded", {
+          count: userOrders.length,
+        });
         setOrders(userOrders);
 
         // Load saved configurations
         const userConfigs = await getUserConfigurations(user.uid);
-        console.log(
-          "💾 Member Area - Configurations loaded:",
-          userConfigs.length
-        );
+        logger.debug("Member Area - Configurations loaded", {
+          count: userConfigs.length,
+        });
         setConfigurations(userConfigs);
 
         // Load support tickets
         const tickets = await getUserSupportTickets(user.uid);
-        console.log("🎫 Member Area - Support tickets loaded:", tickets.length);
+        logger.debug("Member Area - Support tickets loaded", {
+          count: tickets.length,
+        });
         setSupportTickets(tickets);
-      } catch (err: any) {
-        console.error("❌ Member Area - Error loading data:", err);
+
+        // Load refund requests
+        const refunds = await getUserRefundRequests(user.uid);
+        logger.debug("Member Area - Refund requests loaded", {
+          count: refunds.length,
+        });
+        setRefundRequests(refunds);
+      } catch (err: unknown) {
+        logger.error("❌ Member Area - Error loading data:", err);
       } finally {
         setLoading(false);
       }
@@ -145,19 +327,72 @@ export function MemberArea({
 
   // Calculate member since date
   const getMemberSince = () => {
+    // Try userProfile.createdAt first
     if (userProfile?.createdAt) {
-      const date =
-        userProfile.createdAt instanceof Date
-          ? userProfile.createdAt
-          : new Date(userProfile.createdAt);
+      try {
+        // Handle Firestore Timestamp
+        const createdAt = userProfile.createdAt as unknown;
+        const date =
+          typeof createdAt === "object" &&
+          createdAt !== null &&
+          "toDate" in createdAt &&
+          typeof (createdAt as { toDate: unknown }).toDate === "function"
+            ? (createdAt as { toDate: () => Date }).toDate()
+            : userProfile.createdAt instanceof Date
+            ? userProfile.createdAt
+            : new Date(userProfile.createdAt as string | number);
 
-      if (!isNaN(date.getTime())) {
-        return date.toLocaleDateString("en-US", {
-          month: "long",
-          year: "numeric",
-        });
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleDateString("en-US", {
+            month: "long",
+            year: "numeric",
+          });
+        }
+      } catch (e) {
+        logger.error("Error parsing createdAt", { error: e });
+      }
+    } // Fallback: Try to get creation date from Firebase user metadata
+    if (user && "metadata" in user) {
+      try {
+        const metadata = (user as { metadata?: { creationTime?: string } })
+          .metadata;
+        if (metadata?.creationTime) {
+          const date = new Date(metadata.creationTime);
+          if (!isNaN(date.getTime())) {
+            return date.toLocaleDateString("en-US", {
+              month: "long",
+              year: "numeric",
+            });
+          }
+        }
+      } catch (e) {
+        logger.error("Error parsing metadata", { error: e });
       }
     }
+
+    // Last resort: Use first order date if available
+    if (orders.length > 0) {
+      try {
+        const sortedOrders = [...orders].sort((a, b) => {
+          const dateA = new Date(a.orderDate);
+          const dateB = new Date(b.orderDate);
+          return dateA.getTime() - dateB.getTime();
+        });
+        const firstOrder = sortedOrders[0];
+        if (firstOrder?.orderDate) {
+          const date = new Date(firstOrder.orderDate);
+          if (!isNaN(date.getTime())) {
+            return date.toLocaleDateString("en-US", {
+              month: "long",
+              year: "numeric",
+            });
+          }
+        }
+      } catch (e) {
+        logger.error("Error parsing order date", { error: e });
+      }
+    }
+
     return "N/A";
   };
 
@@ -171,11 +406,11 @@ export function MemberArea({
       const { logoutUser } = await import("../services/auth");
       await logoutUser();
     } catch (error) {
-      console.error("Logout error:", error);
+      logger.error("Logout error:", error);
     }
     localStorage.removeItem("vortex_user");
     setIsLoggedIn(false);
-    onNavigate?.("home");
+    onNavigate?.("logged-out");
   };
 
   const handleSaveProfile = async () => {
@@ -188,11 +423,12 @@ export function MemberArea({
         displayName: profileData.name,
         phone: profileData.phone,
         address: profileData.address,
+        marketingOptOut: !!profileData.marketingOptOut,
       });
 
       setEditingProfile(false);
-    } catch (err: any) {
-      console.error("❌ Profile update error:", err);
+    } catch (err: unknown) {
+      logger.error("❌ Profile update error:", err);
     } finally {
       setLoading(false);
     }
@@ -204,58 +440,8 @@ export function MemberArea({
     try {
       await deleteConfiguration(configId);
       setConfigurations((prev) => prev.filter((c) => c.id !== configId));
-    } catch (err: any) {
-      console.error("❌ Delete configuration error:", err);
-    }
-  };
-
-  const handleSubmitSupportTicket = async (e: FormEvent) => {
-    e.preventDefault();
-
-    if (!supportForm.subject || !supportForm.message) {
-      alert("Please fill in all required fields");
-      return;
-    }
-
-    try {
-      setSupportSubmitting(true);
-
-      const ticketId = await createSupportTicket({
-        userId: user?.uid,
-        name: profileData.name || user?.displayName || "Member",
-        email: profileData.email || user?.email || "",
-        subject: supportForm.subject,
-        message: supportForm.message,
-        type: supportForm.type,
-      });
-
-      // Analytics: support_ticket_created (gated by consent)
-      try {
-        const consent = localStorage.getItem("vortex_cookie_consent");
-        if (consent === "accepted") {
-          const raw = localStorage.getItem("vortex_user");
-          const savedUser = raw ? JSON.parse(raw) : null;
-          const uid = savedUser?.uid || null;
-          const { trackEvent } = await import("../services/database");
-          trackEvent(uid, "support_ticket_created", {
-            ticket_id: ticketId,
-            type: supportForm.type,
-            subject_length: supportForm.subject.length,
-          });
-        }
-      } catch {
-        // best-effort analytics only
-      }
-
-      setSupportSuccess(true);
-      setSupportForm({ subject: "", type: "general", message: "" });
-
-      setTimeout(() => setSupportSuccess(false), 5000);
-    } catch (err: any) {
-      console.error("❌ Support ticket error:", err);
-      alert("Failed to submit support ticket. Please try again.");
-    } finally {
-      setSupportSubmitting(false);
+    } catch (err: unknown) {
+      logger.error("❌ Delete configuration error:", err);
     }
   };
 
@@ -290,7 +476,7 @@ export function MemberArea({
       const userOrders = await getUserOrders(user.uid);
       setOrders(userOrders);
     } catch (error) {
-      console.error("Refund request error:", error);
+      logger.error("Refund request error:", error);
       alert(
         "Failed to submit refund request. Please try again or contact support."
       );
@@ -356,15 +542,50 @@ export function MemberArea({
     );
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen py-20">
+        <div className="container mx-auto px-4">
+          <div className="max-w-6xl mx-auto">
+            {/* Header Skeleton */}
+            <div className="flex items-center space-x-4 mb-8">
+              <div className="w-16 h-16 bg-white/10 rounded-full"></div>
+              <div className="space-y-2">
+                <div className="h-8 w-48 bg-white/10 rounded"></div>
+                <div className="h-5 w-64 bg-white/10 rounded"></div>
+              </div>
+            </div>
+
+            {/* Tabs Skeleton */}
+            <div className="flex gap-4 mb-6">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-10 w-32 bg-white/10 rounded"></div>
+              ))}
+            </div>
+
+            {/* Content Skeleton */}
+            <div className="space-y-6">
+              <ProfileSkeleton />
+              <div className="grid md:grid-cols-2 gap-6">
+                <OrderCardSkeleton />
+                <OrderCardSkeleton />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen py-20">
-      <div className="container mx-auto px-4">
+    <div className="min-h-screen py-12 sm:py-16 md:py-20">
+      <div className="container mx-auto px-3 sm:px-4 md:px-6">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center space-x-4">
-              <Avatar className="w-16 h-16">
-                <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+              <Avatar className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex-shrink-0">
+                <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-base sm:text-lg md:text-xl">
                   {getInitials(
                     profileData.name ||
                       user?.displayName ||
@@ -373,50 +594,220 @@ export function MemberArea({
                   )}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <h1 className="text-3xl font-bold text-white">
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white truncate">
                   Welcome back,{" "}
                   {profileData.name || user?.displayName || "Member"}!
                 </h1>
-                <p className="text-gray-400">Member since {getMemberSince()}</p>
+                <p className="text-sm sm:text-base text-gray-400">
+                  Member since {getMemberSince()}
+                </p>
               </div>
             </div>
             <Button
               variant="outline"
               onClick={handleLogout}
-              className="border-white/20 text-white hover:bg-white/10"
+              className="border-white/20 text-white hover:bg-white/10 flex-shrink-0 h-10 sm:h-auto"
             >
               Logout
             </Button>
           </div>
 
-          <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4 bg-white/5 border-white/10">
-              <TabsTrigger
-                value="orders"
-                className="data-[state=active]:bg-white/10 text-white"
-              >
-                My Orders
-              </TabsTrigger>
-              <TabsTrigger
-                value="configurations"
-                className="data-[state=active]:bg-white/10 text-white"
-              >
-                Saved Builds
-              </TabsTrigger>
-              <TabsTrigger
-                value="profile"
-                className="data-[state=active]:bg-white/10 text-white"
-              >
-                Profile
-              </TabsTrigger>
-              <TabsTrigger
-                value="support"
-                className="data-[state=active]:bg-white/10 text-white"
-              >
-                Support
-              </TabsTrigger>
-            </TabsList>
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) =>
+              setActiveTab(
+                v as
+                  | "dashboard"
+                  | "orders"
+                  | "configurations"
+                  | "profile"
+                  | "support"
+              )
+            }
+            className="space-y-4 sm:space-y-6"
+          >
+            <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 snap-x snap-mandatory">
+              <TabsList className="inline-flex sm:grid w-auto sm:w-full grid-cols-5 bg-white/5 border-white/10 min-w-max sm:min-w-0">
+                <TabsTrigger
+                  value="dashboard"
+                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                >
+                  Dashboard
+                </TabsTrigger>
+                <TabsTrigger
+                  value="orders"
+                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                >
+                  My Orders
+                </TabsTrigger>
+                <TabsTrigger
+                  value="configurations"
+                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                >
+                  Saved Builds
+                </TabsTrigger>
+                <TabsTrigger
+                  value="profile"
+                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                >
+                  Profile
+                </TabsTrigger>
+                <TabsTrigger
+                  value="support"
+                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                >
+                  Support
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            {/* Dashboard Tab */}
+            <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
+              {/* Quick Actions */}
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white">
+                    Quick actions
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+                  <Button
+                    className="h-12 sm:h-14 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-sm sm:text-base"
+                    onClick={() => {
+                      setActiveTab("support");
+                      setActiveSupportTab("orders");
+                      setTimeout(() => {
+                        document
+                          .getElementById("support-root")
+                          ?.scrollIntoView({ behavior: "smooth" });
+                      }, 50);
+                    }}
+                  >
+                    Start a return / refund
+                  </Button>
+                  <Button
+                    className="h-12 sm:h-14 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-sm sm:text-base"
+                    onClick={() => {
+                      setActiveTab("support");
+                      setActiveSupportTab("center");
+                      setTimeout(() => {
+                        document
+                          .getElementById("support-root")
+                          ?.scrollIntoView({ behavior: "smooth" });
+                      }, 50);
+                    }}
+                  >
+                    Open a support ticket
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-12 sm:h-14 border-white/20 text-white hover:bg-white/10 text-sm sm:text-base"
+                    onClick={() => setActiveTab("orders")}
+                  >
+                    View order invoices
+                  </Button>
+                </div>
+              </Card>
+
+              {/* Active Builds Snapshot */}
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-4 sm:p-6">
+                <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white mb-4">
+                  Active builds
+                </h3>
+                {orders.filter((o) =>
+                  ["pending", "building", "testing"].includes(o.status)
+                ).length === 0 ? (
+                  <p className="text-sm sm:text-base text-gray-400">
+                    No builds in progress right now.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    {orders
+                      .filter((o) =>
+                        ["pending", "building", "testing"].includes(o.status)
+                      )
+                      .slice(0, 4)
+                      .map((o) => (
+                        <div
+                          key={o.id}
+                          className="rounded-lg border border-white/10 p-3 sm:p-4 bg-white/5"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="text-sm sm:text-base text-white font-semibold truncate mr-2">
+                              Order #{o.orderId}
+                            </div>
+                            <Badge
+                              className={`${getStatusColor(
+                                o.status
+                              )} border text-xs flex-shrink-0`}
+                            >
+                              {o.status}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between text-xs sm:text-sm mb-1">
+                            <span className="text-gray-400">Progress</span>
+                            <span className="text-sky-400 font-semibold">
+                              {o.progress}%
+                            </span>
+                          </div>
+                          <Progress value={o.progress} className="h-2" />
+                          {o.buildUpdates && o.buildUpdates.length > 0 && (
+                            <div className="mt-2 text-xs text-gray-400">
+                              Last update:{" "}
+                              {(() => {
+                                const last =
+                                  o.buildUpdates![o.buildUpdates!.length - 1];
+                                const ts = last?.timestamp as
+                                  | { toDate?: () => Date }
+                                  | Date
+                                  | string
+                                  | number
+                                  | null
+                                  | undefined;
+                                try {
+                                  if (
+                                    ts &&
+                                    typeof ts === "object" &&
+                                    "toDate" in (ts as object) &&
+                                    typeof (ts as { toDate?: unknown })
+                                      .toDate === "function"
+                                  ) {
+                                    return (ts as { toDate: () => Date })
+                                      .toDate()
+                                      .toLocaleString();
+                                  }
+                                  const d =
+                                    ts instanceof Date
+                                      ? ts
+                                      : new Date(ts as string | number);
+                                  return !isNaN(d.getTime())
+                                    ? d.toLocaleString()
+                                    : "Recently";
+                                } catch {
+                                  return "Recently";
+                                }
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Recent Activity */}
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
+                <h3 className="text-2xl font-bold text-white mb-4">
+                  Recent activity
+                </h3>
+                <ActivityTimeline
+                  orders={orders}
+                  tickets={supportTickets}
+                  refunds={refundRequests}
+                />
+              </Card>
+            </TabsContent>
 
             {/* Orders Tab */}
             <TabsContent value="orders" className="space-y-6">
@@ -474,6 +865,54 @@ export function MemberArea({
                           <p className="text-gray-400">
                             Order #{order.orderId || order.id}
                           </p>
+                          {/* Status stepper */}
+                          <div className="mt-3 flex items-center gap-2 text-xs">
+                            {(
+                              [
+                                "pending",
+                                "building",
+                                "testing",
+                                "shipped",
+                                "delivered",
+                                "completed",
+                              ] as const
+                            ).map((step, idx) => {
+                              const reached =
+                                [
+                                  "pending",
+                                  "building",
+                                  "testing",
+                                  "shipped",
+                                  "delivered",
+                                  "completed",
+                                ].indexOf(order.status) >= idx;
+                              return (
+                                <div key={step} className="flex items-center">
+                                  <div
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center border ${
+                                      reached
+                                        ? "bg-sky-600 border-sky-400 text-white"
+                                        : "bg-white/5 border-white/20 text-gray-400"
+                                    }`}
+                                    title={step}
+                                  >
+                                    {reached ? (
+                                      <CheckCircle className="w-3 h-3" />
+                                    ) : (
+                                      <Clock className="w-3 h-3" />
+                                    )}
+                                  </div>
+                                  {idx < 5 && (
+                                    <div
+                                      className={`w-8 h-0.5 mx-1 ${
+                                        reached ? "bg-sky-600" : "bg-white/10"
+                                      }`}
+                                    ></div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                         <div className="text-right">
                           <div className="text-2xl font-bold text-green-400">
@@ -486,7 +925,8 @@ export function MemberArea({
                         </div>
                       </div>
 
-                      {order.status === "building" && (
+                      {(order.status === "building" ||
+                        order.status === "testing") && (
                         <div className="mb-4">
                           <div className="flex justify-between text-sm mb-2">
                             <span className="text-gray-400">
@@ -509,6 +949,17 @@ export function MemberArea({
                                 : "N/A"}
                             </p>
                           )}
+                          {order.buildUpdates &&
+                            order.buildUpdates.length > 0 && (
+                              <div className="mt-3 text-xs text-gray-300">
+                                Latest update:{" "}
+                                {
+                                  order.buildUpdates[
+                                    order.buildUpdates.length - 1
+                                  ].note
+                                }
+                              </div>
+                            )}
                         </div>
                       )}
 
@@ -664,41 +1115,187 @@ export function MemberArea({
 
             {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-6">
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-8">
-                <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-2xl font-bold text-white">
-                    Profile Information
-                  </h3>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      editingProfile
-                        ? handleSaveProfile()
-                        : setEditingProfile(true)
-                    }
-                    className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10 hover:border-sky-500/50"
-                  >
-                    {editingProfile ? (
-                      <>
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Changes
-                      </>
-                    ) : (
-                      <>
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit Profile
-                      </>
-                    )}
-                  </Button>
-                </div>
+              {/* Header Card */}
+              <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/10 backdrop-blur-xl overflow-hidden">
+                <div className="relative">
+                  {/* Decorative Background Pattern */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-purple-500/10" />
+                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjAzIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30" />
 
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
+                  <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      {/* Profile Header */}
+                      <div className="flex items-center gap-6">
+                        <div className="relative">
+                          <Avatar className="w-24 h-24 border-4 border-white/10 shadow-2xl ring-4 ring-sky-500/20">
+                            <AvatarFallback className="bg-gradient-to-br from-sky-500 via-blue-500 to-purple-600 text-white text-3xl font-bold">
+                              {getInitials(
+                                profileData.name ||
+                                  user?.displayName ||
+                                  user?.email ||
+                                  "User"
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
+                          {editingProfile && (
+                            <button className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 border-2 border-white/20 flex items-center justify-center shadow-lg transition-all duration-300 hover:scale-110">
+                              <Camera className="w-5 h-5 text-white" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div>
+                          <h2 className="text-3xl font-bold text-white mb-2">
+                            {profileData.name || user?.displayName || "Member"}
+                          </h2>
+                          <p className="text-gray-300 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                            Active Member
+                          </p>
+                          <p className="text-sm text-gray-400 mt-1">
+                            Member since {getMemberSince()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <Button
+                        onClick={() =>
+                          editingProfile
+                            ? handleSaveProfile()
+                            : setEditingProfile(true)
+                        }
+                        className={`h-12 px-6 ${
+                          editingProfile
+                            ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
+                            : "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                        } shadow-lg transition-all duration-300 hover:shadow-xl`}
+                      >
+                        {editingProfile ? (
+                          <>
+                            <Save className="w-5 h-5 mr-2" />
+                            Save Changes
+                          </>
+                        ) : (
+                          <>
+                            <Edit className="w-5 h-5 mr-2" />
+                            Edit Profile
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="bg-gradient-to-br from-sky-500/10 to-blue-500/10 border-sky-500/30 backdrop-blur-xl p-6 hover:border-sky-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-sky-500/20">
+                  <div className="flex items-center justify-between">
                     <div>
+                      <p className="text-gray-400 text-sm font-medium mb-1">
+                        Total Orders
+                      </p>
+                      <p className="text-3xl font-bold text-white">
+                        {orders.length}
+                      </p>
+                    </div>
+                    <div className="w-14 h-14 rounded-xl bg-sky-500/20 flex items-center justify-center">
+                      <Package className="w-7 h-7 text-sky-400" />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-sky-500 to-blue-500 rounded-full"
+                        style={{
+                          width: `${Math.min(
+                            (orders.length / 10) * 100,
+                            100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      {Math.min(orders.length, 10)}/10
+                    </span>
+                  </div>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30 backdrop-blur-xl p-6 hover:border-green-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm font-medium mb-1">
+                        Total Spent
+                      </p>
+                      <p className="text-3xl font-bold text-white">
+                        £{getTotalSpent().toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="w-14 h-14 rounded-xl bg-green-500/20 flex items-center justify-center">
+                      <CreditCard className="w-7 h-7 text-green-400" />
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm text-gray-400">
+                    Lifetime value •{" "}
+                    <span className="text-green-400 font-semibold">
+                      Valued Customer
+                    </span>
+                  </p>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30 backdrop-blur-xl p-6 hover:border-purple-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm font-medium mb-1">
+                        Member Tier
+                      </p>
+                      <p className="text-2xl font-bold text-white">
+                        {getTotalSpent() >= 5000
+                          ? "Platinum"
+                          : getTotalSpent() >= 2000
+                          ? "Gold"
+                          : "Silver"}
+                      </p>
+                    </div>
+                    <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                      <Star className="w-7 h-7 text-purple-400" />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm text-gray-400">
+                      Exclusive benefits
+                    </span>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Profile Information Card */}
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden">
+                <div className="p-8">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center">
+                      <User className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">
+                        Personal Information
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        Manage your account details
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Full Name */}
+                    <div className="space-y-2">
                       <Label
                         htmlFor="name"
-                        className="text-white text-sm font-semibold mb-2 block"
+                        className="text-gray-300 text-sm font-medium flex items-center gap-2"
                       >
+                        <User className="w-4 h-4 text-sky-400" />
                         Full Name
                       </Label>
                       <Input
@@ -711,20 +1308,34 @@ export function MemberArea({
                           }))
                         }
                         disabled={!editingProfile}
-                        className={`bg-white/5 border-white/10 text-white h-12 ${
+                        className={`bg-white/5 border-white/10 text-white h-12 rounded-lg transition-all duration-300 ${
                           editingProfile
-                            ? "focus:border-sky-500/50 focus:ring-sky-500/20"
-                            : "opacity-75"
+                            ? "focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 hover:border-white/20"
+                            : "opacity-60 cursor-not-allowed"
                         }`}
                         placeholder="Enter your full name"
                       />
                     </div>
 
-                    <div>
+                    {/* Email */}
+                    <div className="space-y-2">
                       <Label
                         htmlFor="email"
-                        className="text-white text-sm font-semibold mb-2 block"
+                        className="text-gray-300 text-sm font-medium flex items-center gap-2"
                       >
+                        <svg
+                          className="w-4 h-4 text-sky-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                          />
+                        </svg>
                         Email Address
                       </Label>
                       <Input
@@ -738,20 +1349,34 @@ export function MemberArea({
                           }))
                         }
                         disabled={!editingProfile}
-                        className={`bg-white/5 border-white/10 text-white h-12 ${
+                        className={`bg-white/5 border-white/10 text-white h-12 rounded-lg transition-all duration-300 ${
                           editingProfile
-                            ? "focus:border-sky-500/50 focus:ring-sky-500/20"
-                            : "opacity-75"
+                            ? "focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 hover:border-white/20"
+                            : "opacity-60 cursor-not-allowed"
                         }`}
                         placeholder="your.email@example.com"
                       />
                     </div>
 
-                    <div>
+                    {/* Phone */}
+                    <div className="space-y-2">
                       <Label
                         htmlFor="phone"
-                        className="text-white text-sm font-semibold mb-2 block"
+                        className="text-gray-300 text-sm font-medium flex items-center gap-2"
                       >
+                        <svg
+                          className="w-4 h-4 text-sky-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                          />
+                        </svg>
                         Phone Number
                       </Label>
                       <Input
@@ -764,21 +1389,41 @@ export function MemberArea({
                           }))
                         }
                         disabled={!editingProfile}
-                        className={`bg-white/5 border-white/10 text-white h-12 ${
+                        className={`bg-white/5 border-white/10 text-white h-12 rounded-lg transition-all duration-300 ${
                           editingProfile
-                            ? "focus:border-sky-500/50 focus:ring-sky-500/20"
-                            : "opacity-75"
+                            ? "focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 hover:border-white/20"
+                            : "opacity-60 cursor-not-allowed"
                         }`}
                         placeholder="+44 7XXX XXXXXX"
                       />
                     </div>
 
-                    <div>
+                    {/* Address */}
+                    <div className="space-y-2">
                       <Label
                         htmlFor="address"
-                        className="text-white text-sm font-semibold mb-2 block"
+                        className="text-gray-300 text-sm font-medium flex items-center gap-2"
                       >
-                        Address
+                        <svg
+                          className="w-4 h-4 text-sky-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                        </svg>
+                        Delivery Address
                       </Label>
                       <Input
                         id="address"
@@ -790,72 +1435,83 @@ export function MemberArea({
                           }))
                         }
                         disabled={!editingProfile}
-                        className={`bg-white/5 border-white/10 text-white h-12 ${
+                        className={`bg-white/5 border-white/10 text-white h-12 rounded-lg transition-all duration-300 ${
                           editingProfile
-                            ? "focus:border-sky-500/50 focus:ring-sky-500/20"
-                            : "opacity-75"
+                            ? "focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 hover:border-white/20"
+                            : "opacity-60 cursor-not-allowed"
                         }`}
                         placeholder="Your delivery address"
                       />
                     </div>
-                  </div>
 
-                  <div className="space-y-4">
-                    <div className="text-center">
-                      <Avatar className="w-32 h-32 mx-auto mb-4">
-                        <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-4xl">
-                          {getInitials(
-                            profileData.name ||
-                              user?.displayName ||
-                              user?.email ||
-                              "User"
-                          )}
-                        </AvatarFallback>
-                      </Avatar>
-                      {editingProfile && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-white/20 text-white hover:bg-white/10"
+                    {/* Marketing Preferences */}
+                    <div className="space-y-2">
+                      <Label className="text-gray-300 text-sm font-medium flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-sky-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
                         >
-                          <Camera className="w-4 h-4 mr-2" />
-                          Change Photo
-                        </Button>
-                      )}
-                    </div>
-
-                    <Card className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-500/30 backdrop-blur-sm p-6">
-                      <h4 className="font-bold text-white mb-4 text-lg">
-                        Account Status
-                      </h4>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center py-2 border-b border-white/10">
-                          <span className="text-gray-300 font-medium">
-                            Member Since:
-                          </span>
-                          <span className="text-white font-semibold">
-                            {getMemberSince()}
-                          </span>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M3 5h18M8 5v14m8-14v14M3 19h18"
+                          />
+                        </svg>
+                        Marketing Emails
+                      </Label>
+                      <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-4">
+                        <div className="mr-4">
+                          <div className="text-white font-medium">
+                            Receive news & offers
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            Toggle to opt in/out of marketing emails. You can
+                            change this anytime.
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center py-2 border-b border-white/10">
-                          <span className="text-gray-300 font-medium">
-                            Total Orders:
-                          </span>
-                          <span className="text-sky-400 font-bold">
-                            {orders.length}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center py-2">
-                          <span className="text-gray-300 font-medium">
-                            Total Spent:
-                          </span>
-                          <span className="text-green-400 font-bold text-lg">
-                            £{getTotalSpent().toLocaleString()}
-                          </span>
+                        <div className="flex items-center gap-3">
+                          <Badge
+                            className={`border ${
+                              profileData.marketingOptOut
+                                ? "bg-red-500/20 text-red-300 border-red-500/30"
+                                : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                            }`}
+                          >
+                            {profileData.marketingOptOut
+                              ? "Opted out"
+                              : "Opted in"}
+                          </Badge>
+                          <Switch
+                            checked={!profileData.marketingOptOut}
+                            disabled={!editingProfile}
+                            onCheckedChange={(checked) =>
+                              setProfileData((prev) => ({
+                                ...prev,
+                                marketingOptOut: !checked,
+                              }))
+                            }
+                          />
                         </div>
                       </div>
-                    </Card>
+                    </div>
                   </div>
+
+                  {editingProfile && (
+                    <div className="mt-6 p-4 bg-sky-500/10 border border-sky-500/30 rounded-lg flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-sky-300 font-medium">
+                          Remember to save your changes
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Your information will be updated across all services
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             </TabsContent>
@@ -866,10 +1522,12 @@ export function MemberArea({
               <Card className="bg-white/5 border-white/10 backdrop-blur-xl">
                 <Tabs
                   value={activeSupportTab}
-                  onValueChange={(v) => setActiveSupportTab(v as any)}
+                  onValueChange={(v) =>
+                    setActiveSupportTab(v as "progress" | "tickets" | "orders")
+                  }
                   className="w-full"
                 >
-                  <TabsList className="grid w-full grid-cols-3 bg-white/5">
+                  <TabsList className="grid w-full grid-cols-4 bg-white/5">
                     <TabsTrigger value="progress">
                       <Activity className="w-4 h-4 mr-2" />
                       Build Progress
@@ -882,7 +1540,15 @@ export function MemberArea({
                       <CreditCard className="w-4 h-4 mr-2" />
                       Billing & Returns
                     </TabsTrigger>
+                    <TabsTrigger value="center">
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Ticket Center (New)
+                    </TabsTrigger>
                   </TabsList>
+                  {/* Ticket Center (New) */}
+                  <TabsContent value="center" className="p-6 space-y-4">
+                    <TicketCenter />
+                  </TabsContent>
 
                   {/* Build Progress Tab */}
                   <TabsContent value="progress" className="p-6 space-y-4">
@@ -963,7 +1629,7 @@ export function MemberArea({
                                     </h5>
                                     <div className="space-y-2 max-h-48 overflow-y-auto">
                                       {order.buildUpdates.map(
-                                        (update: any, idx: number) => (
+                                        (update: BuildUpdate, idx: number) => (
                                           <div
                                             key={idx}
                                             className="flex items-start space-x-3 text-sm"
@@ -971,18 +1637,56 @@ export function MemberArea({
                                             <CheckCircle className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
                                             <div className="flex-1">
                                               <p className="text-white">
-                                                {update.note}
+                                                {typeof update.note === "string"
+                                                  ? update.note
+                                                  : ""}
                                               </p>
                                               <p className="text-gray-400 text-xs">
-                                                {update.timestamp?.toDate
-                                                  ? update.timestamp
-                                                      .toDate()
-                                                      .toLocaleString()
-                                                  : "Recently"}
+                                                {(() => {
+                                                  const ts = update.timestamp;
+                                                  try {
+                                                    if (
+                                                      ts &&
+                                                      typeof ts === "object"
+                                                    ) {
+                                                      const candidate = ts as {
+                                                        toDate?: unknown;
+                                                      };
+                                                      if (
+                                                        typeof candidate.toDate ===
+                                                        "function"
+                                                      ) {
+                                                        const d = (
+                                                          candidate.toDate as () => Date
+                                                        )();
+                                                        return d instanceof Date
+                                                          ? d.toLocaleString()
+                                                          : "Recently";
+                                                      }
+                                                    }
+                                                    if (ts instanceof Date)
+                                                      return ts.toLocaleString();
+                                                    if (
+                                                      typeof ts === "string" ||
+                                                      typeof ts === "number"
+                                                    ) {
+                                                      const d = new Date(ts);
+                                                      return !isNaN(d.getTime())
+                                                        ? d.toLocaleString()
+                                                        : "Recently";
+                                                    }
+                                                  } catch {
+                                                    /* ignore */
+                                                  }
+                                                  return "Recently";
+                                                })()}
                                               </p>
                                             </div>
                                             <span className="text-sky-400 font-semibold">
-                                              {update.progress}%
+                                              {typeof update.progress ===
+                                              "number"
+                                                ? `${update.progress}%`
+                                                : ""}
                                             </span>
                                           </div>
                                         )
@@ -1019,19 +1723,6 @@ export function MemberArea({
                       <h3 className="text-2xl font-bold text-white">
                         Support Tickets
                       </h3>
-                      <Button
-                        onClick={() => {
-                          setSupportForm({ ...supportForm, type: "technical" });
-                          // Scroll to form
-                          document
-                            .getElementById("ticket-form")
-                            ?.scrollIntoView({ behavior: "smooth" });
-                        }}
-                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
-                      >
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        New Ticket
-                      </Button>
                     </div>
 
                     {supportTickets.length === 0 ? (
@@ -1043,20 +1734,10 @@ export function MemberArea({
                         <p className="text-gray-400 mb-4">
                           You haven't submitted any support tickets yet.
                         </p>
-                        <Button
-                          onClick={() => {
-                            setSupportForm({
-                              ...supportForm,
-                              type: "technical",
-                            });
-                            document
-                              .getElementById("ticket-form")
-                              ?.scrollIntoView({ behavior: "smooth" });
-                          }}
-                          className="bg-gradient-to-r from-green-600 to-emerald-600"
-                        >
-                          Create Your First Ticket
-                        </Button>
+                        <p className="text-gray-500 text-sm">
+                          Use the ticket composer above to create your first
+                          ticket.
+                        </p>
                       </div>
                     ) : (
                       <div className="space-y-4">
@@ -1230,129 +1911,6 @@ export function MemberArea({
                     )}
                   </TabsContent>
                 </Tabs>
-              </Card>
-
-              {/* Support Ticket Form */}
-              <Card
-                id="ticket-form"
-                className="bg-white/5 border-white/10 backdrop-blur-xl p-8"
-              >
-                <h3 className="text-2xl font-bold text-white mb-6">
-                  Submit Support Ticket
-                </h3>
-
-                {supportSuccess && (
-                  <div className="mb-6 p-4 bg-green-500/20 border border-green-500/50 rounded-lg">
-                    <p className="text-green-400 font-medium">
-                      ✓ Support ticket submitted successfully! We'll respond
-                      within 24-48 hours.
-                    </p>
-                  </div>
-                )}
-
-                <form
-                  onSubmit={handleSubmitSupportTicket}
-                  className="space-y-6"
-                >
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <Label
-                        htmlFor="ticket-type"
-                        className="text-white text-sm font-semibold mb-2 block"
-                      >
-                        Type of Issue
-                      </Label>
-                      <select
-                        id="ticket-type"
-                        value={supportForm.type}
-                        onChange={(e) =>
-                          setSupportForm({
-                            ...supportForm,
-                            type: e.target.value,
-                          })
-                        }
-                        className="w-full h-12 bg-white/5 border border-white/10 text-white rounded-md px-4 focus:border-sky-500/50 focus:ring-sky-500/20 focus:outline-none"
-                      >
-                        <option value="general" className="bg-slate-900">
-                          General Inquiry
-                        </option>
-                        <option value="order" className="bg-slate-900">
-                          Order Tracking
-                        </option>
-                        <option value="technical" className="bg-slate-900">
-                          Technical Support
-                        </option>
-                        <option value="billing" className="bg-slate-900">
-                          Billing & Returns
-                        </option>
-                        <option value="warranty" className="bg-slate-900">
-                          Warranty Claim
-                        </option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <Label
-                        htmlFor="ticket-subject"
-                        className="text-white text-sm font-semibold mb-2 block"
-                      >
-                        Subject *
-                      </Label>
-                      <Input
-                        id="ticket-subject"
-                        value={supportForm.subject}
-                        onChange={(e) =>
-                          setSupportForm({
-                            ...supportForm,
-                            subject: e.target.value,
-                          })
-                        }
-                        placeholder="Brief description of your issue"
-                        className="bg-white/5 border-white/10 text-white h-12 focus:border-sky-500/50 focus:ring-sky-500/20"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label
-                      htmlFor="ticket-message"
-                      className="text-white text-sm font-semibold mb-2 block"
-                    >
-                      Message *
-                    </Label>
-                    <Textarea
-                      id="ticket-message"
-                      value={supportForm.message}
-                      onChange={(e) =>
-                        setSupportForm({
-                          ...supportForm,
-                          message: e.target.value,
-                        })
-                      }
-                      placeholder="Please provide detailed information about your issue..."
-                      className="bg-white/5 border-white/10 text-white min-h-[150px] focus:border-sky-500/50 focus:ring-sky-500/20"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button
-                      type="submit"
-                      disabled={supportSubmitting}
-                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {supportSubmitting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Submitting...
-                        </>
-                      ) : (
-                        <>Submit Ticket</>
-                      )}
-                    </Button>
-                  </div>
-                </form>
               </Card>
             </TabsContent>
           </Tabs>
