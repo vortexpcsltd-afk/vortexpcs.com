@@ -27,8 +27,8 @@ function Ensure-VercelCli {
 }
 
 function Ensure-VercelLink {
-  $vercelDir = Join-Path -LiteralPath (Get-Location) '.vercel'
-  $projJson = Join-Path -LiteralPath $vercelDir 'project.json'
+  $vercelDir = Join-Path -Path (Get-Location).Path -ChildPath '.vercel'
+  $projJson = Join-Path -Path $vercelDir -ChildPath 'project.json'
   if (Test-Path $projJson) {
     Write-Host "Project already linked via .vercel/project.json" -ForegroundColor Green
   } else {

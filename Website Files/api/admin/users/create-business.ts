@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import nodemailer from "nodemailer";
 
 // Firebase Admin singleton
 let admin: any = null;
@@ -130,20 +131,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Generate password reset link so the customer can set their password
     const resetLink = await admin.auth().generatePasswordResetLink(email);
 
-    // Attempt to send a branded welcome email with the reset link using existing bulk email API
+    // Attempt to send a branded welcome email with the reset link directly via SMTP
     let emailSent = false;
     let emailError: string | null = null;
     try {
       // Try dynamic import of branded email template builder; fallback if unavailable
       let buildBrandedEmailHtml: undefined | ((opts: any) => string);
       try {
-        // Prefer dynamic import to avoid bundling issues across workspace boundaries
         const mod: any = await import(
           "../../../services/emailTemplate.ts"
         ).catch(async () => await import("../../../services/emailTemplate"));
         buildBrandedEmailHtml = mod?.buildBrandedEmailHtml as any;
       } catch (e: any) {
-        // ignore; will fallback to inline template
         buildBrandedEmailHtml = undefined;
       }
 
@@ -180,40 +179,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             </div>
           </body></html>`;
 
-      // Determine base URL for calling the internal email API
-      const host = String(req.headers.host || "");
-      const forwardedProto =
-        (req.headers["x-forwarded-proto"] as string) || "https";
-      const baseUrlEnv =
-        process.env.VITE_SITE_URL ||
-        process.env.PUBLIC_BASE_URL ||
-        process.env.VERCEL_URL;
-      const baseUrl = baseUrlEnv
-        ? baseUrlEnv.startsWith("http")
-          ? baseUrlEnv
-          : `https://${baseUrlEnv}`
-        : `${forwardedProto}://${host}`;
+      // Send email directly via SMTP (not via HTTP endpoint to avoid deployment protection)
+      const smtpHost = process.env.VITE_SMTP_HOST;
+      const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "587", 10);
+      const smtpSecure = process.env.VITE_SMTP_SECURE === "true";
+      const smtpUser = process.env.VITE_SMTP_USER;
+      const smtpPass = process.env.VITE_SMTP_PASS;
+      const fromAddress =
+        process.env.VITE_BUSINESS_EMAIL || smtpUser || "no-reply@vortexpcs.com";
 
-      const resp = await fetch(`${baseUrl}/api/admin/email/send`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: req.headers.authorization || "",
-        },
-        body: JSON.stringify({
-          subject,
-          html,
-          preheader,
-          recipients: [email],
-          mode: "emails",
-        }),
+      if (!smtpHost || !smtpUser || !smtpPass) {
+        throw new Error(
+          "SMTP configuration missing (VITE_SMTP_HOST/USER/PASS)"
+        );
+      }
+
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: { user: smtpUser, pass: smtpPass },
       });
 
-      if (!resp.ok) {
-        const detail = await resp.text();
-        throw new Error(`Email API responded ${resp.status}: ${detail}`);
-      }
+      await transporter.sendMail({
+        from: `Vortex PCs <${fromAddress}>`,
+        to: email,
+        subject,
+        html,
+        text: html
+          .replace(/<\/(?:p|div|h\d|li)>/gi, "\n")
+          .replace(/<br\s*\/?>(?=\s*)/gi, "\n")
+          .replace(/<[^>]+>/g, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim(),
+        headers: preheader ? { "X-Preheader": preheader } : undefined,
+      });
+
       emailSent = true;
+      console.log(`Welcome email sent to ${email}`);
     } catch (e: any) {
       console.error("Auto-email dispatch failed:", e?.message || e);
       emailError = e?.message || String(e);
