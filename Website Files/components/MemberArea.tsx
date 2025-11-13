@@ -252,6 +252,16 @@ export function MemberArea({
     "dashboard" | "orders" | "configurations" | "profile" | "support"
   >("dashboard");
 
+  // Redirect business accounts to business dashboard
+  useEffect(() => {
+    if (userProfile?.accountType === "business" && onNavigate) {
+      logger.info(
+        "Business account detected, redirecting to business dashboard"
+      );
+      onNavigate("business-dashboard");
+    }
+  }, [userProfile, onNavigate]);
+
   // Load user data on component mount
   useEffect(() => {
     const loadUserData = async () => {

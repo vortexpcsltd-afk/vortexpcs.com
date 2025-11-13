@@ -26,6 +26,7 @@ interface UserProfile {
   displayName: string;
   marketingOptOut?: boolean;
   role?: string;
+  accountType?: string;
   phone?: string;
   address?: string;
   createdAt: Date;
