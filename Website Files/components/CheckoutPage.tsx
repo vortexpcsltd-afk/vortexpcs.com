@@ -383,6 +383,9 @@ export function CheckoutPage({
     }
 
     const { orderId, orderNumber } = await response.json();
+    // Store order details for success page
+    localStorage.setItem("latest_order_number", orderNumber);
+    localStorage.setItem("bank_order_id", orderId);
 
     // Clear cart
     localStorage.removeItem("vortex_cart");
@@ -390,7 +393,7 @@ export function CheckoutPage({
     // Show success
     toast.success("Order created! Check your email for bank transfer details.");
     onSuccess(orderId, orderNumber);
-    navigate("/order-success");
+    navigate(`/order-success?bank=${orderId}&order=${orderNumber}`);
   };
 
   const paymentMethods = [
