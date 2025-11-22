@@ -174,6 +174,33 @@ export function Footer({ onNavigate }: FooterProps) {
                   </div>
                 </div>
               </div>
+
+              {/* Payment Security Badges */}
+              <div className="flex flex-wrap justify-center items-center gap-3 pt-6 pb-2">
+                <div className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-lg">
+                  <Shield className="w-4 h-4 text-green-400" />
+                  <span className="text-xs text-gray-400">SSL Secure</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-lg">
+                  <img
+                    src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg"
+                    alt="Stripe"
+                    className="h-3 opacity-70"
+                  />
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-lg">
+                  <span className="text-xs text-gray-400">
+                    Visa • Mastercard • Amex
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-lg">
+                  <img
+                    src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg"
+                    alt="PayPal"
+                    className="h-3 opacity-70"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>

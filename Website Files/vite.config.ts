@@ -100,9 +100,7 @@ export default defineConfig(({ mode }) => {
       // Proxy ALL API requests during development to Vercel deployment
       proxy: {
         "/api": {
-          target:
-            env.VITE_STRIPE_BACKEND_URL ||
-            "https://vortexpcs-blu4m4bq5-vortexpc5.vercel.app",
+          target: env.VITE_STRIPE_BACKEND_URL || "https://vortexpcs.com",
           changeOrigin: true,
           secure: true,
           rewrite: (path) => path, // Keep the full /api path

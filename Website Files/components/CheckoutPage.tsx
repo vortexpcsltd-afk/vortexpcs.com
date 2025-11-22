@@ -11,6 +11,10 @@ import {
   Package,
   MapPin,
   Loader2,
+  Shield,
+  Award,
+  Truck,
+  RotateCcw,
 } from "lucide-react";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
@@ -671,7 +675,49 @@ export function CheckoutPage({
               </div>
             </Card>
 
-            {/* Payment Method */}
+            {/* Trust Badges */}
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-4 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="flex items-center gap-2 p-3 bg-white/5 border border-white/10 rounded-lg">
+                  <Shield className="w-5 h-5 text-green-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-white font-medium">
+                      Secure Payment
+                    </p>
+                    <p className="text-[10px] text-gray-400">256-bit SSL</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 bg-white/5 border border-white/10 rounded-lg">
+                  <Award className="w-5 h-5 text-sky-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-white font-medium">
+                      3-Year Warranty
+                    </p>
+                    <p className="text-[10px] text-gray-400">Full coverage</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 bg-white/5 border border-white/10 rounded-lg">
+                  <Truck className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-white font-medium">
+                      Fast Delivery
+                    </p>
+                    <p className="text-[10px] text-gray-400">From 1-2 days</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 bg-white/5 border border-white/10 rounded-lg">
+                  <RotateCcw className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-white font-medium">
+                      Easy Returns
+                    </p>
+                    <p className="text-[10px] text-gray-400">30-day policy</p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Payment Method Selection */}
             <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
               <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
                 <Lock className="w-5 h-5 mr-2 text-sky-400" />
@@ -885,6 +931,26 @@ export function CheckoutPage({
                       </div>
                     </button>
                   ))}
+                  {/* Shipping Partners */}
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-2">
+                      Shipping Partners
+                    </p>
+                    <div className="flex items-center justify-center gap-3 flex-wrap">
+                      <div className="px-2 py-1 bg-white/5 rounded text-[10px] text-gray-400">
+                        DPD
+                      </div>
+                      <div className="px-2 py-1 bg-white/5 rounded text-[10px] text-gray-400">
+                        Royal Mail
+                      </div>
+                      <div className="px-2 py-1 bg-white/5 rounded text-[10px] text-gray-400">
+                        DHL
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-gray-500 text-center mt-1.5">
+                      Collections & returns available
+                    </p>
+                  </div>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Shipping</span>

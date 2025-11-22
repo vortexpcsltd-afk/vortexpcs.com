@@ -647,7 +647,8 @@ export function MemberArea({
     }
   };
 
-  if (!isLoggedIn) {
+  // Check both isLoggedIn prop AND actual Firebase user from context
+  if (!isLoggedIn || !user) {
     return (
       <div className="min-h-screen py-20">
         <div className="container mx-auto px-4">
@@ -658,19 +659,29 @@ export function MemberArea({
                   <User className="w-8 h-8 text-white" />
                 </div>
                 <h1 className="text-2xl font-bold text-white mb-2">
-                  Access Required
+                  {!isLoggedIn ? "Access Required" : "Loading Account..."}
                 </h1>
                 <p className="text-gray-400">
-                  Please log in to access your member area
+                  {!isLoggedIn
+                    ? "Please log in to access your member area"
+                    : "Connecting to your account, please wait..."}
                 </p>
               </div>
 
-              <Button
-                onClick={() => setIsLoggedIn(true)}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
-              >
-                Login to Continue
-              </Button>
+              {!isLoggedIn && (
+                <Button
+                  onClick={() => setIsLoggedIn(true)}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
+                >
+                  Login to Continue
+                </Button>
+              )}
+
+              {isLoggedIn && !user && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-6 h-6 text-sky-400 animate-spin" />
+                </div>
+              )}
             </Card>
           </div>
         </div>
