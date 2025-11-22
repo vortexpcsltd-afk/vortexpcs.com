@@ -1988,72 +1988,210 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
       </Dialog>
       {/* Schedule Service Modal */}
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
-        <DialogContent className="bg-white/5 backdrop-blur-xl border-white/10 max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Schedule Service Visit</DialogTitle>
+        <DialogContent className="bg-white/5 backdrop-blur-xl border-white/10 max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="border-b border-white/10 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/30">
+                <Calendar className="w-6 h-6 text-sky-400" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl">
+                  Schedule Service Visit
+                </DialogTitle>
+                <p className="text-sm text-gray-400 mt-1">
+                  Book maintenance or repair for your workstation
+                </p>
+              </div>
+            </div>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-gray-300">Select Workstation</Label>
+
+          <div className="space-y-5 py-2">
+            {/* Workstation Selection */}
+            <div className="space-y-2">
+              <Label className="text-gray-300 flex items-center gap-2">
+                <Monitor className="w-4 h-4 text-sky-400" />
+                Select Workstation
+                <span className="text-red-400">*</span>
+              </Label>
               <select
                 value={serviceWorkstation}
                 onChange={(e) => setServiceWorkstation(e.target.value)}
-                className="w-full bg-transparent border border-white/10 rounded-md px-3 py-2 mt-1"
+                className="w-full bg-white/5 border border-white/10 hover:border-white/20 focus:border-sky-500/50 rounded-lg px-4 py-3 mt-1 transition-colors text-white appearance-none cursor-pointer"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 1rem center",
+                }}
               >
-                <option value="">Choose workstation</option>
+                <option value="" className="bg-slate-900">
+                  Choose workstation...
+                </option>
                 {purchasedPCs.map((pc) => (
-                  <option key={pc.id} value={pc.id}>
+                  <option key={pc.id} value={pc.id} className="bg-slate-900">
                     {pc.workstationName} ({pc.serialNumber})
                   </option>
                 ))}
               </select>
+              {purchasedPCs.length === 0 && (
+                <p className="text-xs text-amber-400 flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3 h-3" />
+                  No workstations found. Order one first to schedule service.
+                </p>
+              )}
             </div>
-            <div>
-              <Label className="text-gray-300">Preferred Date</Label>
-              <Input
-                type="date"
-                value={serviceDate}
-                onChange={(e) => setServiceDate(e.target.value)}
-                className="bg-white/5 border-white/10 text-white mt-1"
-              />
+
+            {/* Service Type Quick Select */}
+            <div className="space-y-2">
+              <Label className="text-gray-300 flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-sky-400" />
+                Service Type
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServiceIssue("Quarterly maintenance check requested.");
+                    setServicePriority("normal");
+                  }}
+                  className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-sky-500/30 rounded-lg text-left transition-all"
+                >
+                  <div className="text-sm font-semibold text-white">
+                    Maintenance
+                  </div>
+                  <div className="text-xs text-gray-400">Regular checkup</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServiceIssue("Hardware issue requiring repair.");
+                    setServicePriority("high");
+                  }}
+                  className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-sky-500/30 rounded-lg text-left transition-all"
+                >
+                  <div className="text-sm font-semibold text-white">Repair</div>
+                  <div className="text-xs text-gray-400">Fix an issue</div>
+                </button>
+              </div>
             </div>
-            <div>
-              <Label className="text-gray-300">Priority</Label>
-              <select
-                value={servicePriority}
-                onChange={(e) =>
-                  setServicePriority(e.target.value as TicketPriority)
-                }
-                className="w-full bg-transparent border border-white/10 rounded-md px-3 py-2 mt-1"
-              >
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
+
+            {/* Date and Priority Row */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-gray-300 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-sky-400" />
+                  Preferred Date
+                  <span className="text-red-400">*</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={serviceDate}
+                  onChange={(e) => setServiceDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="bg-white/5 border-white/10 hover:border-white/20 focus:border-sky-500/50 text-white mt-1"
+                />
+                <p className="text-xs text-gray-400">
+                  We'll contact you to confirm availability
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-gray-300 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-sky-400" />
+                  Priority
+                </Label>
+                <select
+                  value={servicePriority}
+                  onChange={(e) =>
+                    setServicePriority(e.target.value as TicketPriority)
+                  }
+                  className="w-full bg-white/5 border border-white/10 hover:border-white/20 focus:border-sky-500/50 rounded-lg px-4 py-2.5 mt-1 transition-colors text-white appearance-none cursor-pointer"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 1rem center",
+                  }}
+                >
+                  <option value="low" className="bg-slate-900">
+                    Low - Routine maintenance
+                  </option>
+                  <option value="normal" className="bg-slate-900">
+                    Normal - Standard service
+                  </option>
+                  <option value="high" className="bg-slate-900">
+                    High - Issue affecting work
+                  </option>
+                  <option value="urgent" className="bg-slate-900">
+                    Urgent - Critical downtime
+                  </option>
+                </select>
+              </div>
             </div>
-            <div>
-              <Label className="text-gray-300">Issue / Notes</Label>
+
+            {/* Issue Description */}
+            <div className="space-y-2">
+              <Label className="text-gray-300 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-sky-400" />
+                Issue Details / Notes
+              </Label>
               <Textarea
                 value={serviceIssue}
                 onChange={(e) => setServiceIssue(e.target.value)}
-                placeholder="Describe the issue or maintenance request"
-                className="min-h-32"
+                placeholder="Describe the issue, maintenance needs, or any specific requirements..."
+                className="min-h-32 bg-white/5 border-white/10 hover:border-white/20 focus:border-sky-500/50 text-white resize-none"
               />
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">
+                  Be as detailed as possible for faster resolution
+                </span>
+                <span
+                  className={`${
+                    serviceIssue.length > 500
+                      ? "text-amber-400"
+                      : "text-gray-500"
+                  }`}
+                >
+                  {serviceIssue.length} / 1000
+                </span>
+              </div>
+            </div>
+
+            {/* Info Banner */}
+            <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Shield className="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-gray-300">
+                  <p className="font-semibold text-white mb-1">
+                    Service Guarantee
+                  </p>
+                  <p className="text-xs leading-relaxed">
+                    Our certified technicians will contact you within 24 hours
+                    to confirm your appointment. All services are covered under
+                    your warranty terms.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="border-t border-white/10 pt-4 flex-col sm:flex-row gap-2">
             <Button
               variant="ghost"
-              className="bg-white/5 hover:bg-white/10 border border-white/10"
-              onClick={() => setScheduleOpen(false)}
+              className="bg-white/5 hover:bg-white/10 border border-white/10 w-full sm:w-auto"
+              onClick={() => {
+                setScheduleOpen(false);
+                // Reset form
+                setServiceWorkstation("");
+                setServiceDate("");
+                setServiceIssue("");
+                setServicePriority("normal");
+              }}
               disabled={serviceBusy}
             >
               Cancel
             </Button>
             <Button
-              disabled={serviceBusy}
-              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+              disabled={serviceBusy || !serviceWorkstation || !serviceDate}
+              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 shadow-lg shadow-sky-500/30 w-full sm:w-auto"
               onClick={async () => {
                 if (!serviceWorkstation) {
                   toast.error("Please select a workstation");
@@ -2114,23 +2252,41 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                     lastUpdate: nowIso,
                   };
                   setServiceTickets((prev) => [newTicket, ...prev]);
-                  toast.success("Service booking request submitted");
+                  toast.success(
+                    "Service booking request submitted successfully"
+                  );
                   setScheduleOpen(false);
                   setServiceWorkstation("");
                   setServiceDate("");
                   setServiceIssue("");
                   setServicePriority("normal");
+                  // Switch to support tab to show new ticket
+                  setActiveTab("support");
                 } catch (e) {
                   logger.error("Failed to create service booking", {
                     error: e,
                   });
-                  toast.error("Failed to submit service request");
+                  toast.error(
+                    e instanceof Error
+                      ? e.message
+                      : "Failed to submit service request"
+                  );
                 } finally {
                   setServiceBusy(false);
                 }
               }}
             >
-              {serviceBusy ? "Submitting…" : "Submit Request"}
+              {serviceBusy ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Schedule Service
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
