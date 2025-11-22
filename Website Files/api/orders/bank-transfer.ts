@@ -67,6 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       shippingAddress,
       customerEmail,
       customerName,
+      shippingMethod,
+      shippingCost,
     } = req.body;
 
     // Validation
@@ -116,6 +118,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         image: item.image || "",
       })),
       shippingAddress,
+      shippingMethod: shippingMethod || "free",
+      shippingCost: typeof shippingCost === "number" ? shippingCost : 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       notes: "Awaiting bank transfer payment confirmation",
@@ -207,6 +211,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.7; color: #e5e7eb;">
             Thank you for your order! We're holding your order pending payment confirmation.
           </p>
+          <div style="margin:16px 0 24px; padding:14px 16px; background:#0b1220; border:1px solid rgba(255,255,255,0.06); border-radius:8px;">
+            <p style="margin:0 0 4px; font-size:12px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.8px;">Shipping Method</p>
+            <p style="margin:0; font-size:14px; color:#e5e7eb;">
+              <strong style="color:#0ea5e9; text-transform:capitalize;">${(
+                shippingMethod || "free"
+              ).replace("-", " ")}</strong>
+              — £${(typeof shippingCost === "number"
+                ? shippingCost
+                : 0
+              ).toFixed(2)}
+            </p>
+          </div>
           
           <div style="margin: 24px 0; padding: 18px; background: #0b1220; border: 1px solid rgba(14,165,233,0.3); border-radius: 10px;">
             <p style="margin: 0 0 6px; font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.8px;">Order Number</p>
@@ -265,6 +281,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             <p style="margin: 0 0 16px; font-size: 16px; color: #e5e7eb;">
               New order received - awaiting bank transfer payment.
             </p>
+            <div style="margin: 0 0 16px; padding: 12px 14px; background:#0b1220; border:1px solid rgba(255,255,255,0.06); border-radius:8px;">
+              <p style="margin:0; font-size:13px; color:#e5e7eb;"><strong>Shipping:</strong> ${(
+                shippingMethod || "free"
+              ).replace("-", " ")} (£${(typeof shippingCost === "number"
+            ? shippingCost
+            : 0
+          ).toFixed(2)})</p>
+            </div>
             <div style="margin: 16px 0; padding: 16px; background: #0b1220; border: 1px solid rgba(255,165,0,0.3); border-radius: 8px;">
               <p style="margin: 0 0 8px; font-size: 14px; color: #ffa500;"><strong>Order:</strong> ${orderNumber}</p>
               <p style="margin: 0 0 8px; font-size: 14px; color: #e5e7eb;"><strong>Customer:</strong> ${customerName} (${customerEmail})</p>

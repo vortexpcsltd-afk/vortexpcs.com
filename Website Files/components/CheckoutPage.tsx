@@ -79,12 +79,39 @@ export function CheckoutPage({
     Record<string, string>
   >({});
 
+  // Shipping options (Free always available as requested)
+  const shippingOptions = [
+    {
+      id: "free",
+      name: "Free Shipping",
+      estimate: "5–7 working days",
+      cost: 0,
+    },
+    {
+      id: "standard",
+      name: "Standard",
+      estimate: "2–4 working days",
+      cost: 9.99,
+    },
+    {
+      id: "express",
+      name: "Express",
+      estimate: "1–2 working days",
+      cost: 14.99,
+    },
+  ] as const;
+  type ShippingMethodId = (typeof shippingOptions)[number]["id"];
+  const [selectedShipping, setSelectedShipping] =
+    useState<ShippingMethodId>("free");
+
   // Calculate totals
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const shippingCost = subtotal >= 500 ? 0 : 15; // Free shipping over £500
+  const shippingCost = shippingOptions.find(
+    (o) => o.id === selectedShipping
+  )!.cost;
   const total = subtotal + shippingCost;
 
   // Load saved address from localStorage on mount
@@ -196,6 +223,8 @@ export function CheckoutPage({
         customerEmail: formData.email,
         customerName: formData.fullName,
         customerPhone: formData.phone,
+        shippingMethod: selectedShipping,
+        shippingCost,
       };
 
       // Process payment based on selected method
@@ -826,6 +855,37 @@ export function CheckoutPage({
                   <span className="text-gray-400">Subtotal</span>
                   <span className="text-white">£{subtotal.toFixed(2)}</span>
                 </div>
+                {/* Shipping selection */}
+                <div className="space-y-2 p-3 rounded-md bg-white/5 border border-white/10">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
+                    Shipping Method
+                  </p>
+                  {shippingOptions.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      disabled={isProcessing || !!stripeClientSecret}
+                      onClick={() => setSelectedShipping(opt.id)}
+                      className={`w-full text-left px-3 py-2 rounded-md flex items-center justify-between transition-all duration-200 border ${
+                        selectedShipping === opt.id
+                          ? "bg-sky-500/20 border-sky-500/40"
+                          : "bg-black/10 border-white/10 hover:border-sky-500/30"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-sm text-white font-medium">
+                          {opt.name}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {opt.estimate}
+                        </span>
+                      </div>
+                      <div className="text-sm font-semibold text-sky-400">
+                        {opt.cost === 0 ? "FREE" : `£${opt.cost.toFixed(2)}`}
+                      </div>
+                    </button>
+                  ))}
+                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Shipping</span>
                   <span
@@ -838,11 +898,6 @@ export function CheckoutPage({
                       : `£${shippingCost.toFixed(2)}`}
                   </span>
                 </div>
-                {subtotal < 500 && (
-                  <p className="text-xs text-gray-500">
-                    Add £{(500 - subtotal).toFixed(2)} more for free shipping
-                  </p>
-                )}
               </div>
 
               <Separator className="bg-white/10 my-4" />

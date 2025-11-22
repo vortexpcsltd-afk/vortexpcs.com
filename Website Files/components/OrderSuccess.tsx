@@ -49,6 +49,8 @@ export function OrderSuccess({
       postal_code?: string;
       country?: string;
     };
+    shippingMethod?: string;
+    shippingCost?: number;
   }
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   // Display-friendly order number (human readable if available)
@@ -63,6 +65,8 @@ export function OrderSuccess({
       price: number;
     }>
   >([]);
+  const [shippingMethod, setShippingMethod] = useState<string | null>(null);
+  const [shippingCost, setShippingCost] = useState<number | null>(null);
   const emailConfigured = Boolean(
     (import.meta as unknown as { env?: Record<string, string> }).env
       ?.VITE_SMTP_HOST &&
@@ -182,6 +186,22 @@ export function OrderSuccess({
               }))
             : [];
           setOrderedItems(orderItems);
+          // Attempt to fetch stored bank transfer order for shipping info
+          try {
+            const bankOrder = await getOrder(bankOrderId);
+            const bo = bankOrder as unknown as {
+              shippingMethod?: string;
+              shippingCost?: number;
+            };
+            if (bo?.shippingMethod) {
+              setShippingMethod(String(bo.shippingMethod));
+            }
+            if (typeof bo?.shippingCost === "number") {
+              setShippingCost(bo.shippingCost);
+            }
+          } catch {
+            /* ignore */
+          }
         } else {
           // Stripe flows: Payment Intent or Checkout Session
           let data: OrderDetails;
@@ -241,6 +261,14 @@ export function OrderSuccess({
                 metadata?: Record<string, string>;
               };
               const meta = anyData?.metadata || {};
+              // Extract shipping info from metadata if present
+              if (meta.shippingMethod) {
+                setShippingMethod(meta.shippingMethod);
+              }
+              if (meta.shippingCost) {
+                const sc = Number(meta.shippingCost);
+                if (!Number.isNaN(sc)) setShippingCost(sc);
+              }
               let decodedSuccess = false;
               if (meta.components) {
                 try {
@@ -323,6 +351,16 @@ export function OrderSuccess({
                     existing.orderNumber ||
                     existing.orderId
                 );
+                const ex = existing as unknown as {
+                  shippingMethod?: string;
+                  shippingCost?: number;
+                };
+                if (ex.shippingMethod) {
+                  setShippingMethod(String(ex.shippingMethod));
+                }
+                if (typeof ex.shippingCost === "number") {
+                  setShippingCost(ex.shippingCost);
+                }
                 toast.success("Order confirmed!");
               } else {
                 // Webhook hasn't run yet - it will create the order
@@ -481,6 +519,21 @@ export function OrderSuccess({
                     £{((orderDetails?.amountTotal || 0) / 100).toFixed(2)}
                   </span>
                 </div>
+                {shippingMethod && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Shipping</span>
+                    <span className="text-white font-medium">
+                      {shippingMethod.replace("-", " ")}
+                      {typeof shippingCost === "number"
+                        ? ` (${
+                            shippingCost === 0
+                              ? "FREE"
+                              : "£" + shippingCost.toFixed(2)
+                          })`
+                        : ""}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Payment Status</span>
                   <span className="text-green-400 font-medium capitalize">
@@ -533,6 +586,16 @@ export function OrderSuccess({
                       .toFixed(2)}
                   </span>
                 </div>
+                {typeof shippingCost === "number" && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Shipping</span>
+                    <span className="text-white font-medium">
+                      {shippingCost === 0
+                        ? "FREE"
+                        : `£${shippingCost.toFixed(2)}`}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -627,7 +690,14 @@ export function OrderSuccess({
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                  <span>Estimated delivery: 5-7 business days</span>
+                  <span>
+                    Estimated delivery:{" "}
+                    {shippingMethod === "express"
+                      ? "1-2 business days"
+                      : shippingMethod === "standard"
+                      ? "2-4 business days"
+                      : "5-7 business days"}
+                  </span>
                 </li>
               </ul>
             </div>

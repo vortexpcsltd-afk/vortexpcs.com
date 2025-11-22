@@ -74,6 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customerEmail,
       customerName,
       customerPhone,
+      shippingMethod,
+      shippingCost,
     } = req.body;
 
     // Validation
@@ -145,6 +147,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         customerPhone: customerPhone || "",
         cart: cartSerialized,
         shippingAddress: addressSerialized,
+        shippingMethod: shippingMethod || "free",
+        shippingCost:
+          typeof shippingCost === "number" ? String(shippingCost) : "0",
       },
       description: `Order ${orderNumber} - ${customerName || customerEmail}`,
     });

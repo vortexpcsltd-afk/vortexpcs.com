@@ -49,6 +49,8 @@ interface EmailOrderData {
     postal_code: string;
     country: string;
   };
+  shippingMethod?: string;
+  shippingCost?: number;
 }
 
 // =====================================================
@@ -278,6 +280,16 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
     </div>
     
     <h2 style="margin: 32px 0 16px; font-size: 18px; font-weight: 600; color: #fff;">Order Details</h2>
+
+    <div style="margin: 0 0 20px; padding:16px; background:#0b1220; border:1px solid rgba(255,255,255,0.06); border-radius:10px;">
+      <p style="margin:0 0 6px; font-size:12px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.8px;">Shipping Method</p>
+      <p style="margin:0; font-size:14px; color:#e5e7eb;">
+        <strong style="color:#0ea5e9; text-transform:capitalize;">${(
+          orderData.shippingMethod || "free"
+        ).replace("-", " ")}</strong>
+        — £${(orderData.shippingCost || 0).toFixed(2)}
+      </p>
+    </div>
     
     <table style="width: 100%; border-collapse: collapse; margin: 16px 0; background: #0b1220; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden;">
       <thead>
@@ -290,6 +302,14 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
       </thead>
       <tbody>
         ${itemsRows}
+        <tr>
+          <td colspan="3" style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color:#e5e7eb;">Shipping (${(
+            orderData.shippingMethod || "free"
+          ).replace("-", " ")})</td>
+          <td style="padding: 12px; text-align: right; font-size: 14px; font-weight: 600; color:#0ea5e9;">£${(
+            orderData.shippingCost || 0
+          ).toFixed(2)}</td>
+        </tr>
         <tr>
           <td colspan="3" style="padding: 18px 12px 16px; text-align: right; font-size: 16px; font-weight: 600; color: #fff; border-top: 2px solid rgba(14,165,233,0.3);">
             Total Paid:
@@ -355,6 +375,14 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
     </div>
     
     <h2 style="margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #fff;">Order Details</h2>
+
+    <div style="margin: 0 0 16px; padding:12px 16px; background:#0b1220; border:1px solid rgba(255,255,255,0.06); border-radius:8px;">
+      <p style="margin:0; font-size:13px; color:#e5e7eb;">
+        <strong style="color:#10b981;">Shipping:</strong> ${(
+          orderData.shippingMethod || "free"
+        ).replace("-", " ")} (£${(orderData.shippingCost || 0).toFixed(2)})
+      </p>
+    </div>
     
     <table style="width: 100%; border-collapse: collapse; margin: 16px 0; background: #0b1220; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden;">
       <thead>
@@ -367,6 +395,14 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
       </thead>
       <tbody>
         ${itemsRows}
+        <tr>
+          <td colspan="3" style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color:#e5e7eb;">Shipping (${(
+            orderData.shippingMethod || "free"
+          ).replace("-", " ")})</td>
+          <td style="padding: 12px; text-align: right; font-size: 14px; font-weight: 600; color:#10b981;">£${(
+            orderData.shippingCost || 0
+          ).toFixed(2)}</td>
+        </tr>
         <tr>
           <td colspan="3" style="padding: 18px 12px 16px; text-align: right; font-size: 16px; font-weight: 600; color: #fff; border-top: 2px solid rgba(16,185,129,0.3);">
             Order Total:
@@ -981,6 +1017,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   }
                 })()
               : undefined,
+            shippingMethod: metadata.shippingMethod || "free",
+            shippingCost: metadata.shippingCost
+              ? Number(metadata.shippingCost)
+              : 0,
           });
           console.log("✅ ========== EMAIL SENDING COMPLETE ==========");
         } catch (emailError) {
@@ -1059,6 +1099,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               paymentId: paymentIntent.id,
               source: "stripe_payment_intent",
               createdAt: admin.firestore.Timestamp.now(),
+              shippingMethod: metadata.shippingMethod || "free",
+              shippingCost: metadata.shippingCost
+                ? Number(metadata.shippingCost)
+                : 0,
             });
             console.log(
               "✅ Order saved to Firestore with doc id (paymentIntent.id):",
