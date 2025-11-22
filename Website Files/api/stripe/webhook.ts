@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { StripeError } from "../../types/api";
 import admin from "firebase-admin";
-import { buildBrandedEmailHtml } from "../../services/emailTemplate";
+import { buildBrandedEmailHtml } from "../../services/emailTemplate.js";
 
 // =============================================
 // VERSION MARKER (for deployment verification)
