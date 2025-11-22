@@ -167,8 +167,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             <div style="background: rgba(0,0,0,0.3); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
               <p style="margin:0 0 8px; font-size:12px; color:#9ca3af; text-transform:uppercase;">Bank Details</p>
               <p style="margin:0 0 6px; font-size:14px; color:#fff;"><strong>Account Name:</strong> Vortex PCs Ltd</p>
-              <p style="margin:0 0 6px; font-size:14px; color:#fff;"><strong>Sort Code:</strong> 04-00-04</p>
-              <p style="margin:0 0 6px; font-size:14px; color:#fff;"><strong>Account Number:</strong> 12345678</p>
+              <p style="margin:0 0 6px; font-size:14px; color:#fff;"><strong>Bank Name:</strong> ANNA</p>
+              <p style="margin:0 0 6px; font-size:14px; color:#fff;"><strong>Sort Code:</strong> 23-11-85</p>
+              <p style="margin:0 0 6px; font-size:14px; color:#fff;"><strong>Account Number:</strong> 35445517</p>
               <p style="margin:0; font-size:14px; color:#ffa500;"><strong>Reference:</strong> ${orderNumber}</p>
             </div>
             <p style="margin:0; font-size:13px; color:#9ca3af;">
