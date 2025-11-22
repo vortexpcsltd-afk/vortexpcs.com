@@ -67,6 +67,8 @@ import {
   type SupportTicket as DbSupportTicket,
   type SubscriptionRecord,
 } from "../services/database";
+import { contentfulClient, isContentfulEnabled } from "../config/contentful";
+import { trackDownload } from "../services/sessionTracker";
 
 interface BusinessDashboardProps {
   setCurrentView: (view: string) => void;
@@ -155,6 +157,26 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
   );
   const [replyMessage, setReplyMessage] = useState("");
   const [replyBusy, setReplyBusy] = useState(false);
+  // Downloads modal state
+  const [downloadsOpen, setDownloadsOpen] = useState(false);
+  const [downloadsLoading, setDownloadsLoading] = useState(false);
+  const [businessDownloads, setBusinessDownloads] = useState<
+    Array<{
+      id: string;
+      title: string;
+      description?: string;
+      url: string;
+      fileName: string;
+    }>
+  >([]);
+  // Schedule Service modal state
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [serviceWorkstation, setServiceWorkstation] = useState<string>("");
+  const [serviceDate, setServiceDate] = useState<string>("");
+  const [serviceIssue, setServiceIssue] = useState<string>("");
+  const [servicePriority, setServicePriority] =
+    useState<TicketPriority>("normal");
+  const [serviceBusy, setServiceBusy] = useState(false);
 
   const businessInfo = useMemo(() => {
     const u = userProfile as unknown as {
@@ -291,6 +313,106 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
     } finally {
       if (!silent) setOrdersRefreshing(false);
       if (!silent && !hadError) toast.success("Member data refreshed");
+    }
+  };
+
+  // Fetch Business Downloads (Contentful or fallback mock)
+  const loadDownloads = async () => {
+    if (downloadsLoading) return;
+    setDownloadsLoading(true);
+    try {
+      if (!isContentfulEnabled || !contentfulClient) {
+        // Fallback static examples
+        setBusinessDownloads([
+          {
+            id: "sample-driver",
+            title: "Vortex Driver Pack",
+            description: "Latest chipset, LAN & audio drivers bundle.",
+            url: "https://example.com/vortex-driver-pack.zip",
+            fileName: "vortex-driver-pack.zip",
+          },
+          {
+            id: "sample-manual",
+            title: "Workstation Maintenance Guide",
+            description: "PDF guide for quarterly maintenance tasks.",
+            url: "https://example.com/workstation-maintenance.pdf",
+            fileName: "workstation-maintenance.pdf",
+          },
+        ]);
+        return;
+      }
+      // Query assumed content type: businessDownload (fields: title, description, file)
+      const res = await contentfulClient.getEntries({
+        content_type: "businessDownload",
+        order: ["fields.title"],
+        include: 1,
+      } as unknown as Record<string, unknown>);
+      const items = (res.items || []).map((entry: unknown) => {
+        const e = entry as {
+          sys: { id: string };
+          fields?: Record<string, unknown>;
+        };
+        const f = e.fields || {};
+        // Attempt to resolve asset URL
+        let url = "";
+        let fileName = "download";
+        const file = f.file || f.asset || f.downloadFile;
+        if (file) {
+          // Linked asset
+          if (file.fields?.file?.url) {
+            url = `https:${file.fields.file.url}`;
+            fileName = file.fields.file.fileName || fileName;
+          } else if (
+            file.sys?.id &&
+            (
+              res as unknown as {
+                includes?: {
+                  Asset?: Array<{
+                    sys: { id: string };
+                    fields?: { file?: { url?: string; fileName?: string } };
+                  }>;
+                };
+              }
+            ).includes?.Asset
+          ) {
+            const assetArray =
+              (
+                res as unknown as {
+                  includes?: {
+                    Asset?: Array<{
+                      sys: { id: string };
+                      fields?: { file?: { url?: string; fileName?: string } };
+                    }>;
+                  };
+                }
+              ).includes?.Asset || [];
+            const asset = assetArray.find((a) => a.sys.id === file.sys.id);
+            if (asset?.fields?.file?.url) {
+              url = `https:${asset.fields.file.url}`;
+              fileName = asset.fields.file.fileName || fileName;
+            }
+          }
+        }
+        return {
+          id: e.sys.id,
+          title: f.title || "Download",
+          description: f.description || "",
+          url,
+          fileName,
+        } as {
+          id: string;
+          title: string;
+          description?: string;
+          url: string;
+          fileName: string;
+        };
+      });
+      setBusinessDownloads(items);
+    } catch (e) {
+      logger.error("BusinessDashboard: loadDownloads failed", { error: e });
+      toast.error("Failed to load downloads");
+    } finally {
+      setDownloadsLoading(false);
     }
   };
 
@@ -1447,23 +1569,33 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
             <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
               <h3 className="text-lg font-bold mb-4">Support Resources</h3>
               <div className="grid md:grid-cols-3 gap-4">
-                <button className="p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all text-left">
+                <button
+                  className="p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all text-left"
+                  onClick={() => setCurrentView("faq")}
+                >
                   <FileText className="w-6 h-6 text-sky-400 mb-2" />
                   <div className="font-semibold mb-1">Knowledge Base</div>
                   <div className="text-xs text-gray-400">
                     Find answers to common questions
                   </div>
                 </button>
-
-                <button className="p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all text-left">
+                <button
+                  className="p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all text-left"
+                  onClick={() => {
+                    setDownloadsOpen(true);
+                    if (businessDownloads.length === 0) loadDownloads();
+                  }}
+                >
                   <Download className="w-6 h-6 text-sky-400 mb-2" />
                   <div className="font-semibold mb-1">Downloads</div>
                   <div className="text-xs text-gray-400">
                     Drivers, manuals, and software
                   </div>
                 </button>
-
-                <button className="p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all text-left">
+                <button
+                  className="p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all text-left"
+                  onClick={() => setScheduleOpen(true)}
+                >
                   <Calendar className="w-6 h-6 text-sky-400 mb-2" />
                   <div className="font-semibold mb-1">Schedule Service</div>
                   <div className="text-xs text-gray-400">
@@ -1785,6 +1917,220 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
               onClick={() => setDetailsOpen(false)}
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Downloads Modal */}
+      <Dialog open={downloadsOpen} onOpenChange={setDownloadsOpen}>
+        <DialogContent className="bg-white/5 backdrop-blur-xl border-white/10 max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Business Downloads</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {downloadsLoading && (
+              <div className="text-sm text-gray-400">Loading downloads…</div>
+            )}
+            {!downloadsLoading && businessDownloads.length === 0 && (
+              <div className="text-sm text-gray-400">
+                No downloads available yet.
+              </div>
+            )}
+            {businessDownloads.map((d) => (
+              <Card
+                key={d.id}
+                className="bg-white/5 backdrop-blur-xl border-white/10 p-4 flex items-start gap-4"
+              >
+                <div className="p-2 rounded-md bg-sky-500/10">
+                  <Download className="w-5 h-5 text-sky-400" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold mb-1">{d.title}</div>
+                  {d.description && (
+                    <div className="text-xs text-gray-400 mb-2">
+                      {d.description}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={!d.url}
+                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                      onClick={() => {
+                        if (!d.url) return;
+                        try {
+                          const uid =
+                            (userProfile as { uid?: string } | null)?.uid ||
+                            undefined;
+                          trackDownload(d.fileName, uid);
+                        } catch {
+                          /* ignore */
+                        }
+                        window.open(d.url, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      Download
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              className="bg-white/10 hover:bg-white/20 border border-white/20"
+              onClick={() => setDownloadsOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Schedule Service Modal */}
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent className="bg-white/5 backdrop-blur-xl border-white/10 max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Schedule Service Visit</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-gray-300">Select Workstation</Label>
+              <select
+                value={serviceWorkstation}
+                onChange={(e) => setServiceWorkstation(e.target.value)}
+                className="w-full bg-transparent border border-white/10 rounded-md px-3 py-2 mt-1"
+              >
+                <option value="">Choose workstation</option>
+                {purchasedPCs.map((pc) => (
+                  <option key={pc.id} value={pc.id}>
+                    {pc.workstationName} ({pc.serialNumber})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-gray-300">Preferred Date</Label>
+              <Input
+                type="date"
+                value={serviceDate}
+                onChange={(e) => setServiceDate(e.target.value)}
+                className="bg-white/5 border-white/10 text-white mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-300">Priority</Label>
+              <select
+                value={servicePriority}
+                onChange={(e) =>
+                  setServicePriority(e.target.value as TicketPriority)
+                }
+                className="w-full bg-transparent border border-white/10 rounded-md px-3 py-2 mt-1"
+              >
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-gray-300">Issue / Notes</Label>
+              <Textarea
+                value={serviceIssue}
+                onChange={(e) => setServiceIssue(e.target.value)}
+                placeholder="Describe the issue or maintenance request"
+                className="min-h-32"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              className="bg-white/5 hover:bg-white/10 border border-white/10"
+              onClick={() => setScheduleOpen(false)}
+              disabled={serviceBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={serviceBusy}
+              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+              onClick={async () => {
+                if (!serviceWorkstation) {
+                  toast.error("Please select a workstation");
+                  return;
+                }
+                if (!serviceDate) {
+                  toast.error("Please choose a preferred date");
+                  return;
+                }
+                try {
+                  setServiceBusy(true);
+                  const pc = purchasedPCs.find(
+                    (p) => p.id === serviceWorkstation
+                  );
+                  const subject = `Service Booking: ${
+                    pc?.workstationName || serviceWorkstation
+                  }`;
+                  const message = `Workstation: ${pc?.workstationName} (${
+                    pc?.serialNumber
+                  })\nPreferred Date: ${serviceDate}\nPriority: ${servicePriority}\nIssue Details:\n${serviceIssue.trim()}`;
+                  const uid =
+                    (userProfile as { uid?: string } | null)?.uid || undefined;
+                  const name =
+                    (
+                      userProfile as {
+                        displayName?: string;
+                        contactPerson?: string;
+                      } | null
+                    )?.contactPerson ||
+                    (userProfile as { displayName?: string } | null)
+                      ?.displayName ||
+                    businessInfo.companyName;
+                  const email =
+                    businessInfo.email !== "—" ? businessInfo.email : "";
+                  const id = await createSupportTicket({
+                    userId: uid,
+                    name,
+                    email,
+                    subject,
+                    message,
+                    type: "other", // keep within existing types
+                    priority: servicePriority,
+                  });
+                  const nowIso = new Date().toISOString();
+                  const newTicket: ServiceTicket = {
+                    id,
+                    title: subject,
+                    status: "open",
+                    priority:
+                      servicePriority === "urgent"
+                        ? "critical"
+                        : servicePriority === "high"
+                        ? "high"
+                        : servicePriority === "normal"
+                        ? "medium"
+                        : "low",
+                    created: nowIso,
+                    lastUpdate: nowIso,
+                  };
+                  setServiceTickets((prev) => [newTicket, ...prev]);
+                  toast.success("Service booking request submitted");
+                  setScheduleOpen(false);
+                  setServiceWorkstation("");
+                  setServiceDate("");
+                  setServiceIssue("");
+                  setServicePriority("normal");
+                } catch (e) {
+                  logger.error("Failed to create service booking", {
+                    error: e,
+                  });
+                  toast.error("Failed to submit service request");
+                } finally {
+                  setServiceBusy(false);
+                }
+              }}
+            >
+              {serviceBusy ? "Submitting…" : "Submit Request"}
             </Button>
           </DialogFooter>
         </DialogContent>
