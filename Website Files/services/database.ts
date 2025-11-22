@@ -17,7 +17,7 @@ import {
   limit,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "../config/firebase";
+import { db, auth } from "../config/firebase";
 import { logger } from "./logger";
 
 // Timestamp helper utilities
@@ -26,8 +26,7 @@ const hasToDate = (val: unknown): val is TimestampLike =>
   !!val &&
   typeof val === "object" &&
   "toDate" in val &&
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  typeof (val as Record<string, unknown> as any).toDate === "function";
+  typeof (val as { toDate?: unknown }).toDate === "function";
 const toDateSafe = (value: unknown): Date | undefined => {
   if (hasToDate(value)) return value.toDate();
   if (value instanceof Date) return value;
@@ -41,6 +40,8 @@ export interface Order {
   id?: string;
   userId: string;
   orderId: string;
+  /** Human friendly order number (e.g. VPC-20251122-AB12). May be absent on legacy docs */
+  orderNumber?: string;
   customerName: string;
   customerEmail: string;
   items: Array<{
@@ -62,6 +63,7 @@ export interface Order {
   estimatedCompletion?: Date;
   deliveryDate?: Date;
   trackingNumber?: string;
+  courier?: string; // Shipping courier name (e.g., "Royal Mail", "DPD", "DHL")
   address: {
     line1: string;
     line2?: string;
@@ -70,6 +72,8 @@ export interface Order {
     country: string;
   };
   paymentId?: string;
+  /** Stripe PaymentIntent id stored by webhook for deterministic lookups */
+  stripePaymentIntentId?: string;
   buildUpdates?: Array<{
     timestamp: Timestamp | Date;
     progress: number;
@@ -134,12 +138,40 @@ export interface SupportTicket {
   messages?: SupportTicketMessage[];
 }
 
+// Subscription interfaces (business support plans)
+export type SubscriptionStatus = "active" | "expiring-soon" | "expired";
+export type SubscriptionPlan =
+  | "essential-care"
+  | "priority-support"
+  | "business-premium";
+export interface SubscriptionRecord {
+  id?: string;
+  userId: string;
+  plan: SubscriptionPlan;
+  planName?: string;
+  status: SubscriptionStatus;
+  startDate: Date;
+  renewalDate: Date;
+  price: number;
+  billing: "monthly" | "annual";
+  autoRenew: boolean;
+  machinesCovered?: number;
+}
+
 /**
  * Create new order
  */
 export const createOrder = async (
   orderData: Omit<Order, "id">
 ): Promise<string> => {
+  // Check if Firebase is configured (client-side)
+  if (!db) {
+    logger.error("Firebase not configured - cannot create order client-side");
+    throw new Error(
+      "Firebase client not configured. Order creation requires server-side processing via webhook."
+    );
+  }
+
   try {
     const docRef = await addDoc(collection(db, "orders"), {
       ...orderData,
@@ -155,6 +187,51 @@ export const createOrder = async (
     throw new Error(
       error instanceof Error ? error.message : "Failed to create order"
     );
+  }
+};
+
+/**
+ * Fetch user subscriptions (business support plans)
+ * Falls back gracefully if collection absent or Firebase not configured.
+ */
+export const getUserSubscriptions = async (
+  userId: string
+): Promise<SubscriptionRecord[]> => {
+  if (!db) return [];
+  try {
+    const colRef = collection(db, "subscriptions");
+    const q = query(colRef, where("userId", "==", userId));
+    const snap = await getDocs(q);
+    const results: SubscriptionRecord[] = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      const start = toDateSafe(data.startDate) || new Date();
+      const renewal =
+        toDateSafe(data.renewalDate) ||
+        new Date(start.getTime() + 365 * 24 * 60 * 60 * 1000);
+      const status: SubscriptionStatus =
+        (data.status as SubscriptionStatus) || "active";
+      results.push({
+        id: docSnap.id,
+        userId,
+        plan: (data.plan as SubscriptionPlan) || "essential-care",
+        planName: data.planName || "Essential Care",
+        status,
+        startDate: start,
+        renewalDate: renewal,
+        price: typeof data.price === "number" ? data.price : 0,
+        billing: data.billing === "annual" ? "annual" : "monthly",
+        autoRenew: !!data.autoRenew,
+        machinesCovered:
+          typeof data.machinesCovered === "number"
+            ? data.machinesCovered
+            : undefined,
+      });
+    });
+    return results;
+  } catch (error) {
+    logger.warn("getUserSubscriptions: failed", { error });
+    return [];
   }
 };
 
@@ -187,6 +264,35 @@ export const getOrder = async (orderId: string): Promise<Order | null> => {
 };
 
 /**
+ * Find order by stripePaymentIntentId (secondary lookup to handle legacy doc id mismatches)
+ */
+export const findOrderByStripePaymentIntentId = async (
+  paymentIntentId: string
+): Promise<Order | null> => {
+  if (!db) return null;
+  try {
+    const qRef = query(
+      collection(db, "orders"),
+      where("stripePaymentIntentId", "==", paymentIntentId)
+    );
+    const snap = await getDocs(qRef);
+    if (snap.empty) return null;
+    const docSnap = snap.docs[0];
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      ...data,
+      orderDate: toDateSafe(data.orderDate),
+      estimatedCompletion: toDateSafe(data.estimatedCompletion),
+      deliveryDate: toDateSafe(data.deliveryDate),
+    } as Order;
+  } catch (error) {
+    logger.error("findOrderByStripePaymentIntentId error", error);
+    return null;
+  }
+};
+
+/**
  * Get all orders for a user
  */
 export const getUserOrders = async (userId: string): Promise<Order[]> => {
@@ -198,16 +304,18 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
   }
 
   try {
-    const q = query(
+    logger.info("Fetching orders for userId", { userId });
+    // Remove orderBy to avoid index requirement - sort client-side instead
+    const primaryQ = query(
       collection(db, "orders"),
-      where("userId", "==", userId),
-      orderBy("orderDate", "desc")
+      where("userId", "==", userId)
     );
 
-    const querySnapshot = await getDocs(q);
+    const primarySnap = await getDocs(primaryQ);
+    logger.info("Orders (by userId) returned", { count: primarySnap.size });
     const orders: Order[] = [];
 
-    querySnapshot.forEach((doc) => {
+    primarySnap.forEach((doc) => {
       const data = doc.data();
       orders.push({
         id: doc.id,
@@ -218,9 +326,59 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
       } as Order);
     });
 
+    // Sort client-side (newest first)
+    orders.sort((a, b) => {
+      const ta =
+        (a.orderDate instanceof Date
+          ? a.orderDate.getTime()
+          : new Date(a.orderDate).getTime()) || 0;
+      const tb =
+        (b.orderDate instanceof Date
+          ? b.orderDate.getTime()
+          : new Date(b.orderDate).getTime()) || 0;
+      return tb - ta;
+    });
+
+    if (orders.length === 0) {
+      const email = auth?.currentUser?.email || undefined;
+      if (email) {
+        logger.info("No orders by userId; checking by email", { email });
+        // Query by customerEmail; avoid orderBy to prevent index requirement, we'll sort client-side
+        const emailQ = query(
+          collection(db, "orders"),
+          where("customerEmail", "==", email)
+        );
+        const emailSnap = await getDocs(emailQ);
+        emailSnap.forEach((doc) => {
+          const data = doc.data();
+          orders.push({
+            id: doc.id,
+            ...data,
+            orderDate: toDateSafe(data.orderDate),
+            estimatedCompletion: toDateSafe(data.estimatedCompletion),
+            deliveryDate: toDateSafe(data.deliveryDate),
+          } as Order);
+        });
+        // Sort newest first
+        orders.sort((a, b) => {
+          const ta =
+            (a.orderDate instanceof Date
+              ? a.orderDate.getTime()
+              : new Date(a.orderDate).getTime()) || 0;
+          const tb =
+            (b.orderDate instanceof Date
+              ? b.orderDate.getTime()
+              : new Date(b.orderDate).getTime()) || 0;
+          return tb - ta;
+        });
+        logger.info("Orders (by email) returned", { count: emailSnap.size });
+      }
+    }
+
     return orders;
   } catch (error: unknown) {
     logger.error("Get user orders error:", error);
+    console.error("getUserOrders detailed error:", error);
     throw new Error(
       error instanceof Error ? error.message : "Failed to get user orders"
     );
@@ -371,6 +529,44 @@ export const getAllOrders = async (
     throw new Error(
       error instanceof Error ? error.message : "Failed to get all orders"
     );
+  }
+};
+
+/**
+ * Claim guest orders for a newly registered/logged-in user.
+ * Finds orders where customerEmail matches the user's email and userId is a guest placeholder.
+ */
+export const claimGuestOrders = async (
+  userId: string,
+  email: string | null | undefined
+): Promise<{ claimed: number }> => {
+  if (!email) return { claimed: 0 };
+  try {
+    const q = query(
+      collection(db, "orders"),
+      where("customerEmail", "==", email.toLowerCase())
+    );
+    const snap = await getDocs(q);
+    let claimed = 0;
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+      const uidVal = String(data.userId || "");
+      if (uidVal === "guest" || uidVal.startsWith("guest_")) {
+        await updateDoc(docSnap.ref, {
+          userId,
+          claimedByUserAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+        claimed++;
+      }
+    }
+    if (claimed > 0) {
+      logger.info("Guest orders claimed", { email, claimed });
+    }
+    return { claimed };
+  } catch (error) {
+    logger.error("claimGuestOrders error", { error });
+    return { claimed: 0 };
   }
 };
 
@@ -1006,6 +1202,65 @@ export const getUserSupportTickets = async (
 };
 
 /**
+ * Get a single support ticket by id
+ */
+export const getSupportTicketById = async (
+  ticketId: string
+): Promise<SupportTicket | null> => {
+  try {
+    const ref = doc(db, "support_tickets", ticketId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null;
+    const raw = snap.data() as Record<string, unknown>;
+    const createdAt = toDateSafe(raw.createdAt) || new Date();
+    const updatedAt = toDateSafe(raw.updatedAt);
+    const rawMessages = (raw as Record<string, unknown>).messages as
+      | unknown[]
+      | undefined;
+    const messages: SupportTicket["messages"] = (rawMessages || []).map((m) => {
+      const mm = m as Record<string, unknown>;
+      return {
+        senderId:
+          typeof mm.senderId === "string" || mm.senderId === null
+            ? (mm.senderId as string | null)
+            : null,
+        senderName:
+          typeof mm.senderName === "string" ? (mm.senderName as string) : null,
+        body: typeof mm.body === "string" ? (mm.body as string) : "",
+        internal: Boolean(mm.internal),
+        timestamp: toDateSafe(mm.timestamp) || new Date(),
+        attachments: Array.isArray(mm.attachments)
+          ? (mm.attachments as TicketAttachment[])
+          : [],
+      };
+    });
+    return {
+      id: snap.id,
+      userId: (raw.userId as string | undefined) ?? undefined,
+      name: String(raw.name || ""),
+      email: String(raw.email || ""),
+      subject: String(raw.subject || "Support Ticket"),
+      message:
+        typeof raw.message === "string" ? (raw.message as string) : undefined,
+      type: String(raw.type || "technical"),
+      status: (raw.status as TicketStatus) || "open",
+      priority: (raw.priority as TicketPriority) || "normal",
+      category: (raw.category as string | undefined) ?? undefined,
+      assignedTo:
+        (raw.assignedTo as { userId: string; name?: string } | null) ?? null,
+      createdAt,
+      updatedAt: updatedAt,
+      messages,
+    } as SupportTicket;
+  } catch (error: unknown) {
+    logger.error("Get support ticket by id error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to get support ticket"
+    );
+  }
+};
+
+/**
  * Update support ticket status
  */
 export const updateSupportTicket = async (
@@ -1128,5 +1383,265 @@ export const getUserRefundRequests = async (
     throw new Error(
       error instanceof Error ? error.message : "Failed to get refund requests"
     );
+  }
+};
+
+/**
+ * Claim guest orders for a newly registered/logged-in user by matching email.
+ * Any orders with matching customerEmail and userId of 'guest' or '' are updated.
+ * Returns number of orders updated. Safe to call repeatedly (idempotent).
+ */
+export const claimGuestOrdersForUser = async (
+  userId: string,
+  email: string | null | undefined
+): Promise<number> => {
+  try {
+    if (!email || !db) return 0;
+    let updated = 0;
+    // First handle explicit legacy guest identifiers
+    const runLegacyQuery = async (guestId: string) => {
+      const q = query(
+        collection(db, "orders"),
+        where("customerEmail", "==", email),
+        where("userId", "==", guestId)
+      );
+      const snap = await getDocs(q);
+      for (const docSnap of snap.docs) {
+        try {
+          await updateDoc(docSnap.ref, { userId, updatedAt: Timestamp.now() });
+          updated++;
+        } catch (e) {
+          logger.warn("Failed to update guest order ownership", {
+            orderId: docSnap.id,
+            err: String(e),
+          });
+        }
+      }
+    };
+    await runLegacyQuery("guest");
+    await runLegacyQuery("");
+
+    // Then scan for dynamically generated guest_* identifiers by email only
+    const emailOnlyQuery = query(
+      collection(db, "orders"),
+      where("customerEmail", "==", email)
+    );
+    const emailSnap = await getDocs(emailOnlyQuery);
+    for (const docSnap of emailSnap.docs) {
+      const data = docSnap.data() as { userId?: string };
+      const existingUserId = data.userId || "";
+      if (
+        existingUserId !== userId &&
+        (existingUserId.startsWith("guest_") || existingUserId === "guest")
+      ) {
+        try {
+          await updateDoc(docSnap.ref, { userId, updatedAt: Timestamp.now() });
+          updated++;
+        } catch (e) {
+          logger.warn("Failed to update dynamic guest_* order ownership", {
+            orderId: docSnap.id,
+            err: String(e),
+          });
+        }
+      }
+    }
+    if (updated > 0) {
+      logger.info("Claimed guest orders", { count: updated, email, userId });
+    }
+    return updated;
+  } catch (error) {
+    logger.error("claimGuestOrdersForUser error", error);
+    return 0; // fail silently
+  }
+};
+
+/**
+ * Inventory Management Functions
+ */
+
+export interface InventoryItem {
+  id?: string;
+  productId: string;
+  name: string;
+  category: string;
+  stock: number;
+  price: number;
+  reservedStock?: number;
+  lowStockThreshold?: number;
+  lastRestocked?: Date;
+}
+
+/**
+ * Get inventory item by product ID
+ */
+export const getInventoryItem = async (
+  productId: string
+): Promise<InventoryItem | null> => {
+  if (!db) {
+    logger.warn("Firestore not initialized - inventory check skipped");
+    return null;
+  }
+
+  try {
+    const q = query(
+      collection(db, "inventory"),
+      where("productId", "==", productId)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    const docData = snapshot.docs[0].data();
+    return {
+      id: snapshot.docs[0].id,
+      productId: docData.productId,
+      name: docData.name,
+      category: docData.category,
+      stock: docData.stock || 0,
+      price: docData.price || 0,
+      reservedStock: docData.reservedStock || 0,
+      lowStockThreshold: docData.lowStockThreshold || 5,
+      lastRestocked: toDateSafe(docData.lastRestocked),
+    } as InventoryItem;
+  } catch (error) {
+    logger.error("Error fetching inventory item:", error);
+    return null;
+  }
+};
+
+/**
+ * Update stock quantity for a product
+ */
+export const updateStock = async (
+  productId: string,
+  quantityChange: number
+): Promise<boolean> => {
+  if (!db) {
+    logger.warn("Firestore not initialized - stock update skipped");
+    return false;
+  }
+
+  try {
+    const q = query(
+      collection(db, "inventory"),
+      where("productId", "==", productId)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      logger.warn(`Product ${productId} not found in inventory`);
+      return false;
+    }
+
+    const inventoryDoc = snapshot.docs[0];
+    const currentStock = inventoryDoc.data().stock || 0;
+    const newStock = currentStock + quantityChange;
+
+    if (newStock < 0) {
+      logger.error(`Cannot reduce stock below 0 for product ${productId}`);
+      return false;
+    }
+
+    await updateDoc(inventoryDoc.ref, {
+      stock: newStock,
+      updatedAt: Timestamp.now(),
+    });
+
+    logger.info(
+      `Stock updated for ${productId}: ${currentStock} -> ${newStock}`
+    );
+    return true;
+  } catch (error) {
+    logger.error("Error updating stock:", error);
+    return false;
+  }
+};
+
+/**
+ * Reduce stock for multiple items (used during checkout)
+ */
+export const reduceStockForOrder = async (
+  items: Array<{ productId: string; quantity: number; productName?: string }>
+): Promise<{ success: boolean; errors?: string[] }> => {
+  if (!db) {
+    logger.warn("Firestore not initialized - stock reduction skipped");
+    return { success: true }; // Don't block checkout if inventory isn't set up
+  }
+
+  const errors: string[] = [];
+
+  try {
+    for (const item of items) {
+      const success = await updateStock(item.productId, -item.quantity);
+      if (!success) {
+        errors.push(
+          `Failed to reduce stock for ${item.productName || item.productId}`
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      logger.error("Stock reduction errors:", errors);
+      return { success: false, errors };
+    }
+
+    logger.info("Stock reduced successfully for order", {
+      itemCount: items.length,
+    });
+    return { success: true };
+  } catch (error) {
+    logger.error("Error reducing stock for order:", error);
+    return {
+      success: false,
+      errors: [
+        error instanceof Error ? error.message : "Unknown error occurred",
+      ],
+    };
+  }
+};
+
+/**
+ * Check if items are in stock
+ */
+export const checkStock = async (
+  items: Array<{ productId: string; quantity: number; productName?: string }>
+): Promise<{ inStock: boolean; outOfStockItems: string[] }> => {
+  if (!db) {
+    logger.warn("Firestore not initialized - stock check skipped");
+    return { inStock: true, outOfStockItems: [] };
+  }
+
+  const outOfStockItems: string[] = [];
+
+  try {
+    for (const item of items) {
+      const inventoryItem = await getInventoryItem(item.productId);
+
+      if (!inventoryItem) {
+        // If item not in inventory system, assume it's available
+        continue;
+      }
+
+      const availableStock =
+        inventoryItem.stock - (inventoryItem.reservedStock || 0);
+      if (availableStock < item.quantity) {
+        outOfStockItems.push(
+          `${item.productName || item.productId} (requested: ${
+            item.quantity
+          }, available: ${availableStock})`
+        );
+      }
+    }
+
+    return {
+      inStock: outOfStockItems.length === 0,
+      outOfStockItems,
+    };
+  } catch (error) {
+    logger.error("Error checking stock:", error);
+    // On error, allow the order to proceed
+    return { inStock: true, outOfStockItems: [] };
   }
 };

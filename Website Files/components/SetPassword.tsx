@@ -43,10 +43,10 @@ export default function SetPassword() {
         const masked = `${user.slice(0, 2)}***@${domain}`;
         setEmailHint(masked);
         setError(null);
-      } catch (e: any) {
-        logger.error("verifyPasswordResetCode failed", e);
+      } catch (e: unknown) {
+        logger.error("verifyPasswordResetCode failed", e as Error);
         setError(
-          e?.code === "auth/expired-action-code"
+          (e as { code?: string })?.code === "auth/expired-action-code"
             ? "This link has expired. Please request a new one."
             : "Invalid or expired link. Please request a new one."
         );
@@ -82,8 +82,13 @@ export default function SetPassword() {
           // Fetch profile to route accordingly
           try {
             const { getUserProfile } = await import("../services/auth");
-            const profile = await getUserProfile(cred.user.uid);
-            const accountType = (profile as any)?.accountType;
+            const profile = (await getUserProfile(
+              cred.user.uid
+            )) as unknown as Record<string, unknown>;
+            const accountType =
+              typeof profile?.accountType === "string"
+                ? (profile.accountType as string)
+                : undefined;
             const target =
               accountType === "business" ? "/business-dashboard" : "/member";
             window.location.replace(target);
@@ -95,17 +100,18 @@ export default function SetPassword() {
           }
         } catch (e) {
           // If auto sign-in fails, still show success
-          logger.warn("Auto sign-in after password set failed", e);
+          logger.warn("Auto sign-in after password set failed", { error: e });
         }
       }
 
       setDone(true);
-    } catch (e: any) {
-      logger.error("confirmPasswordReset failed", e);
+    } catch (e: unknown) {
+      logger.error("confirmPasswordReset failed", e as Error);
       const msg =
-        e?.code === "auth/weak-password"
+        (e as { code?: string })?.code === "auth/weak-password"
           ? "Password too weak. Please choose a stronger password."
-          : e?.message || "Failed to set password. Please try again.";
+          : (e as Error)?.message ||
+            "Failed to set password. Please try again.";
       setError(msg);
     } finally {
       setSubmitting(false);

@@ -27,24 +27,29 @@ export function Breadcrumbs({
     }
   };
 
+  // Don't render if no items
+  if (!items || items.length === 0) {
+    return null;
+  }
+
   return (
     <nav
       aria-label="Breadcrumb"
       className={cn(
-        "flex items-center space-x-2 text-sm py-4 px-4 md:px-0",
+        "flex items-center space-x-1.5 text-xs py-3 px-3 md:px-4 relative z-10 min-h-[45px]",
         className
       )}
     >
-      <ol className="flex items-center space-x-2 flex-wrap">
+      <ol className="flex items-center space-x-1.5 flex-wrap w-full">
         {/* Home Link */}
         <li className="flex items-center">
           <button
             onClick={() => onNavigate?.("home")}
-            className="flex items-center gap-1.5 text-gray-400 hover:text-sky-400 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-black rounded px-2 py-1"
+            className="flex items-center gap-1.5 text-white hover:text-sky-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-transparent rounded-lg px-2 py-1.5 font-semibold border-2 border-sky-500/40 hover:border-sky-400 bg-transparent hover:bg-sky-500/10"
             aria-label="Home"
           >
-            <Home className="w-4 h-4" />
-            <span className="hidden sm:inline">Home</span>
+            <Home className="w-3.5 h-3.5" />
+            <span>Home</span>
           </button>
         </li>
 
@@ -54,10 +59,10 @@ export function Breadcrumbs({
 
           return (
             <li key={index} className="flex items-center">
-              <ChevronRight className="w-4 h-4 text-gray-600 mx-1" />
+              <ChevronRight className="w-3.5 h-3.5 text-sky-400 mx-1.5" />
               {isLast || item.current ? (
                 <span
-                  className="text-sky-400 font-medium px-2 py-1"
+                  className="text-white font-bold px-2 py-1.5 text-xs border-2 border-sky-400 bg-sky-500/20 rounded-lg"
                   aria-current="page"
                 >
                   {item.label}
@@ -65,7 +70,7 @@ export function Breadcrumbs({
               ) : (
                 <button
                   onClick={() => handleClick(item)}
-                  className="text-gray-400 hover:text-sky-400 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-black rounded px-2 py-1"
+                  className="text-white hover:text-sky-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-transparent rounded-lg px-2 py-1.5 font-semibold border-2 border-sky-500/40 hover:border-sky-400 bg-transparent hover:bg-sky-500/10"
                 >
                   {item.label}
                 </button>

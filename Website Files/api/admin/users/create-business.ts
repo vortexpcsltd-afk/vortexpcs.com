@@ -1,14 +1,24 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
+import { getSmtpConfig } from "../../services/smtp.js";
+import type {
+  FirestoreTransaction,
+  EmailTemplateOptions,
+  ApiError,
+} from "../../../types/api";
 
+type FirebaseAdmin = typeof import("firebase-admin");
 // Firebase Admin singleton
-let admin: any = null;
+let admin: FirebaseAdmin | null = null;
 let initialized = false;
 
 async function initAdmin() {
   if (admin && initialized) return admin;
   const imported = await import("firebase-admin");
-  admin = (imported as any).default ? (imported as any).default : imported;
+  const candidate = (imported as unknown as { default?: FirebaseAdmin }).default
+    ? (imported as unknown as { default: FirebaseAdmin }).default
+    : (imported as unknown as FirebaseAdmin);
+  admin = candidate;
 
   if (!initialized) {
     try {
@@ -17,7 +27,7 @@ async function initAdmin() {
       if (saB64) {
         const json = Buffer.from(saB64, "base64").toString("utf-8");
         const creds = JSON.parse(json);
-        if (!(admin as any).apps?.length) {
+        if (!admin.apps?.length) {
           admin.initializeApp({
             credential: admin.credential.cert(creds),
             projectId: creds.project_id,
@@ -25,7 +35,7 @@ async function initAdmin() {
         }
       } else {
         // Fallback to ADC
-        if (!(admin as any).apps?.length) {
+        if (!admin.apps?.length) {
           admin.initializeApp({
             credential: admin.credential.applicationDefault(),
             projectId: process.env.FIREBASE_PROJECT_ID,
@@ -56,12 +66,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   await initAdmin();
-  if (!initialized) {
+  if (!initialized || !admin) {
     return res.status(501).json({
       message:
         "Firebase Admin SDK not initialized. Configure FIREBASE_SERVICE_ACCOUNT_BASE64 or ADC + FIREBASE_PROJECT_ID.",
     });
   }
+  const adminInstance = admin;
 
   try {
     const authHeader = req.headers.authorization || "";
@@ -72,8 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ message: "Missing Bearer token" });
 
     // Verify caller
-    const decoded = await admin.auth().verifyIdToken(token);
-    const db = admin.firestore();
+    const decoded = await adminInstance.auth().verifyIdToken(token);
+    const db = adminInstance.firestore();
     const callerDoc = await db.collection("users").doc(decoded.uid).get();
     const callerProfile = callerDoc.exists ? callerDoc.data() : null;
     const callerEmail = decoded.email || callerProfile?.email;
@@ -108,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Create user in Firebase Auth
-    const userRecord = await admin.auth().createUser({
+    const userRecord = await adminInstance.auth().createUser({
       email,
       displayName,
       emailVerified: false,
@@ -130,19 +141,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           phone: phone || null,
           accountType: "business",
           role: "user",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: adminInstance.firestore.FieldValue.serverTimestamp(),
           lastLogin: null,
         },
         { merge: true }
       );
 
     // Generate unique business account number if not already present
+    let accountNumber: string | null = null;
     try {
       const userRef = db.collection("users").doc(userRecord.uid);
-      await db.runTransaction(async (tx: any) => {
+      await db.runTransaction(async (tx) => {
         const userSnap = await tx.get(userRef);
         const current = userSnap.exists ? userSnap.data() : null;
         if (current?.accountNumber) {
+          accountNumber = current.accountNumber as string;
           return; // idempotent
         }
         const countersRef = db.collection("counters").doc("accountNumbers");
@@ -153,8 +166,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const nextSeq = currentSeq + 1;
         tx.set(countersRef, { business: nextSeq }, { merge: true });
         const padded = String(nextSeq).padStart(6, "0");
-        const accountNumber = `VTXBUS-${padded}`;
-        tx.set(userRef, { accountNumber }, { merge: true });
+        const acct = `VTXBUS-${padded}`;
+        accountNumber = acct;
+        tx.set(userRef, { accountNumber: acct }, { merge: true });
       });
     } catch (e) {
       console.error("Failed to generate business account number:", e);
@@ -199,13 +213,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Optionally still send a welcome email without reset link.
       }
       // Try dynamic import of branded email template builder; fallback if unavailable
-      let buildBrandedEmailHtml: undefined | ((opts: any) => string);
+      let buildBrandedEmailHtml:
+        | undefined
+        | ((opts: EmailTemplateOptions) => string);
       try {
-        const mod: any = await import(
-          "../../../services/emailTemplate.ts"
-        ).catch(async () => await import("../../../services/emailTemplate"));
-        buildBrandedEmailHtml = mod?.buildBrandedEmailHtml as any;
-      } catch (e: any) {
+        const mod = (await import("../../../services/emailTemplate.js").catch(
+          async () => await import("../../../services/emailTemplate")
+        )) as unknown;
+        if (
+          mod &&
+          typeof mod === "object" &&
+          "buildBrandedEmailHtml" in mod &&
+          typeof (mod as { buildBrandedEmailHtml?: unknown })
+            .buildBrandedEmailHtml === "function"
+        ) {
+          buildBrandedEmailHtml = (
+            mod as {
+              buildBrandedEmailHtml: (opts: EmailTemplateOptions) => string;
+            }
+          ).buildBrandedEmailHtml;
+        } else {
+          buildBrandedEmailHtml = undefined;
+        }
+      } catch (e: unknown) {
         buildBrandedEmailHtml = undefined;
       }
 
@@ -216,6 +246,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? `Hi ${contactName}, your business account has been created. Please sign in and change your password.`
         : `Hi ${contactName}, your business account is ready. Set your password to sign in.`;
       const linkToUse = appLink || resetLink;
+      const dashboardLink = `${(appLink || "https://vortexpcs.com").replace(
+        /\/$/,
+        ""
+      )}/member`;
       const cta =
         !tempPassword && linkToUse
           ? `<a href="${linkToUse}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:linear-gradient(90deg,#0ea5e9,#2563eb);color:#ffffff;font-weight:700">Set your password</a>`
@@ -241,6 +275,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               )}</span></p>`
             : ""
         }
+        <div style="margin:18px 0 0 0;padding:16px;border-radius:12px;background:#0b1220;border:1px solid rgba(255,255,255,0.08)">
+          <h3 style="margin:0 0 8px 0;color:#e5e7eb;font-size:16px;">Your login details</h3>
+          <p style="margin:0 0 6px 0;color:#cbd5e1;">Email: <strong style="color:#fff;">${escapeHtml(
+            email
+          )}</strong></p>
+          ${
+            accountNumber
+              ? `<p style="margin:0;color:#cbd5e1;">Account Number: <strong style="color:#fff;">${escapeHtml(
+                  accountNumber
+                )}</strong></p>`
+              : ""
+          }
+        </div>
+        <div style="margin:18px 0 0 0;padding:16px;border-radius:12px;background:#0b1220;border:1px solid rgba(255,255,255,0.08)">
+          <h3 style="margin:0 0 8px 0;color:#e5e7eb;font-size:16px;">What you can do from your account</h3>
+          <ul style="margin:0;padding-left:18px;color:#cbd5e1;line-height:1.6">
+            <li>Access your Business Dashboard and manage purchased workstations</li>
+            <li>Open and track technical support tickets</li>
+            <li>View orders and download invoices</li>
+            <li>Manage subscriptions and service agreements</li>
+            <li>Update company details, delivery addresses, and team contacts</li>
+            <li>Change your password and sign-in email</li>
+          </ul>
+          <p style="margin:10px 0 0 0;color:#94a3b8;font-size:13px;">Sign in any time: <a href="${escapeHtml(
+            dashboardLink
+          )}" style="color:#93c5fd;text-decoration:underline">${escapeHtml(
+        dashboardLink
+      )}</a></p>
+        </div>
       `;
 
       const html = buildBrandedEmailHtml
@@ -248,24 +311,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             title: "Your Vortex PCs Business Account",
             preheader,
             contentHtml,
+            logoUrl: "https://vortexpcs.com/vortexpcs-logo.png",
           })
-        : // Fallback minimal brand styling
-          `<!DOCTYPE html><html><body style="background:#0b0b0c;padding:24px;color:#e5e7eb;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+        : `<!DOCTYPE html><html><body style="background:#0b0b0c;padding:24px;color:#e5e7eb;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif">
             <div style="max-width:640px;margin:0 auto;background:#0f172a;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
-              <div style="background:linear-gradient(135deg,#0ea5e9,#2563eb);padding:24px;text-align:center;color:#fff;font-weight:700">Your Vortex PCs Business Account</div>
+              <div style="background:linear-gradient(135deg,#0ea5e9,#2563eb);padding:24px;text-align:center;color:#fff;font-weight:700">
+                <img src="https://vortexpcs.com/vortexpcs-logo.png" alt="Vortex PCs" style="max-width:160px;height:auto;display:block;margin:0 auto 12px;" />
+                Your Vortex PCs Business Account
+              </div>
               <div style="padding:24px">${contentHtml}</div>
               <div style="padding:16px;background:#0b0b0c;color:#9ca3af;text-align:center;font-size:12px">© ${new Date().getFullYear()} Vortex PCs Ltd</div>
             </div>
           </body></html>`;
 
-      // Send email directly via SMTP (not via HTTP endpoint to avoid deployment protection)
-      const smtpHost = process.env.VITE_SMTP_HOST;
-      const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "587", 10);
-      const smtpSecure = process.env.VITE_SMTP_SECURE === "true";
-      const smtpUser = process.env.VITE_SMTP_USER;
-      const smtpPass = process.env.VITE_SMTP_PASS;
-      const fromAddress =
-        process.env.VITE_BUSINESS_EMAIL || smtpUser || "no-reply@vortexpcs.com";
+      // Send email directly via SMTP using centralized config
+      const {
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        user: smtpUser,
+        pass: smtpPass,
+        from: fromAddress,
+        warning,
+      } = getSmtpConfig(req);
 
       if (!smtpHost || !smtpUser || !smtpPass) {
         throw new Error(
@@ -279,6 +347,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         secure: smtpSecure,
         auth: { user: smtpUser, pass: smtpPass },
       });
+
+      if (warning) {
+        console.warn("SMTP host normalized:", warning);
+      }
 
       // Always send a welcome email; when tempPassword is set, no secret is included
       await transporter.sendMail({
@@ -297,9 +369,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       emailSent = true;
       console.log(`Welcome email sent to ${email}`);
-    } catch (e: any) {
-      console.error("Auto-email dispatch failed:", e?.message || e);
-      emailError = e?.message || String(e);
+    } catch (e: unknown) {
+      const error = e as ApiError;
+      console.error("Auto-email dispatch failed:", error?.message || e);
+      emailError = error?.message || String(e);
     }
 
     // Best-effort audit log
@@ -311,9 +384,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         companyName,
         contactName,
         performedBy: decoded.uid,
-        performedAt: admin.firestore.FieldValue.serverTimestamp(),
+        performedAt: adminInstance.firestore.FieldValue.serverTimestamp(),
       });
-    } catch {}
+    } catch (auditError) {
+      console.warn("create-business audit log failed:", auditError);
+    }
 
     return res.status(200).json({
       success: true,
@@ -321,11 +396,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       resetLink: appLink || resetLink,
       passwordSet: !!tempPassword,
       emailSent,
+      accountNumber,
       emailError: emailSent ? undefined : emailError,
     });
-  } catch (e: any) {
-    console.error("create-business error", e);
-    const msg = e?.message || "Internal Server Error";
+  } catch (e: unknown) {
+    const error = e as ApiError;
+    console.error("create-business error", error);
+    const msg = error?.message || "Internal Server Error";
     return res.status(500).json({ message: msg });
   }
 }

@@ -1,5 +1,6 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 // Rate limiting configurations for different endpoint types
 export const RATE_LIMITS = {
@@ -78,7 +79,11 @@ const apiLimiter = createRateLimiter(
 /**
  * Get client identifier from request (IP address)
  */
-export function getClientId(req: any): string {
+export function getClientId(
+  req:
+    | Pick<VercelRequest, "headers">
+    | { headers?: Record<string, string | string[] | undefined> }
+): string {
   // Try various headers for IP address
   const forwarded = req.headers?.["x-forwarded-for"];
   const realIp = req.headers?.["x-real-ip"];
@@ -158,7 +163,10 @@ export interface RateLimitResult {
 /**
  * Set rate limit headers on response
  */
-export function setRateLimitHeaders(res: any, result: RateLimitResult): void {
+export function setRateLimitHeaders(
+  res: VercelResponse | { setHeader: (name: string, value: string) => void },
+  result: RateLimitResult
+): void {
   res.setHeader("X-RateLimit-Limit", result.limit.toString());
   res.setHeader("X-RateLimit-Remaining", result.remaining.toString());
   res.setHeader("X-RateLimit-Reset", result.reset.toString());

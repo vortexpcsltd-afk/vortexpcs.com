@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
+import { getSmtpConfig } from "../../services/smtp.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -7,14 +8,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Load SMTP config
-    const smtpHost = process.env.VITE_SMTP_HOST;
-    const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "587", 10);
-    const smtpSecure = process.env.VITE_SMTP_SECURE === "true";
-    const smtpUser = process.env.VITE_SMTP_USER;
-    const smtpPass = process.env.VITE_SMTP_PASS;
-    const fromAddress =
-      process.env.VITE_BUSINESS_EMAIL || smtpUser || "no-reply@vortexpcs.com";
+    // Load SMTP config via centralized helper
+    const {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      user: smtpUser,
+      pass: smtpPass,
+      from: fromAddress,
+      warning,
+    } = getSmtpConfig(req);
 
     const missing: string[] = [];
     if (!smtpHost) missing.push("VITE_SMTP_HOST");
@@ -43,6 +46,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       auth: { user: smtpUser, pass: smtpPass },
     });
 
+    if (warning) {
+      console.warn("SMTP host normalized:", warning);
+    }
+
     // Verify connection
     await transporter.verify();
 
@@ -50,12 +57,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { testEmail } = req.body || {};
     const recipient = testEmail || smtpUser;
 
+    const logoUrl = "https://vortexpcs.com/vortexpcs-logo.png";
+    const sentAt = new Date().toISOString();
+    const html = `<!DOCTYPE html><html><body style="background:#0b0b0c;margin:0;padding:24px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6;color:#e5e7eb;">
+      <div style="max-width:520px;margin:0 auto;background:#0f172a;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#0ea5e9,#2563eb);padding:24px;text-align:center">
+          <img src="${logoUrl}" alt="Vortex PCs" style="max-width:140px;height:auto;display:block;margin:0 auto 12px;" />
+          <div style="font-size:18px;font-weight:700;color:#fff;">SMTP Test from Vortex PCs Admin</div>
+        </div>
+        <div style="padding:24px">
+          <p style="margin:0 0 12px 0;">This is a test email sent at <strong>${sentAt}</strong>.</p>
+          <p style="margin:0 0 12px 0;">If you received this, your SMTP configuration is working correctly!</p>
+          <p style="margin:16px 0 0 0;font-size:12px;color:#94a3b8;">Environment Host: ${smtpHost} • Port: ${smtpPort} • Secure: ${smtpSecure}</p>
+        </div>
+        <div style="padding:16px;background:#0b0b0c;color:#9ca3af;text-align:center;font-size:11px">© ${new Date().getFullYear()} Vortex PCs Ltd</div>
+      </div>
+    </body></html>`;
+
     await transporter.sendMail({
       from: `Vortex PCs SMTP Test <${fromAddress}>`,
       to: recipient,
       subject: "SMTP Test from Vortex PCs Admin",
-      html: `<p>This is a test email sent at ${new Date().toISOString()}.</p><p>If you received this, your SMTP configuration is working correctly!</p>`,
-      text: `This is a test email sent at ${new Date().toISOString()}.\n\nIf you received this, your SMTP configuration is working correctly!`,
+      html,
+      text: `SMTP Test from Vortex PCs Admin\n\nSent at: ${sentAt}\nHost: ${smtpHost}\nPort: ${smtpPort}\nSecure: ${smtpSecure}\n\nIf you received this, SMTP is working.`,
     });
 
     return res.status(200).json({
@@ -69,11 +93,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         from: fromAddress,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("SMTP test failed:", error);
     return res.status(500).json({
       success: false,
-      message: error?.message || "SMTP test failed",
+      message: error instanceof Error ? error.message : "SMTP test failed",
       details: String(error),
     });
   }

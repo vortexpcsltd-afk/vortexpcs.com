@@ -15,37 +15,24 @@
   "icons": [
     {
       "src": "/vortexpcs-logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/vortexpcs-logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/vortexpcs-logo.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
       "src": "/vortexpcs-logo.png",
-      "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/vortexpcs-logo.png",
       "sizes": "512x512",
       "type": "image/png",
-      "form_factor": "wide"
+      "purpose": "any"
+    },
+    {
+      "src": "/vortexpcsltd.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "maskable any"
     }
   ],
+  "screenshots": [],
   "shortcuts": [
     {
       "name": "PC Builder",
@@ -55,7 +42,7 @@
       "icons": [
         {
           "src": "/vortexpcs-logo.png",
-          "sizes": "192x192",
+          "sizes": "any",
           "type": "image/png"
         }
       ]
@@ -68,7 +55,7 @@
       "icons": [
         {
           "src": "/vortexpcs-logo.png",
-          "sizes": "192x192",
+          "sizes": "any",
           "type": "image/png"
         }
       ]
@@ -81,7 +68,7 @@
       "icons": [
         {
           "src": "/vortexpcs-logo.png",
-          "sizes": "192x192",
+          "sizes": "any",
           "type": "image/png"
         }
       ]

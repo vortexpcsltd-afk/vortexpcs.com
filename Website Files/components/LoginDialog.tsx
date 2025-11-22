@@ -28,6 +28,12 @@ import {
   getUserProfile,
 } from "../services/auth";
 import { logger } from "../services/logger";
+import {
+  trackUserEvent,
+  trackSecurityEvent,
+} from "../services/advancedAnalytics";
+import { getSessionId } from "../services/sessionTracker";
+import { recordLoginAttempt } from "../services/security";
 
 interface LoginDialogProps {
   isOpen: boolean;
@@ -69,11 +75,21 @@ export function LoginDialog({
 
     try {
       const user = await loginUser(email, password);
+      // Record success to reset attempts if not blocked
+      recordLoginAttempt("success", email).catch(() => {});
       logger.debug("Login successful", { uid: user.uid, email: user.email });
 
       // Fetch user profile from Firestore to get the role
-      const userProfile = await getUserProfile(user.uid);
-      logger.debug("User profile fetched", { profile: userProfile });
+      let userProfile = null;
+      try {
+        userProfile = await getUserProfile(user.uid);
+        logger.debug("User profile fetched", { profile: userProfile });
+      } catch (profileErr) {
+        logger.warn("Could not fetch user profile, using defaults", {
+          error: String(profileErr),
+        });
+        // Continue with default profile
+      }
 
       // Combine Firebase user with Firestore profile data
       const userWithRole = {
@@ -100,6 +116,52 @@ export function LoginDialog({
           ? err.message
           : "Failed to login. Please check your credentials.";
       setError(errorMessage);
+
+      // Track failed login attempt
+      console.log("[LoginDialog] Tracking failed login attempt...", { email });
+      try {
+        // Record failure for IP-based lockout
+        recordLoginAttempt("failure", email).catch(() => {});
+        const sessionId =
+          sessionStorage.getItem("vortex_session_id") ||
+          getSessionId() ||
+          "unknown";
+        console.log("[LoginDialog] Session ID:", sessionId);
+
+        // Also track as a security event so dashboards count it
+        await trackSecurityEvent({
+          type: "login_failed",
+          email,
+          userAgent: navigator.userAgent,
+          timestamp: new Date(),
+          details: {
+            page: window.location.pathname,
+            message: errorMessage,
+          },
+        });
+
+        await trackUserEvent({
+          sessionId,
+          eventType: "login_failed",
+          eventData: {
+            email,
+            error: errorMessage,
+            timestamp: new Date().toISOString(),
+          },
+          timestamp: new Date(),
+          page: window.location.pathname,
+        });
+
+        console.log("[LoginDialog] ✅ Failed login tracked successfully");
+      } catch (trackError: unknown) {
+        console.error(
+          "[LoginDialog] ❌ Failed to track login failure:",
+          trackError
+        );
+        logger.warn("Failed to track login failure", {
+          error: String(trackError),
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -375,14 +437,18 @@ export function LoginDialog({
                 <label className="text-gray-400">
                   I agree to the{" "}
                   <a
-                    href="#"
+                    href={`${window.location.origin}?view=terms`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-sky-400 hover:text-sky-300 transition-colors"
                   >
                     Terms of Service
                   </a>{" "}
                   and{" "}
                   <a
-                    href="#"
+                    href={`${window.location.origin}?view=privacy`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-sky-400 hover:text-sky-300 transition-colors"
                   >
                     Privacy Policy

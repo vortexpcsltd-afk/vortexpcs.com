@@ -7,7 +7,7 @@
  * on response handling via ContentfulResponse<T> + safe field extractors.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// Note: Avoid explicit `any`; use `unknown` with narrow casts.
 
 import { contentfulClient, isContentfulEnabled } from "../config/contentful";
 import { logger } from "./logger";
@@ -499,7 +499,7 @@ export const fetchProducts = async (params?: {
     }
 
     const response = (await contentfulClient!.getEntries(
-      query as any
+      query as unknown as Record<string, unknown>
     )) as unknown as ContentfulResponse<ProductEntryFields>;
 
     return response.items.map((entry) => {
@@ -534,7 +534,7 @@ export const fetchProduct = async (_id: number): Promise<Product | null> => {
     const response = (await contentfulClient!.getEntries({
       content_type: "product",
       limit: 1,
-    } as any)) as unknown as ContentfulResponse<ProductEntryFields>;
+    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<ProductEntryFields>;
 
     if (response.items.length === 0) {
       return null;
@@ -587,7 +587,7 @@ export const fetchPCBuilds = async (params?: {
     const response = (await contentfulClient!.getEntries({
       ...query,
       include: 1, // Include linked assets (images)
-    } as any)) as unknown as ContentfulResponse<PCBuildFields> & {
+    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<PCBuildFields> & {
       includes?: {
         Asset?: Array<{
           sys: { id: string };
@@ -680,7 +680,7 @@ export const fetchComponents = async (type?: string): Promise<Component[]> => {
     }
 
     const response = (await contentfulClient!.getEntries(
-      query as any
+      query as unknown as Record<string, unknown>
     )) as unknown as ContentfulResponse<Record<string, unknown>>;
 
     return response.items.map((entry) => {
@@ -755,7 +755,7 @@ export const fetchSettings = async (): Promise<Settings | null> => {
     const response = (await contentfulClient!.getEntries({
       content_type: "siteSettings",
       limit: 1,
-    } as any)) as unknown as ContentfulResponse<SiteSettingsFields> & {
+    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<SiteSettingsFields> & {
       includes?: {
         Asset?: Array<{
           sys: { id: string };
@@ -777,17 +777,37 @@ export const fetchSettings = async (): Promise<Settings | null> => {
 
     // Resolve logo from simple string or linked asset
     let logoUrl = getString(f["logoUrl"]) || base.logoUrl || "";
-    const rawLogo = (f["logo"] as any) || undefined;
-    if (!logoUrl && rawLogo) {
-      if (rawLogo?.fields?.file?.url) {
-        logoUrl = `https:${rawLogo.fields.file.url}`;
+    const rawLogo = (f["logo"] as unknown) || undefined;
+    if (!logoUrl && rawLogo && typeof rawLogo === "object") {
+      const rl = rawLogo as {
+        fields?: { file?: { url?: string } };
+        sys?: { linkType?: string; id?: string };
+      };
+      if (rl.fields?.file?.url) {
+        logoUrl = `https:${rl.fields.file.url}`;
       } else if (
-        rawLogo?.sys?.linkType === "Asset" &&
-        (response as any).includes?.Asset
+        rl.sys?.linkType === "Asset" &&
+        (
+          response as unknown as {
+            includes?: {
+              Asset?: Array<{
+                sys: { id: string };
+                fields?: { file?: { url?: string } };
+              }>;
+            };
+          }
+        ).includes?.Asset
       ) {
-        const asset = (response as any).includes.Asset.find(
-          (a: any) => a.sys.id === rawLogo.sys.id
-        );
+        const asset = (
+          response as unknown as {
+            includes?: {
+              Asset?: Array<{
+                sys: { id: string };
+                fields?: { file?: { url?: string } };
+              }>;
+            };
+          }
+        ).includes!.Asset!.find((a) => a.sys.id === rl.sys?.id);
         if (asset?.fields?.file?.url)
           logoUrl = `https:${asset.fields.file.url}`;
       }
@@ -826,8 +846,10 @@ export const fetchSettings = async (): Promise<Settings | null> => {
       contactPhone: getString(f["contactPhone"]) || base.contactPhone,
       ogTitle: getString(f["ogTitle"]) || base.ogTitle,
       ogDescription: getString(f["ogDescription"]) || base.ogDescription,
-      ogImage: (getString(f["ogImage"]) || base.ogImage) as any,
-      twitterImage: (getString(f["twitterImage"]) || base.twitterImage) as any,
+      ogImage: getString(f["ogImage"]) || (base.ogImage as string | undefined),
+      twitterImage:
+        getString(f["twitterImage"]) ||
+        (base.twitterImage as string | undefined),
     };
 
     logger.debug("✅ siteSettings loaded from CMS");
@@ -855,7 +877,7 @@ export const fetchPageContent = async (
       content_type: "pageContent",
       "fields.pageSlug": pageSlug,
       limit: 1,
-    } as any)) as unknown as ContentfulResponse<PageContentFields>;
+    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<PageContentFields>;
 
     if (response.items.length === 0) {
       logger.debug("📄 No page content found");
@@ -930,7 +952,7 @@ export const fetchFAQItems = async (params?: {
     }
 
     const response = (await contentfulClient!.getEntries(
-      query as any
+      query as unknown as Record<string, unknown>
     )) as unknown as ContentfulResponse<FAQItemFields>;
 
     return response.items.map((entry) => {
@@ -979,7 +1001,7 @@ export const fetchServiceItems = async (params?: {
     }
 
     const response = (await contentfulClient!.getEntries(
-      query as any
+      query as unknown as Record<string, unknown>
     )) as unknown as ContentfulResponse<ServiceItemFields>;
 
     return response.items.map((entry) => {
@@ -1031,7 +1053,7 @@ export const fetchFeatureItems = async (params?: {
     }
 
     const response = (await contentfulClient!.getEntries(
-      query as any
+      query as unknown as Record<string, unknown>
     )) as unknown as ContentfulResponse<FeatureItemFields>;
 
     return response.items.map((entry) => {
@@ -1067,7 +1089,7 @@ export const fetchCompanyStats = async (): Promise<CompanyStats | null> => {
     const response = (await contentfulClient!.getEntries({
       content_type: "companyStats",
       limit: 1,
-    } as any)) as unknown as ContentfulResponse<CompanyStatsFields>;
+    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<CompanyStatsFields>;
 
     if (response.items.length === 0) {
       return getMockCompanyStats();
@@ -1106,7 +1128,11 @@ export const fetchBlogPosts = async (params?: {
 }): Promise<BlogPostsResult> => {
   if (!isContentfulEnabled) {
     const page = params?.page ?? 1;
-    const pageSize = params?.pageSize ?? (params as any)?.limit ?? 12;
+    const legacyLimit =
+      params && typeof (params as Record<string, unknown>).limit === "number"
+        ? ((params as Record<string, unknown>).limit as number)
+        : undefined;
+    const pageSize = params?.pageSize ?? legacyLimit ?? 12;
     const all = getMockBlogPosts();
     const filtered = all.filter((p) => {
       const tagOk = params?.tag ? p.tags?.includes(params.tag) : true;
@@ -1127,7 +1153,11 @@ export const fetchBlogPosts = async (params?: {
 
   try {
     const page = params?.page ?? 1;
-    const pageSize = params?.pageSize ?? (params as any)?.limit ?? 12;
+    const legacyLimit2 =
+      params && typeof (params as Record<string, unknown>).limit === "number"
+        ? ((params as Record<string, unknown>).limit as number)
+        : undefined;
+    const pageSize = params?.pageSize ?? legacyLimit2 ?? 12;
 
     const query: ContentfulQuery = {
       content_type: "blogPost",
@@ -1142,7 +1172,7 @@ export const fetchBlogPosts = async (params?: {
     if (params?.search) query["query"] = params.search;
 
     const response = (await contentfulClient!.getEntries(
-      query as any
+      query as unknown as Record<string, unknown>
     )) as unknown as ContentfulResponse<BlogPostFields> & {
       includes?: {
         Asset?: Array<{
@@ -1152,27 +1182,32 @@ export const fetchBlogPosts = async (params?: {
       };
     };
 
-    const resolveAssetUrl = (img: any): string | undefined => {
+    const resolveAssetUrl = (img: unknown): string | undefined => {
       if (!img) return undefined;
       // Linked asset via includes
       if (
-        img.sys &&
-        typeof img.sys === "object" &&
-        "linkType" in img.sys &&
-        img.sys.linkType === "Asset" &&
+        typeof img === "object" &&
+        img !== null &&
+        (img as { sys?: { linkType?: string } }).sys?.linkType === "Asset" &&
         response.includes?.Asset
       ) {
-        const imgSys = img.sys as { id?: string };
+        const imgSys = (img as { sys?: { id?: string } }).sys;
         const asset = response.includes.Asset.find(
-          (a) => a.sys.id === imgSys.id
+          (a) => a.sys.id === imgSys?.id
         );
         return asset?.fields?.file?.url
           ? `https:${asset.fields.file.url}`
           : undefined;
       }
       // Raw asset object
-      if (img.fields && img.fields.file?.url) {
-        return `https:${img.fields.file.url}`;
+      if (
+        typeof img === "object" &&
+        img !== null &&
+        (img as { fields?: { file?: { url?: string } } }).fields?.file?.url
+      ) {
+        return `https:${
+          (img as { fields?: { file?: { url?: string } } }).fields!.file!.url
+        }`;
       }
       if (typeof img === "string") return img;
       return undefined;
@@ -1192,7 +1227,7 @@ export const fetchBlogPosts = async (params?: {
       ] as const;
       const heroSrc = (() => {
         for (const key of imageCandidates) {
-          const v = (f as any)[key];
+          const v = (f as Record<string, unknown>)[key] as unknown;
           if (v) return v;
         }
         return undefined;
@@ -1202,10 +1237,10 @@ export const fetchBlogPosts = async (params?: {
         title: getString(f["title"]) ?? "Untitled",
         slug: getString(f["slug"]) ?? `post-${getNumericId(entry.sys.id)}`,
         excerpt: getString(f["excerpt"]) ?? undefined,
-        heroImage: resolveAssetUrl(heroSrc as any),
+        heroImage: resolveAssetUrl(heroSrc),
         authorName: getString(f["authorName"]) ?? undefined,
         authorAvatar: resolveAssetUrl(
-          (f["authorAvatar"] as any) || (f["authorImage"] as any)
+          (f["authorAvatar"] as unknown) || (f["authorImage"] as unknown)
         ),
         publishedDate: getString(f["publishedDate"]) ?? entry.sys.createdAt,
         updatedAt: entry.sys.updatedAt,
@@ -1215,7 +1250,7 @@ export const fetchBlogPosts = async (params?: {
     });
     return {
       items,
-      total: (response as any).total ?? items.length,
+      total: (response as unknown as { total?: number }).total ?? items.length,
       page,
       pageSize,
     };
@@ -1250,7 +1285,7 @@ export const fetchBlogPostBySlug = async (
       "fields.slug": slug,
       limit: 1,
       include: 1,
-    } as any)) as unknown as ContentfulResponse<BlogPostFields> & {
+    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<BlogPostFields> & {
       includes?: {
         Asset?: Array<{
           sys: { id: string };
@@ -1264,25 +1299,30 @@ export const fetchBlogPostBySlug = async (
     const entry = response.items[0];
     const f = (entry.fields || {}) as Record<string, unknown>;
 
-    const resolveAssetUrl = (img: any): string | undefined => {
+    const resolveAssetUrl = (img: unknown): string | undefined => {
       if (!img) return undefined;
       if (
-        img.sys &&
-        typeof img.sys === "object" &&
-        "linkType" in img.sys &&
-        img.sys.linkType === "Asset" &&
+        typeof img === "object" &&
+        img !== null &&
+        (img as { sys?: { linkType?: string } }).sys?.linkType === "Asset" &&
         response.includes?.Asset
       ) {
-        const imgSys = img.sys as { id?: string };
+        const imgSys = (img as { sys?: { id?: string } }).sys;
         const asset = response.includes.Asset.find(
-          (a) => a.sys.id === imgSys.id
+          (a) => a.sys.id === imgSys?.id
         );
         return asset?.fields?.file?.url
           ? `https:${asset.fields.file.url}`
           : undefined;
       }
-      if (img.fields && img.fields.file?.url) {
-        return `https:${img.fields.file.url}`;
+      if (
+        typeof img === "object" &&
+        img !== null &&
+        (img as { fields?: { file?: { url?: string } } }).fields?.file?.url
+      ) {
+        return `https:${
+          (img as { fields?: { file?: { url?: string } } }).fields!.file!.url
+        }`;
       }
       if (typeof img === "string") return img;
       return undefined;
@@ -1299,12 +1339,13 @@ export const fetchBlogPostBySlug = async (
     ];
     let contentRich: Document | undefined;
     for (const key of commonRichKeys) {
-      const val = f[key] as unknown as any;
+      const val = f[key] as unknown;
+      const doc = val as { nodeType?: string; content?: unknown[] };
       if (
         val &&
         typeof val === "object" &&
-        (val as any).nodeType === "document" &&
-        Array.isArray((val as any).content)
+        doc.nodeType === "document" &&
+        Array.isArray(doc.content)
       ) {
         contentRich = val as Document;
         break;
@@ -1313,12 +1354,13 @@ export const fetchBlogPostBySlug = async (
     if (!contentRich) {
       // Fallback: scan all fields for a Document-like object
       for (const [_, valAny] of Object.entries(f)) {
-        const val = valAny as any;
+        const val = valAny as unknown;
+        const doc = val as { nodeType?: string; content?: unknown[] };
         if (
           val &&
           typeof val === "object" &&
-          (val as any).nodeType === "document" &&
-          Array.isArray((val as any).content)
+          doc.nodeType === "document" &&
+          Array.isArray(doc.content)
         ) {
           contentRich = val as Document;
           break;
@@ -1329,8 +1371,8 @@ export const fetchBlogPostBySlug = async (
     // HTML fallback across common keys
     const rawHtml =
       getString(f["contentHtml"]) ??
-      getString((f as any)["bodyHtml"]) ??
-      getString((f as any)["html"]) ??
+      getString((f as Record<string, unknown>)["bodyHtml"]) ??
+      getString((f as Record<string, unknown>)["html"]) ??
       // If a string exists in common keys, use it last
       ((): string | undefined => {
         for (const key of ["content", "body", "article", "main"]) {
@@ -1354,7 +1396,7 @@ export const fetchBlogPostBySlug = async (
     ] as const;
     const heroSrc = (() => {
       for (const key of imageCandidates) {
-        const v = (f as any)[key];
+        const v = (f as Record<string, unknown>)[key] as unknown;
         if (v) return v;
       }
       return undefined;
@@ -1365,10 +1407,10 @@ export const fetchBlogPostBySlug = async (
       title: getString(f["title"]) ?? "Untitled",
       slug: getString(f["slug"]) ?? slug,
       excerpt: getString(f["excerpt"]) ?? undefined,
-      heroImage: resolveAssetUrl(heroSrc as any),
+      heroImage: resolveAssetUrl(heroSrc),
       authorName: getString(f["authorName"]) ?? undefined,
       authorAvatar: resolveAssetUrl(
-        (f["authorAvatar"] as any) || (f["authorImage"] as any)
+        (f["authorAvatar"] as unknown) || (f["authorImage"] as unknown)
       ),
       publishedDate: getString(f["publishedDate"]) ?? entry.sys.createdAt,
       updatedAt: entry.sys.updatedAt,
@@ -1396,7 +1438,7 @@ export const fetchNavigationMenu = async (): Promise<NavigationMenu | null> => {
     const response = (await contentfulClient!.getEntries({
       content_type: "navigationMenu",
       limit: 1,
-    } as any)) as unknown as ContentfulResponse<NavigationMenuFields>;
+    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<NavigationMenuFields>;
 
     if (response.items.length === 0) {
       return getMockNavigationMenu();
@@ -1457,7 +1499,7 @@ export const fetchContactInformation =
       const response = (await contentfulClient!.getEntries({
         content_type: "contactInformation",
         limit: 1,
-      } as any)) as unknown as ContentfulResponse<ContactInformationFields>;
+      } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<ContactInformationFields>;
 
       if (response.items.length === 0) {
         return getMockContactInformation();
@@ -1498,8 +1540,10 @@ type LegalPageFields = Record<string, unknown>;
 export const fetchLegalPage = async (
   pageType: "terms" | "privacy" | "cookies"
 ): Promise<LegalPage | null> => {
+  // If Contentful is disabled, prefer rendering the rich built-in static pages
+  // rather than a one-line mock snippet that hides the full content.
   if (!isContentfulEnabled) {
-    return getMockLegalPage(pageType);
+    return null;
   }
 
   try {
@@ -1516,7 +1560,7 @@ export const fetchLegalPage = async (
       content_type: "pageContent",
       "fields.pageSlug": slug,
       limit: 1,
-    } as any)) as unknown as ContentfulResponse<LegalPageFields>;
+    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<LegalPageFields>;
 
     if (response.items.length === 0) {
       // Fallback: try old legalPage content type for backward compatibility during migration
@@ -1525,11 +1569,22 @@ export const fetchLegalPage = async (
           content_type: "legalPage",
           "fields.pageType": pageType,
           limit: 1,
-        } as any)) as unknown as ContentfulResponse<LegalPageFields>;
+        } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<LegalPageFields>;
 
         if (legacyResponse.items.length > 0) {
           const entry = legacyResponse.items[0];
           const fields = (entry.fields || {}) as Record<string, unknown>;
+          const content = getString(fields.content) ?? "";
+          const minLengthEnv = (
+            import.meta as unknown as {
+              env?: Record<string, string | undefined>;
+            }
+          )?.env?.VITE_CMS_LEGAL_MIN_LENGTH;
+          const minLength =
+            Number(minLengthEnv) > 0 ? Number(minLengthEnv) : 200;
+          if (!content || content.trim().length < minLength) {
+            return null;
+          }
           return {
             id: getNumericId(entry.sys.id),
             pageType:
@@ -1539,16 +1594,17 @@ export const fetchLegalPage = async (
                 | "cookies"
                 | undefined) ?? pageType,
             title: getString(fields.title) ?? "",
-            content: getString(fields.content) ?? "",
+            content,
             lastUpdated: entry.sys.updatedAt,
             effectiveDate: getString(fields.effectiveDate) ?? "",
             version: getString(fields.version) ?? "",
           };
         }
       } catch {
-        // legalPage type doesn't exist anymore, proceed to mock
+        // legalPage type doesn't exist anymore or failed; fall through to static fallback
       }
-      return getMockLegalPage(pageType);
+      // No CMS content – use local static page implementation
+      return null;
     }
 
     const entry = response.items[0];
@@ -1566,6 +1622,18 @@ export const fetchLegalPage = async (
     const effectiveDate =
       getString(fields.effectiveDate) || entry.sys.createdAt.split("T")[0];
 
+    // If the CMS content is suspiciously short (placeholder/excerpt),
+    // fall back to the local full static page implementation.
+    const minLengthEnv = (
+      import.meta as unknown as {
+        env?: Record<string, string | undefined>;
+      }
+    )?.env?.VITE_CMS_LEGAL_MIN_LENGTH;
+    const minLength = Number(minLengthEnv) > 0 ? Number(minLengthEnv) : 200;
+    if (!content || content.trim().length < minLength) {
+      return null;
+    }
+
     return {
       id: getNumericId(entry.sys.id),
       pageType,
@@ -1577,7 +1645,8 @@ export const fetchLegalPage = async (
     };
   } catch (error: unknown) {
     logger.error("Fetch legal page error:", error);
-    return getMockLegalPage(pageType);
+    // On any error, prefer local static page rendering instead of mock snippet
+    return null;
   }
 };
 
@@ -1603,7 +1672,7 @@ export const fetchPricingTiers = async (params?: {
     }
 
     const response = (await contentfulClient!.getEntries(
-      query as any
+      query as unknown as Record<string, unknown>
     )) as unknown as ContentfulResponse<PricingTierFields>;
 
     return response.items.map((entry) => {
@@ -1644,7 +1713,7 @@ export const fetchTestimonials = async (): Promise<Testimonial[]> => {
     const response = (await contentfulClient!.getEntries({
       content_type: "testimonial",
       order: ["-sys.createdAt"],
-    } as any)) as unknown as ContentfulResponse<TestimonialFields>;
+    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<TestimonialFields>;
 
     const testimonials = response.items.map((entry) => {
       const fields = (entry.fields || {}) as Record<string, unknown>;
@@ -1687,11 +1756,15 @@ export const searchContent = async (
       contentfulClient!.getEntries({
         content_type: "product",
         query: query,
-      } as any) as unknown as Promise<ContentfulResponse<SearchContentFields>>,
+      } as unknown as Record<string, unknown>) as unknown as Promise<
+        ContentfulResponse<SearchContentFields>
+      >,
       contentfulClient!.getEntries({
         content_type: "pcBuild",
         query: query,
-      } as any) as unknown as Promise<ContentfulResponse<SearchContentFields>>,
+      } as unknown as Record<string, unknown>) as unknown as Promise<
+        ContentfulResponse<SearchContentFields>
+      >,
     ]);
 
     const products = productsRes.items.map((entry) => {
@@ -2080,37 +2153,8 @@ function getMockContactInformation(): ContactInformation {
   };
 }
 
-function getMockLegalPage(
-  pageType: "terms" | "privacy" | "cookies"
-): LegalPage {
-  const pageData = {
-    terms: {
-      title: "Terms of Service",
-      content:
-        "These terms of service govern your use of our website and services...",
-    },
-    privacy: {
-      title: "Privacy Policy",
-      content:
-        "This privacy policy explains how we collect and use your personal information...",
-    },
-    cookies: {
-      title: "Cookie Policy",
-      content:
-        "This cookie policy explains how we use cookies and similar technologies...",
-    },
-  };
-
-  return {
-    id: 1,
-    pageType,
-    title: pageData[pageType].title,
-    content: pageData[pageType].content,
-    lastUpdated: new Date().toISOString(),
-    effectiveDate: new Date().toISOString().split("T")[0],
-    version: "1.0",
-  };
-}
+// Removed legacy mock legal page generator; we prefer rendering local static
+// pages when CMS content is unavailable or too short.
 
 function getMockPricingTiers(): PricingTier[] {
   return [
@@ -2320,7 +2364,9 @@ export const fetchPCComponents = async (params?: {
 
     if (params?.category) {
       // Fetch single category
-      const response = await contentfulClient.getEntries(query as any);
+      const response = await contentfulClient.getEntries(
+        query as unknown as Record<string, unknown>
+      );
       logger.debug(
         `📦 Found ${response.items.length} ${params.category} components`
       );
@@ -2347,7 +2393,10 @@ export const fetchPCComponents = async (params?: {
       // Fetch all categories
       for (const [category, contentType] of Object.entries(contentTypeMap)) {
         try {
-          const categoryQuery = { ...query, content_type: contentType };
+          const categoryQuery = {
+            ...query,
+            content_type: contentType,
+          } as Record<string, unknown>;
           const response = await contentfulClient.getEntries(categoryQuery);
           logger.debug(
             `📦 Found ${response.items.length} ${category} components`
@@ -2655,7 +2704,9 @@ export const fetchPCOptionalExtras = async (params?: {
       query["fields.category"] = params.category;
     }
 
-    const response = await contentfulClient.getEntries(query as any);
+    const response = await contentfulClient.getEntries(
+      query as unknown as Record<string, unknown>
+    );
     logger.debug(`📦 Found ${response.items.length} optional extras from CMS`);
 
     const extras = response.items.map((item) =>

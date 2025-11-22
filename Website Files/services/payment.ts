@@ -105,8 +105,23 @@ export const redirectToCheckout = async (
       );
     }
 
-    // Create checkout session
-    const session = await createCheckoutSession(items, customerEmail, userId);
+    // Serialize cart items minimally for metadata (including image)
+    const cartSerialized = btoa(
+      JSON.stringify(
+        items.map((i) => ({
+          id: i.id,
+          n: i.name,
+          p: i.price,
+          q: i.quantity,
+          img: i.image,
+        }))
+      )
+    );
+
+    // Create checkout session including serialized cart metadata
+    const session = await createCheckoutSession(items, customerEmail, userId, {
+      cart: cartSerialized,
+    });
 
     // Redirect to Stripe Checkout
     const result = await stripe.redirectToCheckout({
@@ -195,6 +210,42 @@ export const verifyPayment = async (sessionId: string) => {
       );
     }
 
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to verify payment"
+    );
+  }
+};
+
+/**
+ * Verify payment intent status
+ */
+export const verifyPaymentIntent = async (paymentIntentId: string) => {
+  // Use mock for development to avoid CORS issues
+  if (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  ) {
+    logger.debug("Using mock payment intent verification for development");
+    return mockVerifyPayment();
+  }
+
+  try {
+    const apiUrl = `/api/stripe/verify-intent`;
+    const response = await axios.get(`${apiUrl}?pi=${paymentIntentId}`);
+    return response.data;
+  } catch (error: unknown) {
+    logger.error("Verify payment intent error:", error);
+    if (error && typeof error === "object" && "response" in error) {
+      const axiosError = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      throw new Error(
+        axiosError.response?.data?.message ||
+          axiosError.message ||
+          "Failed to verify payment"
+      );
+    }
     throw new Error(
       error instanceof Error ? error.message : "Failed to verify payment"
     );

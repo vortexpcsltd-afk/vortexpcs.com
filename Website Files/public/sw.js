@@ -107,9 +107,11 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Never cache Stripe or other sensitive endpoints
+  // Never cache Stripe, Firebase, or other sensitive endpoints
   if (
-    /stripe|paypal|accounts\.google|firebase/i.test(url.hostname + url.pathname)
+    /stripe|paypal|accounts\.google|firebase|firestore\.googleapis\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com/i.test(
+      url.hostname
+    )
   ) {
     return; // default network behavior
   }

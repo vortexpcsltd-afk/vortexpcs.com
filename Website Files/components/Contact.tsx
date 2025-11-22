@@ -66,13 +66,31 @@ export function Contact({ onNavigate }: ContactProps = {}) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
+      // Be resilient to non-JSON error responses
+      const contentType = response.headers.get("content-type") || "";
+      let data: {
+        success?: boolean;
+        error?: string;
+        hint?: string;
+        details?: string;
+      } | null = null;
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { error: text || "Unexpected non-JSON response" };
+        }
+      }
 
-      if (response.ok && data.success) {
+      if (response.ok && data?.success) {
         setIsSubmitted(true);
         setFormData({
           name: "",
@@ -86,11 +104,34 @@ export function Contact({ onNavigate }: ContactProps = {}) {
         // Reset success message after 5 seconds
         setTimeout(() => setIsSubmitted(false), 5000);
       } else {
-        const errMsg = [data?.error, data?.hint, data?.details]
-          .filter(Boolean)
-          .join(" – ")
-          .slice(0, 300);
-        throw new Error(errMsg || "Failed to send message");
+        const trace = response.headers.get("x-trace-id");
+        const rawError = data?.error;
+        let normalizedError: string | undefined;
+        if (typeof rawError === "string") normalizedError = rawError;
+        else if (rawError && typeof rawError === "object") {
+          // Try common shapes { message: "..." } or { error: "..." }
+          const msgLike =
+            (rawError as Record<string, unknown>).message ||
+            (rawError as Record<string, unknown>).error;
+          normalizedError =
+            typeof msgLike === "string" ? msgLike : JSON.stringify(rawError);
+        }
+        const topLevelMessage = (
+          data as Record<string, unknown> as { message?: unknown }
+        ).message;
+        const parts = [
+          normalizedError,
+          typeof topLevelMessage === "string" &&
+          topLevelMessage !== normalizedError
+            ? topLevelMessage
+            : undefined,
+          data?.hint,
+          data?.details,
+          trace && `trace: ${trace}`,
+        ].filter(Boolean) as string[];
+        const errMsg =
+          parts.join(" – ").slice(0, 400) || "Failed to send message";
+        throw new Error(errMsg);
       }
     } catch (error) {
       logger.error("Contact form submission error:", error);
@@ -354,6 +395,9 @@ export function Contact({ onNavigate }: ContactProps = {}) {
                             <SelectContent className="bg-slate-900 border-white/10">
                               <SelectItem value="custom-build">
                                 Custom Build Enquiry
+                              </SelectItem>
+                              <SelectItem value="business">
+                                Business Enquiry
                               </SelectItem>
                               <SelectItem value="repair">
                                 Repair Service

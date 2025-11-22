@@ -7,7 +7,7 @@ export const GETADDRESS_IO_API_KEY: string | undefined =
 
 if (import.meta.env.DEV) {
   const hasKey = Boolean(GETADDRESS_IO_API_KEY);
-  // eslint-disable-next-line no-console
+   
   console.debug(
     `📬 Address Provider Key: ${hasKey ? "FOUND" : "NOT FOUND"}`,
     hasKey ? `${GETADDRESS_IO_API_KEY?.slice(0, 6)}...` : ""

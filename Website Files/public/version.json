@@ -1,8 +1,8 @@
 {
-  "version": "2025-11-03-01",
-  "timestamp": "2025-11-03T12:20:00Z",
-  "build": "pc-builder-image-size-increase",
-  "description": "Increased product image sizes in PC Builder modal for better customer viewing",
+  "version": "1.46.011",
+  "timestamp": "2025-11-16T12:00:00Z",
+  "build": "legal-links-and-dashboard-84px",
+  "description": "Standardized legal links to open in new tabs and adjusted Business Dashboard vertical title to 84px.",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
     "HomePage": "contentful-cms-integration-v1",
@@ -60,12 +60,9 @@
     ]
   },
   "changes": [
-    "🖼️ IMAGE SIZE: Increased modal width from max-w-4xl to max-w-6xl",
-    "�️ ASPECT RATIO: Changed from 16:10 to 1:1 (square) for larger product display",
-    "�️ IMAGE FIT: Changed from object-cover to object-contain to show full products",
-    "🖼️ PADDING: Increased image container padding from p-4 to p-6",
-    "🎯 PC BUILDER: Updated section headings (Processors, Graphics Cards (GPU), Memory (RAM), etc.)",
-    "✨ HERO SECTION: Added stunning animated hero section to PC Builder page",
-    "Previous modal fixes and Contentful CMS integration maintained"
+    "LEGAL: Terms of Service and Privacy Policy links now open in a new tab from Login dialog, Checkout page, and Repair Service.",
+    "UI: Business Dashboard vertical page title reduced from 90px to 84px.",
+    "ADMIN: Removed Audit tab from Admin Panel navigation and code.",
+    "DEPLOY: Pushed to Vercel production."
   ]
 }

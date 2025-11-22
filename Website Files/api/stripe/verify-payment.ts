@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { StripeError } from "../../types/api";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -45,10 +46,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       shippingAddress: session.customer_details?.address,
       lineItems: session.line_items?.data,
     });
-  } catch (error: any) {
-    console.error("Verify payment error:", error);
+  } catch (error: unknown) {
+    const err = error as StripeError;
+    console.error("Verify payment error:", err);
     res.status(500).json({
-      message: error.message || "Failed to verify payment",
+      message: err.message || "Failed to verify payment",
     });
   }
 }

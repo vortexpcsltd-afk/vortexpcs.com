@@ -1,10 +1,13 @@
 /**
  * Vercel Serverless Function - Test SMTP Configuration
  * Visit /api/contact/health to verify SMTP settings without sending email
+ * Last updated: 2025-01-10
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
+import { getSmtpConfig } from "../services/smtp.js";
+import type { ApiError } from "../../types/api";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Allow GET requests for easy browser testing
@@ -12,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const results: any = {
+  const results: Record<string, unknown> = {
     timestamp: new Date().toISOString(),
     environment: {},
     smtp: {},
@@ -21,11 +24,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Check environment variables (without leaking values)
-    const smtpHost = process.env.VITE_SMTP_HOST;
-    const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "587", 10);
-    const smtpSecure = process.env.VITE_SMTP_SECURE === "true";
-    const smtpUser = process.env.VITE_SMTP_USER;
-    const smtpPass = process.env.VITE_SMTP_PASS;
+    // Use centralized SMTP config (trims values and normalizes host)
+    const {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      user: smtpUser,
+      pass: smtpPass,
+    } = getSmtpConfig(req);
     const businessEmail =
       process.env.VITE_BUSINESS_EMAIL || "info@vortexpcs.com";
 
@@ -47,12 +53,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (missing.length) {
       results.status = "error";
-      results.smtp.error = `Missing required env vars: ${missing.join(", ")}`;
+      (
+        results.smtp as Record<string, unknown>
+      ).error = `Missing required env vars: ${missing.join(", ")}`;
       return res.status(500).json(results);
     }
 
     // Test SMTP connection
-    results.smtp.config = {
+    (results.smtp as Record<string, unknown>).config = {
       host: smtpHost,
       port: smtpPort,
       secure: smtpSecure,
@@ -72,35 +80,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const duration = Date.now() - startTime;
 
     results.status = "success";
-    results.smtp.connection = "✓ Connected successfully";
-    results.smtp.verifyDuration = `${duration}ms`;
-    results.message = "SMTP configuration is valid and working!";
+    (results.smtp as Record<string, unknown>).connection =
+      "✓ Connected successfully";
+    (results.smtp as Record<string, unknown>).verifyDuration = `${duration}ms`;
+    (results as Record<string, unknown>).message =
+      "SMTP configuration is valid and working!";
 
     return res.status(200).json(results);
-  } catch (error: any) {
-    const { message, code, command, response, responseCode } = error || {};
+  } catch (error: unknown) {
+    const err = error as ApiError & {
+      code?: string;
+      command?: string;
+      response?: unknown;
+      responseCode?: unknown;
+    };
 
     results.status = "error";
-    results.smtp.error = {
-      message,
-      code,
-      command,
-      response,
-      responseCode,
+    (results.smtp as Record<string, unknown>).error = {
+      message: err?.message,
+      code: err?.code,
+      command: err?.command,
+      response: err?.response,
+      responseCode: err?.responseCode,
     };
 
     // Provide helpful hints
     let hint = "";
-    if (code === "EAUTH") {
+    if (err?.code === "EAUTH") {
       hint =
         "Authentication failed. Check SMTP username and password in Vercel env vars.";
-    } else if (code === "ENOTFOUND" || code === "ENOENT") {
+    } else if (err?.code === "ENOTFOUND" || err?.code === "ENOENT") {
       hint =
         "SMTP host not found. Check VITE_SMTP_HOST is 'mail.privateemail.com'.";
-    } else if (code === "ECONNECTION" || code === "ETIMEDOUT") {
+    } else if (err?.code === "ECONNECTION" || err?.code === "ETIMEDOUT") {
       hint =
         "Connection failed. Check port (587 for STARTTLS, 465 for SSL) and VITE_SMTP_SECURE setting.";
-    } else if (code === "ESOCKET") {
+    } else if (err?.code === "ESOCKET") {
       hint = "Socket error. Try port 465 with VITE_SMTP_SECURE=true instead.";
     }
 

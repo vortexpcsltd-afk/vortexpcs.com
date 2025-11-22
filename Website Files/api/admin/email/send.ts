@@ -1,9 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { ApiError, DecodedToken } from "../../../types/api";
 import nodemailer from "nodemailer";
+import { getSmtpConfig } from "../../services/smtp.js";
+import {
+  ensureBranded,
+  buildPlainTextFromHtml,
+} from "../../../services/emailTemplate.js";
 
 // Initialize Firebase Admin once
-let admin: any = null;
-let initError: string | null = null;
+type FirebaseAdmin = typeof import("firebase-admin");
+let admin: FirebaseAdmin | null = null;
 
 async function getAdmin() {
   if (admin) return admin;
@@ -11,13 +17,17 @@ async function getAdmin() {
   try {
     const imported = await import("firebase-admin");
     // Support both ESM namespace and CommonJS default export shapes
-    admin = (imported as any).default ? (imported as any).default : imported;
+    const candidate = (imported as unknown as { default?: FirebaseAdmin })
+      .default
+      ? (imported as unknown as { default: FirebaseAdmin }).default
+      : (imported as unknown as FirebaseAdmin);
+    admin = candidate;
 
     if (!admin || typeof admin !== "object") {
       throw new Error("firebase-admin import returned unexpected shape");
     }
 
-    const apps = (admin as any).apps;
+    const apps = admin.apps;
     if (Array.isArray(apps) && apps.length > 0) {
       console.log("Firebase Admin already initialized (apps length)");
       return admin;
@@ -53,7 +63,6 @@ async function getAdmin() {
     return admin;
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    initError = errMsg;
     console.error("❌ Firebase Admin initialization failed:", error);
     throw error;
   }
@@ -88,11 +97,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!token)
       return res.status(401).json({ message: "Missing Bearer token" });
 
-    let decoded: any;
+    let decoded: DecodedToken;
     try {
       decoded = await adm.auth().verifyIdToken(token);
-    } catch (e: any) {
-      console.error("verifyIdToken failed", e?.message || e);
+    } catch (e: unknown) {
+      const error = e as ApiError;
+      console.error("verifyIdToken failed", error?.message || e);
       return res.status(401).json({ message: "Invalid or expired token" });
     }
     const db = adm.firestore();
@@ -112,14 +122,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ message: "subject and html are required" });
     }
 
-    // Load SMTP config (reusing same env names used in contact function)
-    const smtpHost = process.env.VITE_SMTP_HOST;
-    const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "587", 10);
-    const smtpSecure = process.env.VITE_SMTP_SECURE === "true";
-    const smtpUser = process.env.VITE_SMTP_USER;
-    const smtpPass = process.env.VITE_SMTP_PASS;
-    const fromAddress =
-      process.env.VITE_BUSINESS_EMAIL || smtpUser || "no-reply@vortexpcs.com";
+    // Load SMTP config via centralized helper
+    const {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      user: smtpUser,
+      pass: smtpPass,
+      from: fromAddress,
+      warning,
+    } = getSmtpConfig(req);
 
     const missing: string[] = [];
     if (!smtpHost) missing.push("VITE_SMTP_HOST");
@@ -155,15 +167,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
       });
 
+    if (warning) {
+      console.warn("SMTP host normalized:", warning);
+    }
+
     // Determine recipients
     let toList: string[] = [];
     if (mode === "all" || (!mode && (!recipients || recipients.length === 0))) {
       const snap = await db.collection("users").limit(1000).get();
       toList = snap.docs
-        .map((d: any) => d.data())
-        .filter((u: any) => !u?.marketingOptOut)
-        .map((u: any) => u?.email)
-        .filter((e: any) => typeof e === "string" && e.includes("@"));
+        .map((d: { data: () => Record<string, unknown> }) => d.data())
+        .filter((u: Record<string, unknown>) => !u?.marketingOptOut)
+        .map((u: Record<string, unknown>) => u?.email)
+        .filter(
+          (e: unknown) => typeof e === "string" && e.includes("@")
+        ) as string[];
     } else {
       toList = Array.from(
         new Set((recipients || []).filter((e) => /@/.test(e)))
@@ -180,6 +198,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ message: "No recipients found" });
     }
 
+    const brandedHtml = ensureBranded(html, subject, { preheader });
+
     // Send in batches to respect provider limits
     const BATCH = 50;
     let sent = 0;
@@ -192,15 +212,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           to: fromAddress,
           bcc: chunk,
           subject,
-          html,
-          text: htmlToText(html),
+          html: brandedHtml,
+          text: buildPlainTextFromHtml(brandedHtml),
           headers: preheader ? { "X-Preheader": preheader } : undefined,
         });
-      } catch (e: any) {
-        console.error("sendMail failed for chunk", i / BATCH, e?.message || e);
+      } catch (e: unknown) {
+        const err = e as ApiError;
+        console.error(
+          "sendMail failed for chunk",
+          i / BATCH,
+          err?.message || e
+        );
         return res.status(502).json({
           message: "SMTP send failed",
-          detail: e?.message || String(e),
+          detail: err?.message || String(e),
         });
       }
       sent += chunk.length;
@@ -213,19 +238,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       batches: Math.ceil(toList.length / BATCH),
       recipients: toList.length,
     });
-  } catch (error: any) {
-    console.error("bulk email send error", error);
+  } catch (error: unknown) {
+    const err = error as ApiError;
+    console.error("bulk email send error", err);
     return res
       .status(500)
-      .json({ message: error?.message || "Internal Server Error" });
+      .json({ message: err?.message || "Internal Server Error" });
   }
 }
 
-function htmlToText(html: string): string {
-  return html
-    .replace(/<\/(?:p|div|h\d|li)>/gi, "\n")
-    .replace(/<br\s*\/?>(?=\s*)/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+// Helpers centralized in services/emailTemplate.ts

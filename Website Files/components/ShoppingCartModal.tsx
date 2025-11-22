@@ -71,6 +71,21 @@ export function ShoppingCartModal({
     onCheckout?.(); // Navigate to checkout page
   };
 
+  // Group items by category for clearer presentation
+  const grouped = cartItems.reduce<Record<string, CartItem[]>>((acc, item) => {
+    const key = (item.category || "Other").toString();
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+  const categoryOrder = Object.keys(grouped).sort();
+  const groupTotals: Record<string, number> = Object.fromEntries(
+    categoryOrder.map((k) => [
+      k,
+      grouped[k].reduce((sum, it) => sum + it.price * it.quantity, 0),
+    ])
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-slate-950 border-sky-500/20 w-[95vw] sm:w-[90vw] md:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
@@ -112,74 +127,103 @@ export function ShoppingCartModal({
               </Button>
             </div>
           ) : (
-            // Cart items
-            <div className="space-y-3 sm:space-y-4">
-              {cartItems.map((item) => (
-                <Card
-                  key={item.id}
-                  className="bg-white/5 backdrop-blur-xl border-white/10 p-3 sm:p-4 hover:border-sky-500/30 transition-all duration-300"
-                >
-                  <div className="flex gap-3 sm:gap-4">
-                    {/* Item Image/Icon */}
-                    <div className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/20 rounded-lg flex items-center justify-center">
-                      <Package className="w-6 h-6 sm:w-8 sm:h-8 text-sky-400" />
-                    </div>
-
-                    {/* Item Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 sm:gap-4 mb-2">
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-white text-sm sm:text-base truncate">
-                            {item.name}
-                          </h4>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {item.category}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => onRemoveItem?.(item.id)}
-                          className="text-gray-400 hover:text-red-400 transition-colors flex-shrink-0 w-9 h-9 flex items-center justify-center"
-                          aria-label="Remove item"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Quantity and Price */}
-                      <div className="flex items-center justify-between mt-3 gap-2">
-                        <div className="flex items-center gap-1.5 sm:gap-2">
-                          <button
-                            onClick={() => handleUpdateQuantity(item.id, -1)}
-                            className="w-9 h-9 sm:w-10 sm:h-10 bg-white/5 border border-white/10 rounded hover:bg-sky-500/10 hover:border-sky-500/30 transition-colors flex items-center justify-center"
-                            aria-label="Decrease quantity"
-                          >
-                            <Minus className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-                          </button>
-                          <span className="text-white text-sm sm:text-base w-8 sm:w-10 text-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => handleUpdateQuantity(item.id, 1)}
-                            className="w-9 h-9 sm:w-10 sm:h-10 bg-white/5 border border-white/10 rounded hover:bg-sky-500/10 hover:border-sky-500/30 transition-colors flex items-center justify-center"
-                            aria-label="Increase quantity"
-                          >
-                            <Plus className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-                          </button>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-white text-sm sm:text-base">
-                            £{(item.price * item.quantity).toFixed(2)}
-                          </p>
-                          {item.quantity > 1 && (
-                            <p className="text-xs text-gray-400">
-                              £{item.price.toFixed(2)} each
-                            </p>
-                          )}
-                        </div>
-                      </div>
+            // Grouped cart items
+            <div className="space-y-5">
+              {categoryOrder.map((category) => (
+                <div key={category} className="space-y-3 sm:space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm sm:text-base text-sky-300 font-semibold">
+                      {category}
+                    </h4>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400 hidden sm:inline">
+                        {grouped[category].length} item
+                        {grouped[category].length > 1 ? "s" : ""}
+                      </span>
+                      <span className="text-xs sm:text-sm text-white/90 font-semibold">
+                        £{groupTotals[category].toFixed(2)}
+                      </span>
                     </div>
                   </div>
-                </Card>
+                  {grouped[category].map((item) => (
+                    <Card
+                      key={item.id}
+                      className="bg-white/5 backdrop-blur-xl border-white/10 p-3 sm:p-4 hover:border-sky-500/30 transition-all duration-300"
+                    >
+                      <div className="flex gap-3 sm:gap-4">
+                        {/* Item Image/Icon */}
+                        <div className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/20 rounded-lg flex items-center justify-center overflow-hidden">
+                          {item.image ? (
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <Package className="w-6 h-6 sm:w-8 sm:h-8 text-sky-400" />
+                          )}
+                        </div>
+
+                        {/* Item Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 sm:gap-4 mb-2">
+                            <div className="min-w-0 flex-1">
+                              <h4 className="text-white text-sm sm:text-base truncate">
+                                {item.name}
+                              </h4>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {category}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => onRemoveItem?.(item.id)}
+                              className="text-gray-400 hover:text-red-400 transition-colors flex-shrink-0 w-9 h-9 flex items-center justify-center"
+                              aria-label="Remove item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Quantity and Price */}
+                          <div className="flex items-center justify-between mt-3 gap-2">
+                            <div className="flex items-center gap-1.5 sm:gap-2">
+                              <button
+                                onClick={() =>
+                                  handleUpdateQuantity(item.id, -1)
+                                }
+                                className="w-9 h-9 sm:w-10 sm:h-10 bg-white/5 border border-white/10 rounded hover:bg-sky-500/10 hover:border-sky-500/30 transition-colors flex items-center justify-center"
+                                aria-label="Decrease quantity"
+                              >
+                                <Minus className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+                              </button>
+                              <span className="text-white text-sm sm:text-base w-8 sm:w-10 text-center">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => handleUpdateQuantity(item.id, 1)}
+                                className="w-9 h-9 sm:w-10 sm:h-10 bg-white/5 border border-white/10 rounded hover:bg-sky-500/10 hover:border-sky-500/30 transition-colors flex items-center justify-center"
+                                aria-label="Increase quantity"
+                              >
+                                <Plus className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+                              </button>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-white text-sm sm:text-base">
+                                £{(item.price * item.quantity).toFixed(2)}
+                              </p>
+                              {item.quantity > 1 && (
+                                <p className="text-xs text-gray-400">
+                                  £{item.price.toFixed(2)} each
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
               ))}
             </div>
           )}

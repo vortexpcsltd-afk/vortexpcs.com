@@ -77,7 +77,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         import("../services/auth").then(({ getUserProfile }) => {
           getUserProfile(firebaseUser.uid)
             .then(async (profile) => {
+              // If profile doesn't exist, create it
+              if (!profile) {
+                logger.warn(
+                  "User profile not found, will be created on next login"
+                );
+                setUserProfile({
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email || "",
+                  displayName:
+                    firebaseUser.displayName ||
+                    firebaseUser.email?.split("@")[0] ||
+                    "User",
+                  accountType: "general",
+                  marketingOptOut: false,
+                  createdAt: new Date(),
+                  lastLogin: new Date(),
+                });
+                return;
+              }
+
               setUserProfile(profile);
+              // Claim any guest orders associated with this email
+              try {
+                if (firebaseUser.email) {
+                  const { claimGuestOrdersForUser } = await import(
+                    "../services/database"
+                  );
+                  claimGuestOrdersForUser(firebaseUser.uid, firebaseUser.email);
+                }
+              } catch (e) {
+                logger.warn("Guest order claim failed", { err: String(e) });
+              }
               // Assign account number on login if missing (idempotent)
               try {
                 if (profile && !profile.accountNumber) {
@@ -124,7 +155,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               }
             })
             .catch((error) => {
-              logger.error("Failed to load user profile:", error);
+              logger.error("Failed to load user profile", {
+                error: String(error),
+              });
+              // Set a minimal profile so the user can still use the app
+              setUserProfile({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || "",
+                displayName:
+                  firebaseUser.displayName ||
+                  firebaseUser.email?.split("@")[0] ||
+                  "User",
+                accountType: "general",
+                marketingOptOut: false,
+                createdAt: new Date(),
+                lastLogin: new Date(),
+              });
             });
         });
       } else {

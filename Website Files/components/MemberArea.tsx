@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { Switch } from "./ui/switch";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { toast } from "sonner";
 import {
   User,
   Package,
@@ -27,6 +29,8 @@ import {
   Activity,
 } from "lucide-react";
 import { updateUserProfile } from "../services/auth";
+import { getCurrentUser } from "../services/auth";
+import { changeUserPassword, changeUserEmail } from "../services/auth";
 import {
   getUserOrders,
   getUserConfigurations,
@@ -34,6 +38,8 @@ import {
   getUserSupportTickets,
   createRefundRequest,
   getUserRefundRequests,
+  claimGuestOrders,
+  claimGuestOrdersForUser,
   Order,
   SavedConfiguration,
   type SupportTicket as DBSupportTicket,
@@ -216,8 +222,11 @@ export function MemberArea({
   const { user, userProfile } = useAuth();
   const [editingProfile, setEditingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [ordersRefreshing, setOrdersRefreshing] = useState(false);
+  const [lastOrdersUpdate, setLastOrdersUpdate] = useState<Date | null>(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [configurations, setConfigurations] = useState<SavedConfiguration[]>(
     []
   );
@@ -251,6 +260,13 @@ export function MemberArea({
   const [activeTab, setActiveTab] = useState<
     "dashboard" | "orders" | "configurations" | "profile" | "support"
   >("dashboard");
+  const [pwdCurrent, setPwdCurrent] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdBusy, setPwdBusy] = useState(false);
+  const [emailNew, setEmailNew] = useState("");
+  const [emailCurrentPwd, setEmailCurrentPwd] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
 
   // Redirect business accounts to business dashboard
   useEffect(() => {
@@ -286,12 +302,23 @@ export function MemberArea({
           });
         }
 
-        // Load orders
-        const userOrders = await getUserOrders(user.uid);
+        // Load orders (attempt claim if none)
+        let userOrders = await getUserOrders(user.uid);
+        if (userOrders.length === 0 && user.email) {
+          try {
+            await claimGuestOrdersForUser(user.uid, user.email);
+            userOrders = await getUserOrders(user.uid);
+          } catch (e) {
+            logger.warn("Order claim attempt during load failed", {
+              err: String(e),
+            });
+          }
+        }
         logger.debug("Member Area - Orders loaded", {
           count: userOrders.length,
         });
         setOrders(userOrders);
+        setLastOrdersUpdate(new Date());
 
         // Load saved configurations
         const userConfigs = await getUserConfigurations(user.uid);
@@ -324,6 +351,74 @@ export function MemberArea({
       loadUserData();
     }
   }, [user, userProfile, isLoggedIn]);
+
+  // Manual refresh handler
+  const refreshOrders = async (showToast = true) => {
+    if (!user) return;
+    setOrdersRefreshing(true);
+    try {
+      let userOrders = await getUserOrders(user.uid);
+      if (userOrders.length === 0 && user.email) {
+        // First try client-side claim (Firestore rules based)
+        try {
+          await claimGuestOrdersForUser(user.uid, user.email);
+          userOrders = await getUserOrders(user.uid);
+        } catch (e) {
+          logger.warn("Client-side claimGuestOrdersForUser failed", {
+            err: String(e),
+          });
+        }
+
+        // If still none, fall back to server-side claim via Admin SDK
+        if (userOrders.length === 0) {
+          try {
+            const current = getCurrentUser();
+            const getIdToken =
+              current && typeof (current as unknown) === "object"
+                ? (current as unknown as { getIdToken?: () => Promise<string> })
+                    .getIdToken
+                : undefined;
+            const idToken =
+              typeof getIdToken === "function" ? await getIdToken() : undefined;
+            if (!idToken) {
+              logger.warn("No ID token available for claim-orders call");
+            }
+            const resp = await fetch("/api/users/claim-orders", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+              },
+              body: JSON.stringify({ uid: user.uid, email: user.email }),
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              logger.info("Server-side claim result", data);
+              userOrders = await getUserOrders(user.uid);
+            } else {
+              const errText = await resp.text();
+              logger.warn("Server-side claim failed", {
+                status: resp.status,
+                text: errText,
+              });
+            }
+          } catch (srvErr) {
+            logger.error("Server-side claim-orders error", {
+              err: String(srvErr),
+            });
+          }
+        }
+      }
+      setOrders(userOrders);
+      setLastOrdersUpdate(new Date());
+      if (showToast) toast.success("Orders refreshed");
+    } catch (e) {
+      toast.error("Could not refresh orders");
+      logger.error("Orders refresh error", e);
+    } finally {
+      setOrdersRefreshing(false);
+    }
+  };
 
   // Helper function to get user initials
   const getInitials = (name: string) => {
@@ -493,6 +588,37 @@ export function MemberArea({
     }
   };
 
+  // Manual claim of guest orders (user-triggered)
+  const handleManualClaim = async () => {
+    if (!user) return;
+    try {
+      setLoading(true);
+      logger.info("Manual guest order claim initiated", {
+        uid: user.uid,
+        email: user.email,
+      });
+      const result = await claimGuestOrders(user.uid, user.email);
+      if (result.claimed > 0) {
+        const refreshed = await getUserOrders(user.uid);
+        setOrders(refreshed);
+        toast.success(
+          `Linked ${result.claimed} past order${result.claimed > 1 ? "s" : ""}.`
+        );
+        logger.info("Manual guest order claim success", {
+          claimed: result.claimed,
+        });
+      } else {
+        toast.info("No unclaimed guest orders found for your email.");
+        logger.info("Manual guest order claim: none found");
+      }
+    } catch (e) {
+      logger.error("Manual guest order claim error", e);
+      toast.error("Failed to link past orders.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "building":
@@ -588,48 +714,60 @@ export function MemberArea({
   }
 
   return (
-    <div className="min-h-screen py-12 sm:py-16 md:py-20">
-      <div className="container mx-auto px-3 sm:px-4 md:px-6">
+    <div className="min-h-screen py-12 sm:py-16 md:py-20 relative">
+      {/* Animated background gradient */}
+      <div className="fixed inset-0 bg-gradient-to-br from-sky-500/5 via-transparent to-purple-500/5 pointer-events-none" />
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent pointer-events-none" />
+
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 relative">
         <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
-              <Avatar className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex-shrink-0">
-                <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-base sm:text-lg md:text-xl">
-                  {getInitials(
-                    profileData.name ||
-                      user?.displayName ||
-                      user?.email ||
-                      "User"
-                  )}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white truncate">
-                  Welcome back,{" "}
-                  {profileData.name || user?.displayName || "Member"}!
-                </h1>
-                <p className="text-sm sm:text-base text-gray-400">
-                  Member since {getMemberSince()}
-                </p>
-                {userProfile?.accountNumber && (
-                  <p className="text-xs sm:text-sm text-gray-300 mt-1">
-                    Account Number:{" "}
-                    <span className="text-sky-400 font-semibold">
-                      {userProfile.accountNumber}
-                    </span>
-                  </p>
-                )}
+          {/* Header with glassmorphism */}
+          <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-2xl shadow-2xl mb-6 sm:mb-8 overflow-hidden group hover:border-sky-500/30 transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-r from-sky-500/10 via-blue-500/5 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="relative p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-sky-400 to-purple-500 rounded-full blur-lg opacity-50 animate-pulse" />
+                    <Avatar className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 flex-shrink-0 border-2 border-white/20 relative">
+                      <AvatarFallback className="bg-gradient-to-br from-sky-500 via-blue-500 to-purple-600 text-white text-lg sm:text-xl md:text-2xl font-bold shadow-inner">
+                        {getInitials(
+                          profileData.name ||
+                            user?.displayName ||
+                            user?.email ||
+                            "User"
+                        )}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-white via-sky-200 to-white bg-clip-text text-transparent truncate mb-1">
+                      Welcome back,{" "}
+                      {profileData.name || user?.displayName || "Member"}!
+                    </h1>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm sm:text-base text-gray-300 flex items-center gap-1">
+                        <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                        Member since {getMemberSince()}
+                      </p>
+                      {userProfile?.accountNumber && (
+                        <span className="text-xs sm:text-sm px-2 py-1 rounded-full bg-sky-500/20 border border-sky-500/30 text-sky-300 font-mono">
+                          #{userProfile.accountNumber}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={handleLogout}
+                  className="border-white/30 text-white hover:bg-white/20 hover:border-white/50 flex-shrink-0 h-10 sm:h-11 backdrop-blur-sm transition-all duration-300 hover:scale-105"
+                >
+                  Logout
+                </Button>
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={handleLogout}
-              className="border-white/20 text-white hover:bg-white/10 flex-shrink-0 h-10 sm:h-auto"
-            >
-              Logout
-            </Button>
-          </div>
+          </Card>
 
           <Tabs
             value={activeTab}
@@ -646,34 +784,34 @@ export function MemberArea({
             className="space-y-4 sm:space-y-6"
           >
             <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 snap-x snap-mandatory">
-              <TabsList className="inline-flex sm:grid w-auto sm:w-full grid-cols-5 bg-white/5 border-white/10 min-w-max sm:min-w-0">
+              <TabsList className="inline-flex sm:grid w-auto sm:w-full grid-cols-5 bg-gradient-to-r from-white/5 via-white/10 to-white/5 border border-white/20 backdrop-blur-xl shadow-lg min-w-max sm:min-w-0 p-1">
                 <TabsTrigger
                   value="dashboard"
-                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
                 >
                   Dashboard
                 </TabsTrigger>
                 <TabsTrigger
                   value="orders"
-                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
                 >
                   My Orders
                 </TabsTrigger>
                 <TabsTrigger
                   value="configurations"
-                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
                 >
                   Saved Builds
                 </TabsTrigger>
                 <TabsTrigger
                   value="profile"
-                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
                 >
                   Profile
                 </TabsTrigger>
                 <TabsTrigger
                   value="support"
-                  className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap snap-start"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
                 >
                   Support
                 </TabsTrigger>
@@ -683,175 +821,258 @@ export function MemberArea({
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
               {/* Quick Actions */}
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white">
-                    Quick actions
-                  </h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-                  <Button
-                    className="h-12 sm:h-14 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-sm sm:text-base"
-                    onClick={() => {
-                      setActiveTab("support");
-                      setActiveSupportTab("orders");
-                      setTimeout(() => {
-                        document
-                          .getElementById("support-root")
-                          ?.scrollIntoView({ behavior: "smooth" });
-                      }, 50);
-                    }}
-                  >
-                    Start a return / refund
-                  </Button>
-                  <Button
-                    className="h-12 sm:h-14 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-sm sm:text-base"
-                    onClick={() => {
-                      setActiveTab("support");
-                      setActiveSupportTab("center");
-                      setTimeout(() => {
-                        document
-                          .getElementById("support-root")
-                          ?.scrollIntoView({ behavior: "smooth" });
-                      }, 50);
-                    }}
-                  >
-                    Open a support ticket
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-12 sm:h-14 border-white/20 text-white hover:bg-white/10 text-sm sm:text-base"
-                    onClick={() => setActiveTab("orders")}
-                  >
-                    View order invoices
-                  </Button>
+              <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-4 sm:p-6 hover:shadow-2xl hover:border-white/30 transition-all duration-500 group">
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg" />
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                      Quick Actions
+                    </h3>
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/30 flex items-center justify-center">
+                      <Activity className="w-5 h-5 text-sky-400" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+                    <Button
+                      className="h-12 sm:h-14 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-sm sm:text-base shadow-lg hover:shadow-sky-500/50 hover:scale-105 transition-all duration-300 border border-sky-400/20"
+                      onClick={() => {
+                        setActiveTab("support");
+                        setActiveSupportTab("orders");
+                        setTimeout(() => {
+                          document
+                            .getElementById("support-root")
+                            ?.scrollIntoView({ behavior: "smooth" });
+                        }, 50);
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Start a return / refund
+                    </Button>
+                    <Button
+                      className="h-12 sm:h-14 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-sm sm:text-base shadow-lg hover:shadow-emerald-500/50 hover:scale-105 transition-all duration-300 border border-emerald-400/20"
+                      onClick={() => {
+                        setActiveTab("support");
+                        setActiveSupportTab("center");
+                        setTimeout(() => {
+                          document
+                            .getElementById("support-root")
+                            ?.scrollIntoView({ behavior: "smooth" });
+                        }, 50);
+                      }}
+                    >
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Open a support ticket
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-12 sm:h-14 border-white/30 text-white hover:bg-white/20 hover:border-white/50 text-sm sm:text-base backdrop-blur-sm hover:scale-105 transition-all duration-300"
+                      onClick={() => setActiveTab("orders")}
+                    >
+                      <Package className="w-4 h-4 mr-2" />
+                      View order invoices
+                    </Button>
+                  </div>
                 </div>
               </Card>
 
               {/* Active Builds Snapshot */}
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-4 sm:p-6">
-                <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white mb-4">
-                  Active builds
-                </h3>
-                {orders.filter((o) =>
-                  ["pending", "building", "testing"].includes(o.status)
-                ).length === 0 ? (
-                  <p className="text-sm sm:text-base text-gray-400">
-                    No builds in progress right now.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    {orders
-                      .filter((o) =>
-                        ["pending", "building", "testing"].includes(o.status)
-                      )
-                      .slice(0, 4)
-                      .map((o) => (
-                        <div
-                          key={o.id}
-                          className="rounded-lg border border-white/10 p-3 sm:p-4 bg-white/5"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-sm sm:text-base text-white font-semibold truncate mr-2">
-                              Order #{o.orderId}
-                            </div>
-                            <Badge
-                              className={`${getStatusColor(
-                                o.status
-                              )} border text-xs flex-shrink-0`}
-                            >
-                              {o.status}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center justify-between text-xs sm:text-sm mb-1">
-                            <span className="text-gray-400">Progress</span>
-                            <span className="text-sky-400 font-semibold">
-                              {o.progress}%
-                            </span>
-                          </div>
-                          <Progress value={o.progress} className="h-2" />
-                          {o.buildUpdates && o.buildUpdates.length > 0 && (
-                            <div className="mt-2 text-xs text-gray-400">
-                              Last update:{" "}
-                              {(() => {
-                                const last =
-                                  o.buildUpdates![o.buildUpdates!.length - 1];
-                                const ts = last?.timestamp as
-                                  | { toDate?: () => Date }
-                                  | Date
-                                  | string
-                                  | number
-                                  | null
-                                  | undefined;
-                                try {
-                                  if (
-                                    ts &&
-                                    typeof ts === "object" &&
-                                    "toDate" in (ts as object) &&
-                                    typeof (ts as { toDate?: unknown })
-                                      .toDate === "function"
-                                  ) {
-                                    return (ts as { toDate: () => Date })
-                                      .toDate()
-                                      .toLocaleString();
-                                  }
-                                  const d =
-                                    ts instanceof Date
-                                      ? ts
-                                      : new Date(ts as string | number);
-                                  return !isNaN(d.getTime())
-                                    ? d.toLocaleString()
-                                    : "Recently";
-                                } catch {
-                                  return "Recently";
-                                }
-                              })()}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+              <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-4 sm:p-6 hover:shadow-2xl hover:border-white/30 transition-all duration-500 group">
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 via-orange-500/5 to-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg" />
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                      Active Builds
+                    </h3>
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 flex items-center justify-center">
+                      <Settings
+                        className="w-5 h-5 text-orange-400 animate-spin"
+                        style={{ animationDuration: "3s" }}
+                      />
+                    </div>
                   </div>
-                )}
+                  {orders.filter((o) =>
+                    ["pending", "building", "testing"].includes(o.status)
+                  ).length === 0 ? (
+                    <div className="text-center py-8">
+                      <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm sm:text-base text-gray-400">
+                        No builds in progress right now.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      {orders
+                        .filter((o) =>
+                          ["pending", "building", "testing"].includes(o.status)
+                        )
+                        .slice(0, 4)
+                        .map((o) => (
+                          <div
+                            key={o.id}
+                            className="rounded-xl border border-white/20 p-4 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm hover:border-sky-500/40 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 group/item"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-sm sm:text-base text-white font-semibold truncate mr-2">
+                                Order #{o.orderId}
+                              </div>
+                              <Badge
+                                className={`${getStatusColor(
+                                  o.status
+                                )} border text-xs flex-shrink-0`}
+                              >
+                                {o.status}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center justify-between text-xs sm:text-sm mb-1">
+                              <span className="text-gray-400">Progress</span>
+                              <span className="text-sky-400 font-semibold">
+                                {o.progress}%
+                              </span>
+                            </div>
+                            <Progress value={o.progress} className="h-2" />
+                            {o.buildUpdates && o.buildUpdates.length > 0 && (
+                              <div className="mt-2 text-xs text-gray-400">
+                                Last update:{" "}
+                                {(() => {
+                                  const last =
+                                    o.buildUpdates![o.buildUpdates!.length - 1];
+                                  const ts = last?.timestamp as
+                                    | { toDate?: () => Date }
+                                    | Date
+                                    | string
+                                    | number
+                                    | null
+                                    | undefined;
+                                  try {
+                                    if (
+                                      ts &&
+                                      typeof ts === "object" &&
+                                      "toDate" in (ts as object) &&
+                                      typeof (ts as { toDate?: unknown })
+                                        .toDate === "function"
+                                    ) {
+                                      return (ts as { toDate: () => Date })
+                                        .toDate()
+                                        .toLocaleString();
+                                    }
+                                    const d =
+                                      ts instanceof Date
+                                        ? ts
+                                        : new Date(ts as string | number);
+                                    return !isNaN(d.getTime())
+                                      ? d.toLocaleString()
+                                      : "Recently";
+                                  } catch {
+                                    return "Recently";
+                                  }
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </Card>
 
               {/* Recent Activity */}
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
-                <h3 className="text-2xl font-bold text-white mb-4">
-                  Recent activity
-                </h3>
-                <ActivityTimeline
-                  orders={orders}
-                  tickets={supportTickets}
-                  refunds={refundRequests}
-                />
+              <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-4 sm:p-6 hover:shadow-2xl hover:border-white/30 transition-all duration-500 group">
+                <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg" />
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                      Recent Activity
+                    </h3>
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center">
+                      <Activity className="w-5 h-5 text-emerald-400" />
+                    </div>
+                  </div>
+                  <ActivityTimeline
+                    orders={orders}
+                    tickets={supportTickets}
+                    refunds={refundRequests}
+                  />
+                </div>
               </Card>
             </TabsContent>
 
             {/* Orders Tab */}
             <TabsContent value="orders" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-white/90">
+                    My Orders
+                  </h3>
+                  {lastOrdersUpdate && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Last updated: {lastOrdersUpdate.toLocaleTimeString()}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  className="border-white/20 text-white hover:bg-white/10"
+                  disabled={ordersRefreshing}
+                  onClick={() => refreshOrders(true)}
+                >
+                  {ordersRefreshing ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Clock className="w-4 h-4 mr-2" />
+                  )}
+                  Refresh Orders
+                </Button>
+              </div>
               {loading ? (
-                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-12">
+                <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-12">
                   <div className="text-center">
-                    <Loader2 className="w-12 h-12 text-sky-400 animate-spin mx-auto mb-4" />
-                    <p className="text-gray-400">Loading your orders...</p>
+                    <div className="relative inline-block">
+                      <div className="absolute inset-0 bg-sky-500/30 blur-xl rounded-full" />
+                      <Loader2 className="w-12 h-12 text-sky-400 animate-spin mx-auto mb-4 relative" />
+                    </div>
+                    <p className="text-gray-300 font-medium">
+                      Loading your orders...
+                    </p>
                   </div>
                 </Card>
               ) : orders.length === 0 ? (
-                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-12">
+                <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-12 hover:border-sky-500/30 transition-all duration-500">
                   <div className="text-center">
-                    <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-2">
+                    <div className="relative inline-block mb-6">
+                      <div className="absolute inset-0 bg-sky-500/20 blur-2xl rounded-full" />
+                      <div className="relative w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/30 flex items-center justify-center">
+                        <Package className="w-10 h-10 text-sky-400" />
+                      </div>
+                    </div>
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-3">
                       No Orders Yet
                     </h3>
-                    <p className="text-gray-400 mb-6">
+                    <p className="text-gray-400 mb-8 text-lg">
                       Start building your dream PC!
                     </p>
-                    <Button
-                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
-                      onClick={() => onNavigate?.("pc-finder")}
-                    >
-                      Open PC Finder
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                      <Button
+                        className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 shadow-lg hover:shadow-sky-500/50 hover:scale-105 transition-all duration-300 h-12 px-8"
+                        onClick={() => onNavigate?.("pc-finder")}
+                      >
+                        <Settings className="w-5 h-5 mr-2" />
+                        Open PC Finder
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-12 px-8 border-sky-500/40 text-sky-300 hover:bg-sky-500/10 hover:border-sky-500/60 backdrop-blur-sm transition-all duration-300"
+                        onClick={handleManualClaim}
+                      >
+                        <Package className="w-5 h-5 mr-2" />
+                        Link Past Orders
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-6 max-w-md mx-auto">
+                      If you previously purchased as a guest using this email,
+                      click &nbsp;
+                      <span className="text-sky-400">Link Past Orders</span>
+                      &nbsp;to attach them to your account.
+                    </p>
                   </div>
                 </Card>
               ) : (
@@ -859,43 +1080,36 @@ export function MemberArea({
                   {orders.map((order) => (
                     <Card
                       key={order.id}
-                      className="bg-white/5 border-white/10 backdrop-blur-xl p-6"
+                      className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-6 hover:shadow-2xl hover:border-sky-500/40 transition-all duration-500 group"
                     >
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="text-xl font-bold text-white">
-                              {order.items?.[0]?.productName || "Custom Build"}
-                            </h3>
-                            <Badge
-                              className={`${getStatusColor(
-                                order.status
-                              )} border`}
-                            >
-                              <div className="flex items-center space-x-1">
-                                {getStatusIcon(order.status)}
-                                <span className="capitalize">
-                                  {order.status}
-                                </span>
-                              </div>
-                            </Badge>
-                          </div>
-                          <p className="text-gray-400">
-                            Order #{order.orderId || order.id}
-                          </p>
-                          {/* Status stepper */}
-                          <div className="mt-3 flex items-center gap-2 text-xs">
-                            {(
-                              [
-                                "pending",
-                                "building",
-                                "testing",
-                                "shipped",
-                                "delivered",
-                                "completed",
-                              ] as const
-                            ).map((step, idx) => {
-                              const reached =
+                      <div className="absolute inset-0 bg-gradient-to-r from-sky-500/5 via-purple-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg" />
+                      <div className="relative">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <div className="flex items-center space-x-3 mb-2">
+                              <h3 className="text-xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
+                                {order.items?.[0]?.productName ||
+                                  "Custom Build"}
+                              </h3>
+                              <Badge
+                                className={`${getStatusColor(
+                                  order.status
+                                )} border shadow-lg`}
+                              >
+                                <div className="flex items-center space-x-1">
+                                  {getStatusIcon(order.status)}
+                                  <span className="capitalize">
+                                    {order.status}
+                                  </span>
+                                </div>
+                              </Badge>
+                            </div>
+                            <p className="text-gray-400 font-mono text-sm">
+                              Order #{order.orderId || order.id}
+                            </p>
+                            {/* Status stepper */}
+                            <div className="mt-3 flex items-center gap-2 text-xs">
+                              {(
                                 [
                                   "pending",
                                   "building",
@@ -903,127 +1117,139 @@ export function MemberArea({
                                   "shipped",
                                   "delivered",
                                   "completed",
-                                ].indexOf(order.status) >= idx;
-                              return (
-                                <div key={step} className="flex items-center">
-                                  <div
-                                    className={`w-6 h-6 rounded-full flex items-center justify-center border ${
-                                      reached
-                                        ? "bg-sky-600 border-sky-400 text-white"
-                                        : "bg-white/5 border-white/20 text-gray-400"
-                                    }`}
-                                    title={step}
-                                  >
-                                    {reached ? (
-                                      <CheckCircle className="w-3 h-3" />
-                                    ) : (
-                                      <Clock className="w-3 h-3" />
+                                ] as const
+                              ).map((step, idx) => {
+                                const reached =
+                                  [
+                                    "pending",
+                                    "building",
+                                    "testing",
+                                    "shipped",
+                                    "delivered",
+                                    "completed",
+                                  ].indexOf(order.status) >= idx;
+                                return (
+                                  <div key={step} className="flex items-center">
+                                    <div
+                                      className={`w-6 h-6 rounded-full flex items-center justify-center border ${
+                                        reached
+                                          ? "bg-sky-600 border-sky-400 text-white"
+                                          : "bg-white/5 border-white/20 text-gray-400"
+                                      }`}
+                                      title={step}
+                                    >
+                                      {reached ? (
+                                        <CheckCircle className="w-3 h-3" />
+                                      ) : (
+                                        <Clock className="w-3 h-3" />
+                                      )}
+                                    </div>
+                                    {idx < 5 && (
+                                      <div
+                                        className={`w-8 h-0.5 mx-1 ${
+                                          reached ? "bg-sky-600" : "bg-white/10"
+                                        }`}
+                                      ></div>
                                     )}
                                   </div>
-                                  {idx < 5 && (
-                                    <div
-                                      className={`w-8 h-0.5 mx-1 ${
-                                        reached ? "bg-sky-600" : "bg-white/10"
-                                      }`}
-                                    ></div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-green-400">
-                            £{order.total.toLocaleString()}
-                          </div>
-                          <p className="text-gray-400 text-sm">
-                            Ordered:{" "}
-                            {order.orderDate?.toLocaleDateString?.() || "N/A"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {(order.status === "building" ||
-                        order.status === "testing") && (
-                        <div className="mb-4">
-                          <div className="flex justify-between text-sm mb-2">
-                            <span className="text-gray-400">
-                              Build Progress
-                            </span>
-                            <span className="text-white">
-                              {order.progress || 0}%
-                            </span>
-                          </div>
-                          <Progress
-                            value={order.progress || 0}
-                            className="h-2"
-                          />
-                          {order.estimatedCompletion && (
-                            <p className="text-sm text-gray-400 mt-2">
-                              Estimated completion:{" "}
-                              {order.estimatedCompletion instanceof Date &&
-                              !isNaN(order.estimatedCompletion.getTime())
-                                ? order.estimatedCompletion.toLocaleDateString()
-                                : "N/A"}
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-green-400">
+                              £{order.total.toLocaleString()}
+                            </div>
+                            <p className="text-gray-400 text-sm">
+                              Ordered:{" "}
+                              {order.orderDate?.toLocaleDateString?.() || "N/A"}
                             </p>
-                          )}
-                          {order.buildUpdates &&
-                            order.buildUpdates.length > 0 && (
-                              <div className="mt-3 text-xs text-gray-300">
-                                Latest update:{" "}
-                                {
-                                  order.buildUpdates[
-                                    order.buildUpdates.length - 1
-                                  ].note
-                                }
-                              </div>
+                          </div>
+                        </div>
+
+                        {(order.status === "building" ||
+                          order.status === "testing") && (
+                          <div className="mb-4">
+                            <div className="flex justify-between text-sm mb-2">
+                              <span className="text-gray-400">
+                                Build Progress
+                              </span>
+                              <span className="text-white">
+                                {order.progress || 0}%
+                              </span>
+                            </div>
+                            <Progress
+                              value={order.progress || 0}
+                              className="h-2"
+                            />
+                            {order.estimatedCompletion && (
+                              <p className="text-sm text-gray-400 mt-2">
+                                Estimated completion:{" "}
+                                {order.estimatedCompletion instanceof Date &&
+                                !isNaN(order.estimatedCompletion.getTime())
+                                  ? order.estimatedCompletion.toLocaleDateString()
+                                  : "N/A"}
+                              </p>
                             )}
-                        </div>
-                      )}
+                            {order.buildUpdates &&
+                              order.buildUpdates.length > 0 && (
+                                <div className="mt-3 text-xs text-gray-300">
+                                  Latest update:{" "}
+                                  {
+                                    order.buildUpdates[
+                                      order.buildUpdates.length - 1
+                                    ].note
+                                  }
+                                </div>
+                              )}
+                          </div>
+                        )}
 
-                      {order.items && order.items.length > 0 && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {order.items.map((item, index) => (
-                            <Badge
-                              key={index}
-                              variant="secondary"
-                              className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-center"
-                            >
-                              {item.productName}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
+                        {order.items && order.items.length > 0 && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {order.items.map((item, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-center"
+                              >
+                                {item.productName}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
 
-                      <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
-                        <div className="text-sm text-gray-400">
-                          {order.deliveryDate &&
-                            order.deliveryDate instanceof Date &&
-                            !isNaN(order.deliveryDate.getTime()) &&
-                            `Delivered: ${order.deliveryDate.toLocaleDateString()}`}
-                          {order.trackingNumber && (
-                            <span className="ml-4">
-                              Tracking: {order.trackingNumber}
-                            </span>
-                          )}
-                        </div>
-                        <div className="space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-white/20 text-white hover:bg-white/10"
-                          >
-                            View Details
-                          </Button>
-                          {order.status === "delivered" && (
+                        <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
+                          <div className="text-sm text-gray-400">
+                            {order.deliveryDate &&
+                              order.deliveryDate instanceof Date &&
+                              !isNaN(order.deliveryDate.getTime()) &&
+                              `Delivered: ${order.deliveryDate.toLocaleDateString()}`}
+                            {order.trackingNumber && (
+                              <span className="ml-4">
+                                Tracking: {order.trackingNumber}
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-x-2">
                             <Button
+                              variant="outline"
                               size="sm"
-                              className="bg-yellow-600 hover:bg-yellow-500"
+                              className="border-white/20 text-white hover:bg-white/10"
+                              onClick={() => setSelectedOrder(order)}
                             >
-                              <Star className="w-4 h-4 mr-1" />
-                              Review
+                              View Details
                             </Button>
-                          )}
+                            {order.status === "delivered" && (
+                              <Button
+                                size="sm"
+                                className="bg-yellow-600 hover:bg-yellow-500"
+                              >
+                                <Star className="w-4 h-4 mr-1" />
+                                Review
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Card>
@@ -1035,26 +1261,37 @@ export function MemberArea({
             {/* Saved Configurations Tab */}
             <TabsContent value="configurations" className="space-y-6">
               {loading ? (
-                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-12">
+                <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-12">
                   <div className="text-center">
-                    <Loader2 className="w-12 h-12 text-sky-400 animate-spin mx-auto mb-4" />
-                    <p className="text-gray-400">
+                    <div className="relative inline-block">
+                      <div className="absolute inset-0 bg-sky-500/30 blur-xl rounded-full" />
+                      <Loader2 className="w-12 h-12 text-sky-400 animate-spin mx-auto mb-4 relative" />
+                    </div>
+                    <p className="text-gray-300 font-medium">
                       Loading saved configurations...
                     </p>
                   </div>
                 </Card>
               ) : configurations.length === 0 ? (
-                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-12">
+                <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-12 hover:border-sky-500/30 transition-all duration-500">
                   <div className="text-center">
-                    <Settings className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-2">
+                    <div className="relative inline-block mb-6">
+                      <div className="absolute inset-0 bg-purple-500/20 blur-2xl rounded-full" />
+                      <div className="relative w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center">
+                        <Settings
+                          className="w-10 h-10 text-purple-400 animate-spin"
+                          style={{ animationDuration: "3s" }}
+                        />
+                      </div>
+                    </div>
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-3">
                       No Saved Builds
                     </h3>
-                    <p className="text-gray-400 mb-6">
+                    <p className="text-gray-400 mb-8 text-lg">
                       Save your custom PC configurations in the PC Builder!
                     </p>
                     <Button
-                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                      className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 shadow-lg hover:shadow-sky-500/50 hover:scale-105 transition-all duration-300 h-12 px-8"
                       onClick={() => onNavigate?.("pc-builder")}
                     >
                       Open PC Builder
@@ -1066,64 +1303,84 @@ export function MemberArea({
                   {configurations.map((config) => (
                     <Card
                       key={config.id}
-                      className="bg-white/5 border-white/10 backdrop-blur-xl p-6"
+                      className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-6 hover:shadow-2xl hover:border-purple-500/40 transition-all duration-500 group"
                     >
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-white mb-1">
-                            {config.name}
-                          </h3>
-                          <p className="text-gray-400 text-sm">
-                            Created:{" "}
-                            {config.createdAt &&
-                            config.createdAt instanceof Date &&
-                            !isNaN(config.createdAt.getTime())
-                              ? config.createdAt.toLocaleDateString()
-                              : config.createdAt
-                              ? new Date(config.createdAt).toLocaleDateString()
-                              : "N/A"}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xl font-bold text-green-400">
-                            £{config.totalPrice.toLocaleString()}
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 via-blue-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg" />
+                      <div className="relative">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="text-xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent mb-2">
+                              {config.name}
+                            </h3>
+                            <p className="text-gray-400 text-sm flex items-center gap-2">
+                              <Clock className="w-3 h-3" />
+                              {config.createdAt &&
+                              config.createdAt instanceof Date &&
+                              !isNaN(config.createdAt.getTime())
+                                ? config.createdAt.toLocaleDateString()
+                                : config.createdAt
+                                ? new Date(
+                                    config.createdAt
+                                  ).toLocaleDateString()
+                                : "N/A"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                              £{config.totalPrice.toLocaleString()}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="space-y-2 mb-4">
-                        {Object.entries(config.components || {}).map(
-                          ([key, value]) => (
-                            <div
-                              key={key}
-                              className="flex justify-between text-sm"
-                            >
-                              <span className="text-gray-400 capitalize">
-                                {key}:
-                              </span>
-                              <span className="text-white">
-                                {String(value)}
-                              </span>
-                            </div>
-                          )
-                        )}
-                      </div>
+                        <div className="space-y-2 mb-4 p-4 rounded-lg bg-white/5 border border-white/10">
+                          {Object.entries(config.components || {}).map(
+                            ([key, value]) => (
+                              <div
+                                key={key}
+                                className="flex justify-between text-sm items-center"
+                              >
+                                <span className="text-gray-400 capitalize flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                                  {key}:
+                                </span>
+                                <span className="text-white font-medium truncate ml-4 max-w-[200px]">
+                                  {String(value)}
+                                </span>
+                              </div>
+                            )
+                          )}
+                        </div>
 
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          className="flex-1 bg-blue-600 hover:bg-blue-500"
-                        >
-                          Load in Builder
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                          onClick={() => handleDeleteConfiguration(config.id!)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
+                        <div className="flex space-x-3">
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 h-10 shadow-lg hover:shadow-sky-500/50 hover:scale-105 transition-all duration-300"
+                            onClick={() => {
+                              // Store the configuration in localStorage to be loaded by PCBuilder
+                              localStorage.setItem(
+                                "loadBuildConfig",
+                                JSON.stringify(config)
+                              );
+                              toast.success(
+                                `Loading "${config.name}" in PC Builder...`
+                              );
+                              onNavigate?.("pc-builder");
+                            }}
+                          >
+                            <Settings className="w-4 h-4 mr-2" />
+                            Load in Builder
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-red-500/40 text-red-400 hover:bg-red-500/20 hover:border-red-500/60 h-10 px-4 backdrop-blur-sm transition-all duration-300 hover:scale-105"
+                            onClick={() =>
+                              handleDeleteConfiguration(config.id!)
+                            }
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </Card>
                   ))}
@@ -1290,14 +1547,15 @@ export function MemberArea({
               </div>
 
               {/* Profile Information Card */}
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden">
-                <div className="p-8">
+              <Card className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl hover:shadow-2xl hover:border-white/30 transition-all duration-500 overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-r from-sky-500/5 via-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="p-6 sm:p-8 relative">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center">
-                      <User className="w-5 h-5 text-white" />
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-lg">
+                      <User className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white">
+                      <h3 className="text-xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
                         Personal Information
                       </h3>
                       <p className="text-sm text-gray-400">
@@ -1308,6 +1566,7 @@ export function MemberArea({
 
                   <div className="grid md:grid-cols-2 gap-6">
                     {/* Full Name */}
+                    {/* Email (read-only; use Change Email below) */}
                     <div className="space-y-2">
                       <Label
                         htmlFor="name"
@@ -1335,7 +1594,7 @@ export function MemberArea({
                       />
                     </div>
 
-                    {/* Email */}
+                    {/* Email (read-only; use Change Email below) */}
                     <div className="space-y-2">
                       <Label
                         htmlFor="email"
@@ -1360,20 +1619,15 @@ export function MemberArea({
                         id="email"
                         type="email"
                         value={profileData.email}
-                        onChange={(e) =>
-                          setProfileData((prev) => ({
-                            ...prev,
-                            email: e.target.value,
-                          }))
-                        }
-                        disabled={!editingProfile}
-                        className={`bg-white/5 border-white/10 text-white h-12 rounded-lg transition-all duration-300 ${
-                          editingProfile
-                            ? "focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 hover:border-white/20"
-                            : "opacity-60 cursor-not-allowed"
-                        }`}
+                        readOnly
+                        disabled
+                        className="bg-white/5 border-white/10 text-white h-12 rounded-lg opacity-60 cursor-not-allowed"
                         placeholder="your.email@example.com"
                       />
+                      <div className="text-xs text-gray-400">
+                        To change your sign-in email, use the Change Email
+                        section below.
+                      </div>
                     </div>
 
                     {/* Phone */}
@@ -1530,6 +1784,163 @@ export function MemberArea({
                       </div>
                     </div>
                   )}
+                </div>
+              </Card>
+              {/* Account Security */}
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden">
+                <div className="p-8">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center">
+                      <Settings className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">
+                        Account Security
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        Update your password and sign-in email
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Change Password */}
+                    <div className="space-y-3">
+                      <h4 className="text-white font-semibold">
+                        Change Password
+                      </h4>
+                      <div className="space-y-2">
+                        <Label className="text-gray-300">
+                          Current Password
+                        </Label>
+                        <Input
+                          type="password"
+                          value={pwdCurrent}
+                          onChange={(e) => setPwdCurrent(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gray-300">New Password</Label>
+                        <Input
+                          type="password"
+                          value={pwdNew}
+                          onChange={(e) => setPwdNew(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gray-300">
+                          Confirm New Password
+                        </Label>
+                        <Input
+                          type="password"
+                          value={pwdConfirm}
+                          onChange={(e) => setPwdConfirm(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white"
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <Button
+                          disabled={pwdBusy}
+                          onClick={async () => {
+                            if (!pwdCurrent || !pwdNew || !pwdConfirm) {
+                              alert("Please complete all password fields.");
+                              return;
+                            }
+                            if (pwdNew !== pwdConfirm) {
+                              alert("New passwords do not match.");
+                              return;
+                            }
+                            try {
+                              setPwdBusy(true);
+                              await changeUserPassword(pwdCurrent, pwdNew);
+                              setPwdCurrent("");
+                              setPwdNew("");
+                              setPwdConfirm("");
+                              alert("Password updated successfully.");
+                            } catch (e) {
+                              alert(
+                                e instanceof Error
+                                  ? e.message
+                                  : "Failed to change password"
+                              );
+                            } finally {
+                              setPwdBusy(false);
+                            }
+                          }}
+                          className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                        >
+                          {pwdBusy ? "Updating…" : "Update Password"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Change Email */}
+                    <div className="space-y-3">
+                      <h4 className="text-white font-semibold">Change Email</h4>
+                      <div className="space-y-2">
+                        <Label className="text-gray-300">
+                          New Email Address
+                        </Label>
+                        <Input
+                          type="email"
+                          value={emailNew}
+                          onChange={(e) => setEmailNew(e.target.value)}
+                          placeholder="new.email@example.com"
+                          className="bg-white/5 border-white/10 text-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gray-300">
+                          Current Password
+                        </Label>
+                        <Input
+                          type="password"
+                          value={emailCurrentPwd}
+                          onChange={(e) => setEmailCurrentPwd(e.target.value)}
+                          className="bg-white/5 border-white/10 text-white"
+                        />
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        We’ll send a verification link to your new email. Your
+                        sign-in email updates after you confirm.
+                      </div>
+                      <div className="flex justify-end">
+                        <Button
+                          disabled={emailBusy}
+                          onClick={async () => {
+                            if (!emailNew || !emailCurrentPwd) {
+                              alert(
+                                "Please provide your new email and current password."
+                              );
+                              return;
+                            }
+                            try {
+                              setEmailBusy(true);
+                              await changeUserEmail(emailCurrentPwd, emailNew);
+                              setEmailNew("");
+                              setEmailCurrentPwd("");
+                              alert(
+                                "Verification link sent to your new email."
+                              );
+                            } catch (e) {
+                              alert(
+                                e instanceof Error
+                                  ? e.message
+                                  : "Failed to start email change"
+                              );
+                            } finally {
+                              setEmailBusy(false);
+                            }
+                          }}
+                          className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                        >
+                          {emailBusy ? "Sending…" : "Send Verification"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </Card>
             </TabsContent>
@@ -1934,6 +2345,195 @@ export function MemberArea({
           </Tabs>
         </div>
       </div>
+
+      {/* Order Details Dialog */}
+      <Dialog
+        open={!!selectedOrder}
+        onOpenChange={(open) => !open && setSelectedOrder(null)}
+      >
+        <DialogContent className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border-white/20 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-blue-500 bg-clip-text text-transparent">
+              Order Details
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-6">
+              {/* Order Header */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-400">Order ID</p>
+                  <p className="text-white font-semibold">
+                    {selectedOrder.orderId}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Order Date</p>
+                  <p className="text-white font-semibold">
+                    {selectedOrder.orderDate instanceof Date
+                      ? selectedOrder.orderDate.toLocaleDateString()
+                      : "N/A"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Status and Total */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-400">Status</p>
+                  <Badge
+                    className={`mt-1 ${
+                      selectedOrder.status === "delivered"
+                        ? "bg-green-500/20 border-green-500/40 text-green-400"
+                        : selectedOrder.status === "building"
+                        ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-400"
+                        : selectedOrder.status === "pending"
+                        ? "bg-blue-500/20 border-blue-500/40 text-blue-400"
+                        : "bg-gray-500/20 border-gray-500/40 text-gray-400"
+                    }`}
+                  >
+                    {selectedOrder.status}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Total Amount</p>
+                  <p className="text-green-400 font-bold text-xl">
+                    £{selectedOrder.total.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Build Progress */}
+              {selectedOrder.progress !== undefined && (
+                <div>
+                  <p className="text-sm text-gray-400 mb-2">Build Progress</p>
+                  <Progress value={selectedOrder.progress} className="h-3" />
+                  <p className="text-sm text-gray-400 mt-1">
+                    {selectedOrder.progress}% Complete
+                  </p>
+                </div>
+              )}
+
+              {/* Items */}
+              <div>
+                <p className="text-sm text-gray-400 mb-3">Order Items</p>
+                <div className="space-y-2">
+                  {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                    selectedOrder.items.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-center bg-white/5 border border-white/10 rounded-lg p-3"
+                      >
+                        <div>
+                          <p className="text-white font-medium">
+                            {item.productName}
+                          </p>
+                          <p className="text-sm text-gray-400">
+                            Quantity: {item.quantity}
+                          </p>
+                        </div>
+                        <p className="text-white font-semibold">
+                          £{(item.price * item.quantity).toLocaleString()}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-400">No items</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Shipping Address */}
+              {selectedOrder.address && (
+                <div>
+                  <p className="text-sm text-gray-400 mb-2">Shipping Address</p>
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                    <p className="text-white">{selectedOrder.address.line1}</p>
+                    {selectedOrder.address.line2 && (
+                      <p className="text-white">
+                        {selectedOrder.address.line2}
+                      </p>
+                    )}
+                    <p className="text-white">
+                      {selectedOrder.address.city},{" "}
+                      {selectedOrder.address.postcode}
+                    </p>
+                    <p className="text-white">
+                      {selectedOrder.address.country}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Tracking Number */}
+              {selectedOrder.trackingNumber && (
+                <div>
+                  <p className="text-sm text-gray-400 mb-2">Tracking Number</p>
+                  <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sky-400 font-mono">
+                        {selectedOrder.trackingNumber}
+                      </p>
+                      <Truck className="w-5 h-5 text-sky-400" />
+                    </div>
+                    {selectedOrder.courier && (
+                      <p className="text-xs text-gray-400">
+                        Courier:{" "}
+                        <span className="text-gray-300">
+                          {selectedOrder.courier}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Build Updates */}
+              {selectedOrder.buildUpdates &&
+                selectedOrder.buildUpdates.length > 0 && (
+                  <div>
+                    <p className="text-sm text-gray-400 mb-3">Build Updates</p>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {selectedOrder.buildUpdates.map((update, index) => (
+                        <div
+                          key={index}
+                          className="bg-white/5 border border-white/10 rounded-lg p-3"
+                        >
+                          <div className="flex items-start justify-between mb-1">
+                            <p className="text-sm text-gray-400">
+                              {update.timestamp
+                                ? toDateMaybe(
+                                    update.timestamp
+                                  )?.toLocaleDateString()
+                                : "N/A"}
+                            </p>
+                            {update.progress !== undefined && (
+                              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                                {update.progress}%
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-white">{update.note}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* Close Button */}
+              <div className="flex justify-end pt-4 border-t border-white/10">
+                <Button
+                  onClick={() => setSelectedOrder(null)}
+                  className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

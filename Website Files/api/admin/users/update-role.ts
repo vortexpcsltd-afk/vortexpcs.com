@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { ApiError } from "../../../types/api";
 
 // Lazy import to avoid cold-start overhead when not needed
 let admin: typeof import("firebase-admin") | null = null;
@@ -89,13 +90,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Update Firestore profile role
-    await db
-      .collection("users")
-      .doc(userId)
-      .update({
-        role: normalizedRole,
-        updatedAt: adm.firestore.FieldValue.serverTimestamp(),
-      });
+    await db.collection("users").doc(userId).update({
+      role: normalizedRole,
+      updatedAt: adm.firestore.FieldValue.serverTimestamp(),
+    });
 
     // Optionally, set custom claims (not strictly required by this app, which relies on Firestore role)
     // await adm.auth().setCustomUserClaims(userId, { role: normalizedRole });
@@ -109,13 +107,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         performedBy: callerUid,
         performedAt: adm.firestore.FieldValue.serverTimestamp(),
       });
-    } catch {}
+    } catch (auditError) {
+      console.warn("update-role audit log failed:", auditError);
+    }
 
     return res.status(200).json({ success: true });
-  } catch (error: any) {
-    console.error("update-role error:", error);
+  } catch (error: unknown) {
+    const err = error as ApiError;
+    console.error("update-role error:", err);
     return res
       .status(500)
-      .json({ message: error.message || "Internal Server Error" });
+      .json({ message: err.message || "Internal Server Error" });
   }
 }

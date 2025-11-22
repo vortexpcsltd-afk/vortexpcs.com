@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
+import { getSmtpConfig } from "../services/smtp.js";
 
 interface Component {
   id: string;
@@ -64,12 +65,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .json({ error: "Missing required customer information" });
     }
 
-    // Load SMTP configuration from environment
-    const smtpHost = process.env.VITE_SMTP_HOST;
-    const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "587", 10);
-    const smtpSecure = process.env.VITE_SMTP_SECURE === "true";
-    const smtpUser = process.env.VITE_SMTP_USER;
-    const smtpPass = process.env.VITE_SMTP_PASS;
+    // Load SMTP configuration via centralized helper
+    const {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      user: smtpUser,
+      pass: smtpPass,
+      warning,
+    } = getSmtpConfig(req);
     const businessEmail =
       process.env.VITE_BUSINESS_EMAIL || "sales@vortexpcs.com";
 
@@ -93,11 +97,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       secure: smtpSecure,
       auth: { user: smtpUser, pass: smtpPass },
     });
+    if (warning) {
+      console.warn("SMTP host normalized:", warning);
+    }
 
     // Verify connection
     try {
       await transporter.verify();
-    } catch (verifyError: any) {
+    } catch (verifyError: unknown) {
       console.error("SMTP verify failed:", verifyError);
       return res.status(500).json({
         error: "SMTP connection test failed",
@@ -485,6 +492,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             <div class="container">
               <div class="header">
                 <div class="badge">✨ ENTHUSIAST BUILDER</div>
+                <img src="https://vortexpcs.com/vortexpcs-logo.png" alt="Vortex PCs" style="max-width:160px;height:auto;display:block;margin:0 auto 14px;" />
                 <h1>Quote Request Received</h1>
               </div>
               <div class="content">
@@ -562,7 +570,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       success: true,
       message: "Quote request submitted successfully",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Enthusiast quote submission error:", error);
     return res.status(500).json({
       error: "Failed to submit quote request",

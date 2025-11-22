@@ -6,13 +6,13 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/((?!api/|assets/|manifest\\.json|robots\\.txt|favicon\\.ico|sitemap\\.xml|version\\.json|sw\\.js|vortexpcs-logo\\.png|_vercel/).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
     {
-      "source": "/assets/(.*)",
+      "source": "/manifest.json",
       "headers": [
         {
           "key": "Cache-Control",
@@ -25,15 +25,19 @@
       ]
     },
     {
-      "source": "/(.*)",
+      "source": "/manifest.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=600" },
+        { "key": "Content-Type", "value": "application/manifest+json" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
+          "value": "no-store"
         }
       ]
     },
@@ -76,6 +80,10 @@
         {
           "key": "Permissions-Policy",
           "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; img-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline'; font-src 'self' https: data:; connect-src 'self' https:; frame-src 'self' https://js.stripe.com https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'"
         }
       ]
     },

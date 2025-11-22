@@ -32,6 +32,7 @@ export function Footer({ onNavigate }: FooterProps) {
     null
   );
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -41,6 +42,16 @@ export function Footer({ onNavigate }: FooterProps) {
       ]);
       setContactInfo(ci);
       setSettings(s);
+
+      try {
+        const res = await fetch("/version.json", { cache: "no-store" });
+        if (res.ok) {
+          const data = (await res.json()) as { version?: string };
+          if (data?.version) setAppVersion(String(data.version));
+        }
+      } catch {
+        // ignore version fetch errors
+      }
     };
     load();
   }, []);
@@ -50,8 +61,6 @@ export function Footer({ onNavigate }: FooterProps) {
     { label: "Custom PC Builder", view: "pc-builder" },
     { label: "3D Builder", view: "visual-configurator" },
     { label: "Business Solutions", view: "business-solutions" },
-    { label: "Gaming PCs", view: "home" },
-    { label: "Workstation PCs", view: "home" },
   ];
 
   const supportLinks = [
@@ -444,7 +453,14 @@ export function Footer({ onNavigate }: FooterProps) {
                 </p>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                {appVersion && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-500/10 backdrop-blur-xl border border-sky-500/30 rounded-full">
+                    <span className="text-xs text-sky-400 font-medium">
+                      v{appVersion}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-3 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full">
                   <span className="text-xs text-gray-400">
                     Designed & Built in the UK

@@ -1,11 +1,14 @@
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useRef, memo, useMemo, useCallback } from "react";
 import { buildFullShareUrl, decodeFullBuild } from "../services/buildSharing";
 import { toast } from "sonner";
 import { logger } from "../services/logger";
 import { ComponentErrorBoundary } from "./ErrorBoundary";
+import { saveConfiguration } from "../services/database";
+import { useAuth } from "../contexts/AuthContext";
 import { ProductComparison } from "./ProductComparison";
 import { BuildsCompletedToday, SocialProof } from "./SocialProof";
-import { View3DButton } from "./AR3DViewer";
+// 3D viewer temporarily disabled
+import { getSessionId, trackClick } from "../services/sessionTracker";
 
 // --- Typed Interfaces to replace implicit any usage ---
 export interface PCBuilderComponent {
@@ -107,6 +110,7 @@ export interface ComponentDataMap {
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { Input } from "./ui/input";
 import { ProgressiveImage } from "./ProgressiveImage";
 import {
   fetchPCComponents,
@@ -136,6 +140,17 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { Separator } from "./ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+  SheetClose,
+} from "./ui/sheet";
+import { Slider } from "./ui/slider";
+import { Checkbox } from "./ui/checkbox";
 import { EnthusiastBuilder } from "./EnthusiastBuilder";
 import { BuildComparisonModal, type SavedBuild } from "./BuildComparisonModal";
 import {
@@ -187,9 +202,49 @@ import {
   X,
   TrendingUp,
   Building2,
+  Shield,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ProductSchema } from "./seo/ProductSchema";
+
+// Category-specific simple filters (options and ranges)
+const CATEGORY_OPTION_FILTERS: Record<
+  string,
+  { key: string; label: string }[]
+> = {
+  cpu: [{ key: "socket", label: "Socket" }],
+  motherboard: [
+    { key: "socket", label: "Socket" },
+    { key: "formFactor", label: "Form Factor" },
+  ],
+  ram: [{ key: "type", label: "Type" }],
+  storage: [{ key: "type", label: "Type" }],
+  psu: [
+    { key: "efficiency", label: "Efficiency" },
+    { key: "modular", label: "Modular" },
+  ],
+  cooling: [{ key: "type", label: "Type" }],
+  case: [{ key: "formFactor", label: "Form Factor" }],
+};
+
+const CATEGORY_RANGE_FILTERS: Record<string, { key: string; label: string }[]> =
+  {
+    gpu: [{ key: "vram", label: "VRAM (GB)" }],
+    psu: [{ key: "wattage", label: "Wattage" }],
+    ram: [
+      { key: "capacity", label: "Capacity (GB)" },
+      { key: "speed", label: "Speed (MHz)" },
+    ],
+    storage: [{ key: "capacity", label: "Capacity (GB)" }],
+    cpu: [
+      { key: "cores", label: "Cores" },
+      { key: "tdp", label: "TDP (W)" },
+    ],
+    cooling: [
+      { key: "height", label: "Height (mm)" },
+      { key: "radiatorSize", label: "Radiator (mm)" },
+    ],
+  };
 
 // Dark themed placeholder image
 const PLACEHOLDER_IMAGE =
@@ -1329,8 +1384,8 @@ const ComponentDetailModal = ({
                     {component.inStock !== false &&
                     (component.stockLevel ?? 0) > 0
                       ? (component.stockLevel ?? 0) <= 5
-                        ? `Low Stock (${component.stockLevel})`
-                        : `✓ In Stock (${component.stockLevel ?? "∞"})`
+                        ? "Low Stock"
+                        : "✓ In Stock"
                       : "Out of Stock"}
                   </Badge>
                 </div>
@@ -1354,6 +1409,20 @@ const ComponentDetailModal = ({
                     {component.brand}
                   </Badge>
                 )}
+                <Button
+                  onClick={() => {
+                    onSelect(category, component.id);
+                    onClose();
+                  }}
+                  className={`w-full mt-4 h-11 ${
+                    isSelected
+                      ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
+                      : "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                  }`}
+                >
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  {isSelected ? "Selected" : "Select Component"}
+                </Button>
               </div>
             </div>
 
@@ -1395,7 +1464,57 @@ const ComponentDetailModal = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-sky-500/50"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Track tech sheet download
+                      console.log("[PCBuilder] Tech sheet download clicked", {
+                        component: component.name,
+                        category,
+                      });
+                      try {
+                        const sessionId =
+                          sessionStorage.getItem("vortex_session_id") ||
+                          getSessionId() ||
+                          "unknown";
+                        const eventPayload = {
+                          kind: "event",
+                          payload: {
+                            sessionId,
+                            eventType: "download",
+                            eventData: {
+                              componentType: category,
+                              componentName: component.name,
+                              componentId: component.id,
+                              url: component.techSheet,
+                              kind: "tech_sheet",
+                            },
+                            timestamp: new Date().toISOString(),
+                            page: window.location.pathname,
+                          },
+                        };
+                        const data = JSON.stringify(eventPayload);
+                        if (navigator.sendBeacon) {
+                          const ok = navigator.sendBeacon(
+                            "/api/analytics/track",
+                            data
+                          );
+                          if (!ok) throw new Error("sendBeacon failed");
+                        } else {
+                          void fetch("/api/analytics/track", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: data,
+                            keepalive: true,
+                            cache: "no-store",
+                          });
+                        }
+                      } catch (err) {
+                        console.warn(
+                          "[PCBuilder] Fallback analytics tracking failed",
+                          err
+                        );
+                      }
+                    }}
                   >
                     <Download className="w-4 h-4" />
                     Download Full Tech Sheet
@@ -1818,7 +1937,59 @@ const OptionalExtraDetailModal = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-semibold transition-all duration-200 shadow-lg hover:shadow-green-500/50"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Track tech sheet download
+                        console.log(
+                          "[PCBuilder] Extras tech sheet download clicked",
+                          {
+                            extra: extra.name,
+                          }
+                        );
+                        try {
+                          const sessionId =
+                            sessionStorage.getItem("vortex_session_id") ||
+                            getSessionId() ||
+                            "unknown";
+                          const eventPayload = {
+                            kind: "event",
+                            payload: {
+                              sessionId,
+                              eventType: "download",
+                              eventData: {
+                                componentType: "extras",
+                                componentName: extra.name,
+                                componentId: extra.id,
+                                url: extra.techSheet,
+                                kind: "tech_sheet",
+                              },
+                              timestamp: new Date().toISOString(),
+                              page: window.location.pathname,
+                            },
+                          };
+                          const data = JSON.stringify(eventPayload);
+                          if (navigator.sendBeacon) {
+                            const ok = navigator.sendBeacon(
+                              "/api/analytics/track",
+                              data
+                            );
+                            if (!ok) throw new Error("sendBeacon failed");
+                          } else {
+                            void fetch("/api/analytics/track", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: data,
+                              keepalive: true,
+                              cache: "no-store",
+                            });
+                          }
+                        } catch (err) {
+                          console.warn(
+                            "[PCBuilder] Fallback analytics tracking failed",
+                            err
+                          );
+                        }
+                      }}
                     >
                       <Download className="w-4 h-4" />
                       Download Full Tech Sheet
@@ -1954,7 +2125,23 @@ const ComponentCard = ({
               ? "ring-2 ring-sky-500 bg-sky-500/10 border-sky-500/50"
               : "bg-white/5 border-white/10 hover:bg-white/10"
           }`}
-          onClick={() => setShowDetailModal(true)}
+          onClick={() => {
+            // Track product modal view
+            const userId = sessionStorage.getItem("vortex_user_id");
+            trackClick(
+              "product_view",
+              {
+                productId: component.id,
+                productName: component.name,
+                category: category,
+                price: component.price,
+                brand: component.brand,
+                viewMode: "list",
+              },
+              userId || undefined
+            );
+            setShowDetailModal(true);
+          }}
         >
           {/* Featured Tag */}
           {component.featured && (
@@ -2170,7 +2357,23 @@ const ComponentCard = ({
             ? "ring-2 ring-sky-500 bg-sky-500/10 border-sky-500/50"
             : "bg-white/5 border-white/10 hover:bg-white/10"
         }`}
-        onClick={() => setShowDetailModal(true)}
+        onClick={() => {
+          // Track product modal view
+          const userId = sessionStorage.getItem("vortex_user_id");
+          trackClick(
+            "product_view",
+            {
+              productId: component.id,
+              productName: component.name,
+              category: category,
+              price: component.price,
+              brand: component.brand,
+              viewMode: "grid",
+            },
+            userId || undefined
+          );
+          setShowDetailModal(true);
+        }}
       >
         {/* Featured Tag */}
         {component.featured && (
@@ -2307,23 +2510,7 @@ const ComponentCard = ({
               )}
             </div>
 
-            {/* 3D Viewer Button (for PC cases only) */}
-            {category === "case" && (
-              <div className="mt-3">
-                <View3DButton
-                  productName={component.name ?? "PC Case"}
-                  caseType={
-                    component.formFactor?.toLowerCase().includes("mini")
-                      ? "mini-itx"
-                      : component.formFactor?.toLowerCase().includes("full")
-                      ? "full-tower"
-                      : "mid-tower"
-                  }
-                  color="#1e293b"
-                  className="w-full"
-                />
-              </div>
-            )}
+            {/* 3D Viewer temporarily disabled */}
 
             {/* Price */}
             <div className="flex justify-between items-center pt-2">
@@ -2392,6 +2579,33 @@ const CompatibilityAlert = ({
         </AlertDialogHeader>
 
         <div className="space-y-4 max-h-96 overflow-y-auto">
+          {/* Track compatibility warnings when dialog shows */}
+          {(() => {
+            try {
+              if (compatibilityIssues.length > 0) {
+                const userId = sessionStorage.getItem("vortex_user_id");
+                const titles = Array.from(
+                  new Set(compatibilityIssues.map((i) => i.title))
+                );
+                const severities = compatibilityIssues.reduce(
+                  (acc: Record<string, number>, i) => {
+                    acc[i.severity] = (acc[i.severity] || 0) + 1;
+                    return acc;
+                  },
+                  {}
+                );
+                trackClick(
+                  "compatibility_warning",
+                  { titles, severities },
+                  userId || undefined
+                );
+              }
+            } catch {
+              // best-effort analytics
+            }
+            return null;
+          })()}
+
           {compatibilityIssues.map(
             (issue: CompatibilityIssue, index: number) => {
               const Icon =
@@ -2770,6 +2984,28 @@ const componentData = {
 
 // Optional peripherals data
 const peripheralsData = {
+  software: [
+    {
+      id: "os-win11-home",
+      name: "Windows 11 Home",
+      price: 119.99,
+      type: "Operating System",
+      description:
+        "Genuine Microsoft Windows 11 Home 64-bit, pre-installed and activated",
+      images: Array(4).fill(PLACEHOLDER_IMAGE),
+      rating: 4.8,
+    },
+    {
+      id: "os-win11-pro",
+      name: "Windows 11 Pro",
+      price: 189.99,
+      type: "Operating System",
+      description:
+        "Windows 11 Pro 64-bit with BitLocker, Remote Desktop, and business features",
+      images: Array(4).fill(PLACEHOLDER_IMAGE),
+      rating: 4.9,
+    },
+  ],
   keyboard: [
     {
       id: "kb-1",
@@ -3085,7 +3321,24 @@ const PeripheralCard = ({
               ? "ring-2 ring-green-500 bg-green-500/10 border-green-500/50"
               : "bg-white/5 border-white/10 hover:bg-white/10"
           }`}
-          onClick={() => setShowDetailModal(true)}
+          onClick={() => {
+            // Track peripheral modal view
+            const userId = sessionStorage.getItem("vortex_user_id");
+            trackClick(
+              "product_view",
+              {
+                productId: peripheral.id,
+                productName: peripheral.name,
+                category: category,
+                price: peripheral.price,
+                type: peripheral.type,
+                productType: "peripheral",
+                viewMode: "list",
+              },
+              userId || undefined
+            );
+            setShowDetailModal(true);
+          }}
         >
           {/* Featured Tag */}
           {peripheral.featured && (
@@ -3228,7 +3481,24 @@ const PeripheralCard = ({
             ? "ring-2 ring-green-500 bg-green-500/10 border-green-500/50"
             : "bg-white/5 border-white/10 hover:bg-white/10"
         }`}
-        onClick={() => setShowDetailModal(true)}
+        onClick={() => {
+          // Track peripheral modal view
+          const userId = sessionStorage.getItem("vortex_user_id");
+          trackClick(
+            "product_view",
+            {
+              productId: peripheral.id,
+              productName: peripheral.name,
+              category: category,
+              price: peripheral.price,
+              type: peripheral.type,
+              productType: "peripheral",
+              viewMode: "grid",
+            },
+            userId || undefined
+          );
+          setShowDetailModal(true);
+        }}
       >
         {/* Featured Tag */}
         {peripheral.featured && (
@@ -3631,6 +3901,7 @@ export function PCBuilder({
   onAddToCart?: (item: PCBuilderComponent) => void;
   onOpenCart?: () => void;
 }) {
+  const { user } = useAuth();
   const [selectedComponents, setSelectedComponents] =
     useState<SelectedComponentIds>({});
   const [selectedPeripherals, setSelectedPeripherals] = useState<
@@ -3658,6 +3929,17 @@ export function PCBuilder({
   const [compareProducts, setCompareProducts] = useState<PCComponent[]>([]);
   const [showProductComparison, setShowProductComparison] = useState(false);
 
+  // User-driven filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 0]);
+  const [optionFilters, setOptionFilters] = useState<Record<string, string[]>>(
+    {}
+  );
+  const [rangeFilters, setRangeFilters] = useState<
+    Record<string, [number, number]>
+  >({});
+
   // CMS Integration
   const [cmsComponents, setCmsComponents] = useState<{
     case: PCComponent[];
@@ -3684,12 +3966,14 @@ export function PCBuilder({
     monitor: PCOptionalExtra[];
     gamepad: PCOptionalExtra[];
     mousepad: PCOptionalExtra[];
+    software: PCOptionalExtra[];
   }>({
     keyboard: [],
     mouse: [],
     monitor: [],
     gamepad: [],
     mousepad: [],
+    software: [],
   });
   const [isLoadingCms, setIsLoadingCms] = useState(true);
   const [useCmsData, setUseCmsData] = useState(false);
@@ -3821,6 +4105,7 @@ export function PCBuilder({
           "monitor",
           "gamepad",
           "mousepad",
+          "software",
         ];
 
         interface LoadedExtrasMap {
@@ -3829,6 +4114,7 @@ export function PCBuilder({
           monitor: PCOptionalExtra[];
           gamepad: PCOptionalExtra[];
           mousepad: PCOptionalExtra[];
+          software: PCOptionalExtra[];
         }
         const extraResults: LoadedExtrasMap = {
           keyboard: [],
@@ -3836,9 +4122,16 @@ export function PCBuilder({
           monitor: [],
           gamepad: [],
           mousepad: [],
+          software: [],
         };
         for (const category of extraCategories) {
-          const extras = await fetchPCOptionalExtras({ category });
+          let extras = await fetchPCOptionalExtras({ category });
+          if (category === "software") {
+            // Ensure Windows options appear if CMS returns none
+            if (!Array.isArray(extras) || extras.length === 0) {
+              extras = peripheralsData.software as unknown as PCOptionalExtra[];
+            }
+          }
           extraResults[category] = extras;
           logger.debug(
             `✅ Loaded ${extras.length} ${category} optional extras`
@@ -4084,6 +4377,65 @@ export function PCBuilder({
               if (first) setActiveCategory(first as CategoryKey);
               sessionStorage.removeItem("visual_configurator_build"); // Clear after successful import
             }
+          } catch (error) {
+            logger.error("Failed to parse Visual Configurator build:", error);
+          }
+        }
+
+        // Load saved build from Member Area
+        const savedBuildConfig = localStorage.getItem("loadBuildConfig");
+        if (savedBuildConfig && hasComponents) {
+          try {
+            const buildConfig = JSON.parse(savedBuildConfig);
+            logger.debug("Loading saved build from Member Area", {
+              buildConfig,
+            });
+
+            const autoSelected: SelectedComponentIds = {};
+
+            // Map saved configuration components to builder
+            if (buildConfig.components) {
+              const comps = buildConfig.components;
+              if (comps.case) autoSelected.case = comps.case;
+              if (comps.motherboard)
+                autoSelected.motherboard = comps.motherboard;
+              if (comps.cpu) autoSelected.cpu = comps.cpu;
+              if (comps.ram) autoSelected.ram = comps.ram;
+              if (comps.gpu) autoSelected.gpu = comps.gpu;
+              if (comps.storage) autoSelected.storage = comps.storage;
+              if (comps.psu) autoSelected.psu = comps.psu;
+              if (comps.cooling) autoSelected.cooling = comps.cooling;
+              if (comps.caseFans) autoSelected.caseFans = comps.caseFans;
+
+              // Load peripherals if they exist
+              if (comps.peripherals) {
+                setSelectedPeripherals(comps.peripherals);
+              }
+            }
+
+            if (Object.keys(autoSelected).length > 0) {
+              logger.debug("Auto-selected components from saved build", {
+                autoSelected,
+              });
+              setSelectedComponents(autoSelected);
+              // Focus the first selected category
+              const order = [
+                "case",
+                "motherboard",
+                "cpu",
+                "ram",
+                "gpu",
+                "storage",
+                "psu",
+                "cooling",
+              ];
+              const first = order.find((k) =>
+                Object.prototype.hasOwnProperty.call(autoSelected, k)
+              );
+              if (first) setActiveCategory(first as CategoryKey);
+              toast.success(`Build "${buildConfig.name}" loaded successfully!`);
+            }
+            localStorage.removeItem("loadBuildConfig"); // Clear after successful import
           } catch (e) {
             logger.warn("Failed to auto-import Visual Configurator build", {
               error: e instanceof Error ? e.message : String(e),
@@ -4472,7 +4824,7 @@ export function PCBuilder({
   }, [savedBuildsForComparison]);
 
   // Add current build to comparison
-  const handleSaveForComparison = () => {
+  const handleSaveForComparison = async () => {
     if (getSelectedComponentsCount() === 0) {
       toast.warning("Add some components before saving for comparison");
       return;
@@ -4484,17 +4836,63 @@ export function PCBuilder({
     }
 
     const buildName = `Build ${savedBuildsForComparison.length + 1}`;
+    const buildTotalPrice = getTotalPrice();
     const newBuild: SavedBuild = {
       id: Date.now().toString(),
       name: buildName,
       timestamp: Date.now(),
       components: { ...selectedComponents },
       peripherals: { ...selectedPeripherals },
-      totalPrice: getTotalPrice(),
+      totalPrice: buildTotalPrice,
     };
 
     setSavedBuildsForComparison((prev) => [...prev, newBuild]);
-    toast.success(`"${buildName}" saved for comparison`);
+
+    // Track build save
+    try {
+      const userId = sessionStorage.getItem("vortex_user_id");
+      trackClick(
+        "build_saved",
+        {
+          buildName,
+          totalPrice: buildTotalPrice,
+          componentsCount: Object.keys(selectedComponents).length,
+          peripheralsCount: Object.keys(selectedPeripherals).length,
+          savedToAccount: !!user,
+          savedForComparison: true,
+        },
+        userId || undefined
+      );
+    } catch (err) {
+      logger.error("Failed to track build save", err);
+    }
+
+    // Save to Firebase if user is logged in
+    if (user) {
+      try {
+        const configData = {
+          userId: user.uid,
+          name: buildName,
+          components: {
+            ...selectedComponents,
+            peripherals: selectedPeripherals,
+          },
+          totalPrice: buildTotalPrice,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        await saveConfiguration(configData);
+        toast.success(`"${buildName}" saved to your account`);
+      } catch (error) {
+        logger.error("Failed to save build to account:", error);
+        toast.error("Failed to save to account, but added for comparison");
+      }
+    } else {
+      toast.success(
+        `"${buildName}" saved for comparison (login to save permanently)`
+      );
+    }
   };
 
   // Remove build from comparison
@@ -4527,6 +4925,189 @@ export function PCBuilder({
     const issues = checkCompatibility(selectedComponents, activeComponentData);
     setCompatibilityIssues(issues);
   }, [selectedComponents, activeComponentData]);
+
+  // Derived lists and filter option sources for active category
+  const activeList = useMemo(
+    () =>
+      ((activeComponentData as ComponentDataMap)[
+        activeCategory as keyof ComponentDataMap
+      ] || []) as PCBuilderComponent[],
+    [activeComponentData, activeCategory]
+  );
+
+  const brandOptions = useMemo(() => {
+    const set = new Set<string>();
+    activeList.forEach((c) => {
+      if (c.brand && typeof c.brand === "string") set.add(c.brand);
+    });
+    return Array.from(set).sort();
+  }, [activeList]);
+
+  const priceMin = useMemo(() => {
+    const prices = activeList
+      .map((c) => (typeof c.price === "number" ? c.price : undefined))
+      .filter((n): n is number => typeof n === "number");
+    return prices.length ? Math.max(0, Math.floor(Math.min(...prices))) : 0;
+  }, [activeList]);
+
+  const priceMax = useMemo(() => {
+    const prices = activeList
+      .map((c) => (typeof c.price === "number" ? c.price : undefined))
+      .filter((n): n is number => typeof n === "number");
+    return prices.length ? Math.ceil(Math.max(...prices)) : 0;
+  }, [activeList]);
+
+  // Safe key accessor to avoid any (hoisted declaration)
+  function getVal(obj: unknown, key: string): unknown {
+    if (
+      obj &&
+      typeof obj === "object" &&
+      key in (obj as Record<string, unknown>)
+    ) {
+      return (obj as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }
+
+  // Compute option values per current category
+  const optionFilterValues = useMemo(() => {
+    const defs = CATEGORY_OPTION_FILTERS[activeCategory] || [];
+    const result: Record<string, string[]> = {};
+    defs.forEach((def) => {
+      const set = new Set<string>();
+      activeList.forEach((c) => {
+        const raw = getVal(c, def.key);
+        if (raw === undefined || raw === null) return;
+        if (Array.isArray(raw)) {
+          raw.forEach((v) => typeof v === "string" && set.add(v));
+        } else if (typeof raw === "boolean") {
+          set.add(raw ? "Yes" : "No");
+        } else if (typeof raw === "string") {
+          if (raw.trim()) set.add(raw);
+        }
+      });
+      result[def.key] = Array.from(set).sort();
+    });
+    return result;
+  }, [activeCategory, activeList]);
+
+  // Compute numeric ranges for range filters per category
+  const rangeFilterBounds = useMemo(() => {
+    const defs = CATEGORY_RANGE_FILTERS[activeCategory] || [];
+    const result: Record<string, { min: number; max: number }> = {};
+    defs.forEach((def) => {
+      const nums = activeList
+        .map((c) => Number(getVal(c, def.key)))
+        .filter((n) => !Number.isNaN(n));
+      if (nums.length) {
+        result[def.key] = {
+          min: Math.floor(Math.min(...nums)),
+          max: Math.ceil(Math.max(...nums)),
+        };
+      }
+    });
+    return result;
+  }, [activeCategory, activeList]);
+
+  // Reset filters when category changes
+  useEffect(() => {
+    setSelectedBrands([]);
+    setSearchQuery("");
+    setOptionFilters({});
+    setRangeFilters({});
+  }, [activeCategory]);
+
+  // Reset price range to current bounds
+  useEffect(() => {
+    setPriceRange([priceMin, priceMax]);
+  }, [priceMin, priceMax, activeCategory]);
+
+  const appliedFiltersCount = useMemo(() => {
+    let count = 0;
+    if (searchQuery.trim()) count += 1;
+    count += selectedBrands.length;
+    if (priceMax > 0 && (priceRange[0] > priceMin || priceRange[1] < priceMax))
+      count += 1;
+    Object.values(optionFilters).forEach((arr) => (count += arr?.length || 0));
+    Object.entries(rangeFilters).forEach(([key, range]) => {
+      const bounds = rangeFilterBounds[key];
+      if (!bounds) return;
+      if (range[0] > bounds.min || range[1] < bounds.max) count += 1;
+    });
+    return count;
+  }, [
+    searchQuery,
+    selectedBrands,
+    priceRange,
+    priceMin,
+    priceMax,
+    optionFilters,
+    rangeFilters,
+    rangeFilterBounds,
+  ]);
+
+  const applyUserFilters = useCallback(
+    (list: AnyComponent[]) => {
+      const lowerQuery = searchQuery.trim().toLowerCase();
+      const brandSet = new Set(selectedBrands);
+      return (list as PCBuilderComponent[]).filter((c) => {
+        // Search
+        if (lowerQuery) {
+          const hay = `${c.name ?? ""} ${c.model ?? ""} ${
+            c.description ?? c.mainDescription ?? ""
+          }`.toLowerCase();
+          if (!hay.includes(lowerQuery)) return false;
+        }
+
+        // Brand
+        if (brandSet.size > 0) {
+          if (!c.brand || !brandSet.has(c.brand)) return false;
+        }
+
+        // Price
+        if (priceMax > 0 && typeof c.price === "number") {
+          if (c.price < priceRange[0] || c.price > priceRange[1]) return false;
+        }
+
+        // Option filters
+        for (const [key, values] of Object.entries(optionFilters)) {
+          if (!values || values.length === 0) continue;
+          const raw = getVal(c, key);
+          if (raw === undefined || raw === null) return false;
+          if (Array.isArray(raw)) {
+            const match = raw.some(
+              (v) => typeof v === "string" && values.includes(v)
+            );
+            if (!match) return false;
+          } else if (typeof raw === "boolean") {
+            const label = raw ? "Yes" : "No";
+            if (!values.includes(label)) return false;
+          } else if (typeof raw === "string" || typeof raw === "number") {
+            if (!values.includes(String(raw))) return false;
+          } else {
+            return false;
+          }
+        }
+
+        // Range filters
+        for (const [key, range] of Object.entries(rangeFilters)) {
+          const val = Number(getVal(c, key));
+          if (Number.isNaN(val)) return false;
+          if (val < range[0] || val > range[1]) return false;
+        }
+
+        return true;
+      });
+    },
+    [
+      searchQuery,
+      selectedBrands,
+      priceMax,
+      priceRange,
+      optionFilters,
+      rangeFilters,
+    ]
+  );
 
   const categories = [
     {
@@ -4590,12 +5171,37 @@ export function PCBuilder({
       ...prev,
       [category]: componentId,
     }));
+    try {
+      const userId = sessionStorage.getItem("vortex_user_id");
+      if (componentId) {
+        trackClick(
+          "component_select",
+          { category, componentId },
+          userId || undefined
+        );
+      } else {
+        trackClick("component_remove", { category }, userId || undefined);
+      }
+    } catch {
+      // best-effort analytics
+    }
   };
 
   const handleClearBuild = () => {
     setSelectedComponents({});
     setSelectedPeripherals({});
     setCompatibilityIssues([]);
+    try {
+      // Also clear any persisted recommendations/imports that would auto-restore the build
+      sessionStorage.removeItem("finder_parts_pending");
+      sessionStorage.removeItem("visual_configurator_build");
+      localStorage.removeItem("pcfinder_recommendation");
+      logger.debug("🧹 Cleared build and related persisted recommendations");
+    } catch (e) {
+      logger.warn("Failed to clear persisted recommendation state", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   };
 
   const getTotalPrice = () => {
@@ -4643,6 +5249,16 @@ export function PCBuilder({
 
       if (isSelected) {
         // Remove the peripheral
+        try {
+          const userId = sessionStorage.getItem("vortex_user_id");
+          trackClick(
+            "peripheral_toggle",
+            { category, peripheralId, action: "remove" },
+            userId || undefined
+          );
+        } catch {
+          // best-effort analytics
+        }
         return {
           ...prev,
           [category]: Array.isArray(currentItems)
@@ -4651,6 +5267,16 @@ export function PCBuilder({
         };
       } else {
         // Add the peripheral
+        try {
+          const userId = sessionStorage.getItem("vortex_user_id");
+          trackClick(
+            "peripheral_toggle",
+            { category, peripheralId, action: "add" },
+            userId || undefined
+          );
+        } catch {
+          // best-effort analytics
+        }
         return {
           ...prev,
           [category]: [...currentItems, peripheralId],
@@ -4824,11 +5450,25 @@ export function PCBuilder({
           logger.warn(`Component not found: ${category} - ${componentId}`);
           return null;
         }
-
+        // Include id for downstream order item persistence and inventory
+        let image: string | undefined;
+        const imgs = (
+          component as {
+            images?: Array<string | { url?: string; src?: string }>;
+          }
+        ).images;
+        if (Array.isArray(imgs) && imgs.length) {
+          const first: string | { url?: string; src?: string } = imgs[0] as
+            | string
+            | { url?: string; src?: string };
+          image = typeof first === "string" ? first : first.url || first.src;
+        }
         return {
+          id: component.id,
           name: component.name,
           price: component.price || 0,
           category: category,
+          image,
         };
       })
       .filter((comp) => comp !== null);
@@ -4837,23 +5477,17 @@ export function PCBuilder({
       return;
     }
 
-    // Calculate total
-    const totalPrice = buildComponents.reduce(
-      (sum, comp) => sum + (comp?.price || 0),
-      0
-    );
-
-    // Create a single cart item for the entire build
-    const buildItem = {
-      id: `custom-build-${Date.now()}`,
-      name: "Custom PC Build",
-      price: totalPrice,
-      image: "/placeholder-pc.png",
-      description: `Custom build with ${buildComponents.length} components`,
-      components: buildComponents,
-    };
-
-    onAddToCart(buildItem);
+    // Add each selected component as an individual cart line item
+    for (const comp of buildComponents) {
+      if (!comp) continue;
+      onAddToCart({
+        id: comp.id,
+        name: comp.name,
+        price: comp.price,
+        category: comp.category,
+        image: (comp as { image?: string }).image,
+      } as unknown as PCBuilderComponent);
+    }
     onOpenCart();
   };
 
@@ -4862,9 +5496,12 @@ export function PCBuilder({
   };
 
   // Helper function for safe array includes check
-  const safeIncludes = (array: string[] | undefined, value: string) => {
-    return Array.isArray(array) && array.includes(value);
-  };
+  const safeIncludes = useCallback(
+    (array: string[] | undefined, value: string) => {
+      return Array.isArray(array) && array.includes(value);
+    },
+    []
+  );
 
   // Helper function to get category display label
   const getCategoryLabel = (categoryId: string) => {
@@ -4875,199 +5512,201 @@ export function PCBuilder({
   };
 
   // Intelligent component filtering based on compatibility
-  const getCompatibleComponents = (
-    category: string,
-    currentComponents: SelectedComponentIds
-  ) => {
-    const allComponents =
-      (activeComponentData as ComponentDataMap)[
-        category as keyof ComponentDataMap
-      ] || [];
+  const getCompatibleComponents = useCallback(
+    (category: string, currentComponents: SelectedComponentIds) => {
+      const allComponents =
+        (activeComponentData as ComponentDataMap)[
+          category as keyof ComponentDataMap
+        ] || [];
 
-    // If no components selected yet, show all
-    if (Object.keys(currentComponents).length === 0) {
-      return allComponents;
-    }
-
-    return allComponents.filter((component) => {
-      // CPU-Motherboard Socket Compatibility
-      if (category === "cpu" && currentComponents.motherboard) {
-        const motherboard = (activeComponentData.motherboard ?? []).find(
-          (mb) => mb.id === currentComponents.motherboard
-        );
-        if (motherboard && component.socket !== motherboard.socket) {
-          return false;
-        }
+      // If no components selected yet, show all
+      if (Object.keys(currentComponents).length === 0) {
+        return allComponents;
       }
 
-      if (category === "motherboard" && currentComponents.cpu) {
-        const cpu = (activeComponentData.cpu ?? []).find(
-          (c) => c.id === currentComponents.cpu
-        );
-        if (cpu && component.socket !== cpu.socket) {
-          return false;
+      return allComponents.filter((component) => {
+        // CPU-Motherboard Socket Compatibility
+        if (category === "cpu" && currentComponents.motherboard) {
+          const motherboard = (activeComponentData.motherboard ?? []).find(
+            (mb) => mb.id === currentComponents.motherboard
+          );
+          if (motherboard && component.socket !== motherboard.socket) {
+            return false;
+          }
         }
-      }
 
-      // GPU-Case Clearance
-      if (category === "gpu" && currentComponents.case) {
-        const pcCase = (activeComponentData.case ?? []).find(
-          (c) => c.id === currentComponents.case
-        );
+        if (category === "motherboard" && currentComponents.cpu) {
+          const cpu = (activeComponentData.cpu ?? []).find(
+            (c) => c.id === currentComponents.cpu
+          );
+          if (cpu && component.socket !== cpu.socket) {
+            return false;
+          }
+        }
+
+        // GPU-Case Clearance
+        if (category === "gpu" && currentComponents.case) {
+          const pcCase = (activeComponentData.case ?? []).find(
+            (c) => c.id === currentComponents.case
+          );
+          if (
+            pcCase &&
+            typeof component.length === "number" &&
+            typeof pcCase.maxGpuLength === "number" &&
+            component.length > pcCase.maxGpuLength
+          ) {
+            return false;
+          }
+        }
+
+        if (category === "case" && currentComponents.gpu) {
+          const gpu = (activeComponentData.gpu ?? []).find(
+            (g) => g.id === currentComponents.gpu
+          );
+          if (
+            gpu &&
+            typeof component.maxGpuLength === "number" &&
+            typeof gpu.length === "number" &&
+            gpu.length > component.maxGpuLength
+          ) {
+            return false;
+          }
+        }
+
+        // RAM-Motherboard Compatibility
+        if (category === "ram" && currentComponents.motherboard) {
+          const motherboard = activeComponentData.motherboard?.find(
+            (mb) => mb.id === currentComponents.motherboard
+          );
+          if (
+            motherboard &&
+            motherboard.ramSupport &&
+            !(Array.isArray(motherboard.ramSupport)
+              ? motherboard.ramSupport.includes(component.type)
+              : motherboard.ramSupport?.includes(component.type ?? ""))
+          ) {
+            return false;
+          }
+        }
+
+        if (category === "motherboard" && currentComponents.ram) {
+          const ram = (activeComponentData.ram ?? []).find(
+            (r) => r.id === currentComponents.ram
+          );
+          if (
+            ram &&
+            component.ramSupport &&
+            !(Array.isArray(component.ramSupport)
+              ? component.ramSupport.includes(ram.type)
+              : component.ramSupport?.includes(ram.type ?? ""))
+          ) {
+            return false;
+          }
+        }
+
+        // Case-Motherboard Form Factor
+        if (category === "case" && currentComponents.motherboard) {
+          const motherboard = activeComponentData.motherboard?.find(
+            (mb) => mb.id === currentComponents.motherboard
+          );
+          if (motherboard && motherboard.formFactor) {
+            // Case-insensitive compatibility check
+            const compatArray = Array.isArray(component.compatibility)
+              ? component.compatibility.map((c: string) => c.toLowerCase())
+              : [];
+            if (
+              compatArray.length > 0 &&
+              !compatArray.includes(motherboard.formFactor.toLowerCase())
+            ) {
+              return false;
+            }
+          }
+        }
+
+        if (category === "motherboard" && currentComponents.case) {
+          const pcCase = (activeComponentData.case ?? []).find(
+            (c) => c.id === currentComponents.case
+          );
+          if (pcCase && component.formFactor) {
+            // Case-insensitive compatibility check
+            const compatArray = Array.isArray(pcCase.compatibility)
+              ? pcCase.compatibility.map((c: string) => c.toLowerCase())
+              : [];
+            if (
+              compatArray.length > 0 &&
+              !compatArray.includes(component.formFactor.toLowerCase())
+            ) {
+              return false;
+            }
+          }
+        }
+
+        // CPU Cooler Height-Case Clearance
         if (
-          pcCase &&
-          typeof component.length === "number" &&
-          typeof pcCase.maxGpuLength === "number" &&
-          component.length > pcCase.maxGpuLength
+          category === "cooling" &&
+          currentComponents.case &&
+          component.type === "Air"
         ) {
-          return false;
+          const pcCase = (activeComponentData.case ?? []).find(
+            (c) => c.id === currentComponents.case
+          );
+          if (
+            pcCase &&
+            pcCase.maxCpuCoolerHeight &&
+            (component.height ?? 0) > (pcCase?.maxCpuCoolerHeight ?? 0)
+          ) {
+            return false;
+          }
         }
-      }
 
-      if (category === "case" && currentComponents.gpu) {
-        const gpu = (activeComponentData.gpu ?? []).find(
-          (g) => g.id === currentComponents.gpu
-        );
-        if (
-          gpu &&
-          typeof component.maxGpuLength === "number" &&
-          typeof gpu.length === "number" &&
-          gpu.length > component.maxGpuLength
-        ) {
-          return false;
+        if (category === "case" && currentComponents.cooling) {
+          const cooling = (activeComponentData.cooling ?? []).find(
+            (cool) => cool.id === currentComponents.cooling
+          );
+          if (
+            cooling &&
+            cooling.type === "Air" &&
+            cooling.height &&
+            component.maxCpuCoolerHeight &&
+            cooling.height > component.maxCpuCoolerHeight
+          ) {
+            return false;
+          }
         }
-      }
 
-      // RAM-Motherboard Compatibility
-      if (category === "ram" && currentComponents.motherboard) {
-        const motherboard = activeComponentData.motherboard?.find(
-          (mb) => mb.id === currentComponents.motherboard
-        );
-        if (
-          motherboard &&
-          motherboard.ramSupport &&
-          !(Array.isArray(motherboard.ramSupport)
-            ? motherboard.ramSupport.includes(component.type)
-            : motherboard.ramSupport?.includes(component.type ?? ""))
-        ) {
-          return false;
+        // PSU Length-Case Compatibility
+        if (category === "psu" && currentComponents.case) {
+          const pcCase = (activeComponentData.case ?? []).find(
+            (c) => c.id === currentComponents.case
+          );
+          if (
+            pcCase &&
+            pcCase.maxPsuLength &&
+            (component.length ?? 0) > (pcCase?.maxPsuLength ?? 0)
+          ) {
+            return false;
+          }
         }
-      }
 
-      if (category === "motherboard" && currentComponents.ram) {
-        const ram = (activeComponentData.ram ?? []).find(
-          (r) => r.id === currentComponents.ram
-        );
-        if (
-          ram &&
-          component.ramSupport &&
-          !(Array.isArray(component.ramSupport)
-            ? component.ramSupport.includes(ram.type)
-            : component.ramSupport?.includes(ram.type ?? ""))
-        ) {
-          return false;
+        if (category === "case" && currentComponents.psu) {
+          const psu = (activeComponentData.psu ?? []).find(
+            (p) => p.id === currentComponents.psu
+          );
+          if (
+            psu &&
+            psu.length &&
+            component.maxPsuLength &&
+            psu.length > component.maxPsuLength
+          ) {
+            return false;
+          }
         }
-      }
 
-      // Case-Motherboard Form Factor
-      if (category === "case" && currentComponents.motherboard) {
-        const motherboard = activeComponentData.motherboard?.find(
-          (mb) => mb.id === currentComponents.motherboard
-        );
-        if (
-          motherboard &&
-          !safeIncludes(
-            Array.isArray(component.compatibility)
-              ? component.compatibility
-              : undefined,
-            motherboard.formFactor?.toLowerCase() ?? ""
-          )
-        ) {
-          return false;
-        }
-      }
-
-      if (category === "motherboard" && currentComponents.case) {
-        const pcCase = (activeComponentData.case ?? []).find(
-          (c) => c.id === currentComponents.case
-        );
-        if (
-          pcCase &&
-          !safeIncludes(
-            Array.isArray(pcCase.compatibility)
-              ? pcCase.compatibility
-              : undefined,
-            component.formFactor?.toLowerCase() ?? ""
-          )
-        ) {
-          return false;
-        }
-      }
-
-      // CPU Cooler Height-Case Clearance
-      if (
-        category === "cooling" &&
-        currentComponents.case &&
-        component.type === "Air"
-      ) {
-        const pcCase = (activeComponentData.case ?? []).find(
-          (c) => c.id === currentComponents.case
-        );
-        if (
-          pcCase &&
-          pcCase.maxCpuCoolerHeight &&
-          (component.height ?? 0) > (pcCase?.maxCpuCoolerHeight ?? 0)
-        ) {
-          return false;
-        }
-      }
-
-      if (category === "case" && currentComponents.cooling) {
-        const cooling = (activeComponentData.cooling ?? []).find(
-          (cool) => cool.id === currentComponents.cooling
-        );
-        if (
-          cooling &&
-          cooling.type === "Air" &&
-          cooling.height &&
-          component.maxCpuCoolerHeight &&
-          cooling.height > component.maxCpuCoolerHeight
-        ) {
-          return false;
-        }
-      }
-
-      // PSU Length-Case Compatibility
-      if (category === "psu" && currentComponents.case) {
-        const pcCase = (activeComponentData.case ?? []).find(
-          (c) => c.id === currentComponents.case
-        );
-        if (
-          pcCase &&
-          pcCase.maxPsuLength &&
-          (component.length ?? 0) > (pcCase?.maxPsuLength ?? 0)
-        ) {
-          return false;
-        }
-      }
-
-      if (category === "case" && currentComponents.psu) {
-        const psu = (activeComponentData.psu ?? []).find(
-          (p) => p.id === currentComponents.psu
-        );
-        if (
-          psu &&
-          psu.length &&
-          component.maxPsuLength &&
-          psu.length > component.maxPsuLength
-        ) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  };
+        return true;
+      });
+    },
+    [activeComponentData]
+  );
 
   // Function to get detailed incompatibility information for the current category
   const getIncompatibilityDetails = (
@@ -5289,33 +5928,42 @@ export function PCBuilder({
     return details;
   };
 
-  const filteredComponents = getCompatibleComponents(
-    activeCategory,
-    selectedComponents
-  );
+  const filteredComponents = useMemo(() => {
+    return getCompatibleComponents(activeCategory, selectedComponents);
+  }, [activeCategory, selectedComponents, getCompatibleComponents]);
 
-  // Sort components based on selected sort option
-  const sortedComponents = [...filteredComponents].sort((a, b) => {
-    switch (sortBy) {
-      case "price":
-        return (a.price || 0) - (b.price || 0);
-      case "price-desc":
-        return (b.price || 0) - (a.price || 0);
-      case "rating":
-        return (b.rating || 0) - (a.rating || 0);
-      case "name":
-        return (a.name || "").localeCompare(b.name || "");
-      default:
-        return 0;
-    }
-  });
+  // Apply user-defined filters on top of compatibility
+  const userFilteredComponents = useMemo(() => {
+    return applyUserFilters(filteredComponents);
+  }, [filteredComponents, applyUserFilters]);
 
-  const totalComponentsInCategory = (
-    (activeComponentData as ComponentDataMap)[
-      activeCategory as keyof ComponentDataMap
-    ] || []
-  ).length;
-  const filteredCount = filteredComponents.length;
+  // Sort components based on selected sort option (memoized for performance)
+  const sortedComponents = useMemo(() => {
+    return [...userFilteredComponents].sort((a, b) => {
+      switch (sortBy) {
+        case "price":
+          return (a.price || 0) - (b.price || 0);
+        case "price-desc":
+          return (b.price || 0) - (a.price || 0);
+        case "rating":
+          return (b.rating || 0) - (a.rating || 0);
+        case "name":
+          return (a.name || "").localeCompare(b.name || "");
+        default:
+          return 0;
+      }
+    });
+  }, [userFilteredComponents, sortBy]);
+
+  const totalComponentsInCategory = useMemo(() => {
+    return (
+      (activeComponentData as ComponentDataMap)[
+        activeCategory as keyof ComponentDataMap
+      ] || []
+    ).length;
+  }, [activeComponentData, activeCategory]);
+
+  const filteredCount = userFilteredComponents.length;
 
   return (
     <ComponentErrorBoundary componentName="PCBuilder">
@@ -5724,138 +6372,6 @@ export function PCBuilder({
                       </AlertDescription>
                     </Alert>
                   )}
-
-                  <div className="space-y-3">
-                    <Button
-                      onClick={handleCheckoutWithCompatibility}
-                      className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
-                      disabled={getSelectedComponentsCount() === 0}
-                    >
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      Add to Cart
-                    </Button>
-
-                    {getSelectedComponentsCount() > 0 && (
-                      <>
-                        <Button
-                          onClick={handleClearBuild}
-                          variant="outline"
-                          className="w-full border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Clear Build
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            logger.debug("Share Build button clicked");
-                            try {
-                              const base = window.location.href.split("?")[0];
-                              logger.debug("Base URL", { base });
-                              logger.debug("Selected components", {
-                                selectedComponents,
-                              });
-                              logger.debug("Selected peripherals", {
-                                selectedPeripherals,
-                              });
-
-                              const shareUrl = buildFullShareUrl(
-                                base,
-                                selectedComponents,
-                                selectedPeripherals
-                              );
-                              logger.debug("Generated share URL", { shareUrl });
-
-                              if (shareUrl === base) {
-                                logger.warn(
-                                  "⚠️ No components selected to share"
-                                );
-                                toast.warning(
-                                  "Select parts to share your build."
-                                );
-                                return;
-                              }
-
-                              // Try to copy to clipboard
-                              if (
-                                navigator.clipboard &&
-                                navigator.clipboard.writeText
-                              ) {
-                                await navigator.clipboard.writeText(shareUrl);
-                                toast.success(
-                                  "Build link copied to clipboard! 🎉"
-                                );
-                                logger.debug("Build link copied to clipboard", {
-                                  shareUrl,
-                                });
-                              } else {
-                                // Fallback for browsers without clipboard API
-                                logger.warn(
-                                  "Clipboard API not available, using fallback"
-                                );
-                                const textArea =
-                                  document.createElement("textarea");
-                                textArea.value = shareUrl;
-                                textArea.style.position = "fixed";
-                                textArea.style.left = "-999999px";
-                                document.body.appendChild(textArea);
-                                textArea.select();
-                                try {
-                                  document.execCommand("copy");
-                                  toast.success(
-                                    "Build link copied to clipboard! 🎉"
-                                  );
-                                  logger.debug("Build link copied (fallback)", {
-                                    shareUrl,
-                                  });
-                                } catch (err) {
-                                  toast.error(
-                                    "Please copy the link manually from the address bar."
-                                  );
-                                  logger.error("Copy fallback failed", {
-                                    error:
-                                      err instanceof Error
-                                        ? err.message
-                                        : String(err),
-                                  });
-                                }
-                                document.body.removeChild(textArea);
-                              }
-                            } catch (e) {
-                              logger.error("❌ Failed to copy build link:", e);
-                              toast.error("Failed to copy build link.");
-                            }
-                          }}
-                          variant="secondary"
-                          className="w-full bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40"
-                        >
-                          <Share2 className="w-4 h-4 mr-2" />
-                          Share Build
-                        </Button>
-
-                        {/* Save for Comparison Button */}
-                        <Button
-                          onClick={handleSaveForComparison}
-                          variant="secondary"
-                          className="w-full bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40"
-                        >
-                          <Bookmark className="w-4 h-4 mr-2" />
-                          Save for Comparison
-                        </Button>
-
-                        {/* Compare Builds Button */}
-                        {savedBuildsForComparison.length > 0 && (
-                          <Button
-                            onClick={() => setShowComparisonModal(true)}
-                            variant="secondary"
-                            className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40"
-                          >
-                            <TrendingUp className="w-4 h-4 mr-2" />
-                            Compare Builds ({savedBuildsForComparison.length})
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
                 </div>
               </Card>
 
@@ -6117,9 +6633,117 @@ export function PCBuilder({
                     )}
                   </div>
 
+                  {/* Action Buttons */}
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <Button
+                      onClick={handleCheckoutWithCompatibility}
+                      className="flex-1 min-w-[200px] bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white h-12"
+                      disabled={getSelectedComponentsCount() === 0}
+                    >
+                      <ShoppingCart className="w-5 h-5 mr-2" />
+                      Add to Cart
+                    </Button>
+
+                    <Button
+                      onClick={handleClearBuild}
+                      variant="outline"
+                      className="flex-1 min-w-[150px] border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 h-12"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Clear Build
+                    </Button>
+
+                    <Button
+                      onClick={async () => {
+                        logger.debug("Share Build button clicked");
+                        try {
+                          const base = window.location.href.split("?")[0];
+                          const shareUrl = buildFullShareUrl(
+                            base,
+                            selectedComponents,
+                            selectedPeripherals
+                          );
+
+                          if (shareUrl === base) {
+                            toast.warning("Select parts to share your build.");
+                            return;
+                          }
+
+                          if (
+                            navigator.clipboard &&
+                            navigator.clipboard.writeText
+                          ) {
+                            await navigator.clipboard.writeText(shareUrl);
+                            toast.success("Build link copied to clipboard! 🎉");
+
+                            try {
+                              const userId =
+                                sessionStorage.getItem("vortex_user_id");
+                              const buildTotalPrice = getTotalPrice();
+                              trackClick(
+                                "build_share",
+                                {
+                                  shareUrl,
+                                  totalPrice: buildTotalPrice,
+                                  componentsCount:
+                                    Object.keys(selectedComponents).length,
+                                },
+                                userId || undefined
+                              );
+                              trackClick(
+                                "build_complete",
+                                {
+                                  totalPrice: buildTotalPrice,
+                                  componentsCount:
+                                    Object.keys(selectedComponents).length,
+                                  peripheralsCount:
+                                    Object.keys(selectedPeripherals).length,
+                                },
+                                userId || undefined
+                              );
+                            } catch (err) {
+                              logger.error(
+                                "Failed to track build completion",
+                                err
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          logger.error("Failed to copy build link:", e);
+                          toast.error("Failed to copy build link.");
+                        }
+                      }}
+                      variant="secondary"
+                      className="flex-1 min-w-[150px] bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 h-12"
+                    >
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share Build
+                    </Button>
+
+                    <Button
+                      onClick={handleSaveForComparison}
+                      variant="secondary"
+                      className="flex-1 min-w-[200px] bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 h-12"
+                    >
+                      <Bookmark className="w-4 h-4 mr-2" />
+                      Save for Comparison
+                    </Button>
+
+                    {savedBuildsForComparison.length > 0 && (
+                      <Button
+                        onClick={() => setShowComparisonModal(true)}
+                        variant="secondary"
+                        className="flex-1 min-w-[200px] bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 h-12"
+                      >
+                        <TrendingUp className="w-4 h-4 mr-2" />
+                        Compare Builds ({savedBuildsForComparison.length})
+                      </Button>
+                    )}
+                  </div>
+
                   {/* Missing Components Warning */}
                   {Object.keys(selectedComponents).length < 8 && (
-                    <div className="mt-4 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                    <div className="mt-6 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
                       <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
                         <div>
@@ -6205,6 +6829,212 @@ export function PCBuilder({
                 </div>
 
                 <div className="flex items-center gap-3">
+                  {/* Filters Drawer */}
+                  <Sheet>
+                    <SheetTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="border-white/20 bg-white/10 text-gray-200 hover:bg-white/20"
+                        title="Filter components"
+                      >
+                        Filters
+                        {appliedFiltersCount > 0 && (
+                          <span className="ml-2 inline-flex items-center justify-center rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2 py-0.5 text-xs">
+                            {appliedFiltersCount}
+                          </span>
+                        )}
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent
+                      side="right"
+                      className="bg-black/90 border-white/10 text-white"
+                    >
+                      <SheetHeader>
+                        <SheetTitle>Filters</SheetTitle>
+                      </SheetHeader>
+                      <div className="p-4 space-y-6 overflow-auto">
+                        {/* Search */}
+                        <div>
+                          <div className="text-sm text-gray-300 mb-2">
+                            Search
+                          </div>
+                          <Input
+                            placeholder={`Search ${activeCategory}...`}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                          />
+                        </div>
+
+                        {/* Brand */}
+                        {brandOptions.length > 0 && (
+                          <div>
+                            <div className="text-sm text-gray-300 mb-2">
+                              Brand
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {brandOptions.map((brand) => {
+                                const checked = selectedBrands.includes(brand);
+                                return (
+                                  <label
+                                    key={brand}
+                                    className="flex items-center gap-2 text-sm text-gray-300"
+                                  >
+                                    <Checkbox
+                                      checked={checked}
+                                      onCheckedChange={(v) =>
+                                        setSelectedBrands((prev) =>
+                                          v
+                                            ? [...prev, brand]
+                                            : prev.filter((b) => b !== brand)
+                                        )
+                                      }
+                                    />
+                                    <span>{brand}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Price */}
+                        {priceMax > 0 && (
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-sm text-gray-300">Price</div>
+                              <div className="text-xs text-gray-400">
+                                £{priceRange[0]} - £{priceRange[1]}
+                              </div>
+                            </div>
+                            <Slider
+                              min={priceMin}
+                              max={priceMax}
+                              value={priceRange as unknown as number[]}
+                              onValueChange={(vals) =>
+                                setPriceRange([
+                                  Number(vals[0]),
+                                  Number(vals[1]),
+                                ])
+                              }
+                            />
+                          </div>
+                        )}
+
+                        {/* Category-specific options */}
+                        {Object.keys(optionFilterValues).length > 0 && (
+                          <div className="space-y-4">
+                            {(
+                              CATEGORY_OPTION_FILTERS[activeCategory] || []
+                            ).map((def) => {
+                              const values = optionFilterValues[def.key] || [];
+                              if (values.length === 0) return null;
+                              const selected = optionFilters[def.key] || [];
+                              return (
+                                <div key={def.key}>
+                                  <div className="text-sm text-gray-300 mb-2">
+                                    {def.label}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {values.map((val) => {
+                                      const isChecked = selected.includes(val);
+                                      return (
+                                        <label
+                                          key={val}
+                                          className="flex items-center gap-2 text-sm text-gray-300"
+                                        >
+                                          <Checkbox
+                                            checked={isChecked}
+                                            onCheckedChange={(v) =>
+                                              setOptionFilters((prev) => {
+                                                const next = { ...prev };
+                                                const arr = new Set(
+                                                  next[def.key] || []
+                                                );
+                                                if (v) arr.add(val);
+                                                else arr.delete(val);
+                                                next[def.key] = Array.from(arr);
+                                                return next;
+                                              })
+                                            }
+                                          />
+                                          <span>{val}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Category-specific ranges */}
+                        {Object.keys(rangeFilterBounds).length > 0 && (
+                          <div className="space-y-4">
+                            {(CATEGORY_RANGE_FILTERS[activeCategory] || []).map(
+                              (def) => {
+                                const bounds = rangeFilterBounds[def.key];
+                                if (!bounds) return null;
+                                const current = rangeFilters[def.key] || [
+                                  bounds.min,
+                                  bounds.max,
+                                ];
+                                return (
+                                  <div key={def.key}>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="text-sm text-gray-300">
+                                        {def.label}
+                                      </div>
+                                      <div className="text-xs text-gray-400">
+                                        {current[0]} - {current[1]}
+                                      </div>
+                                    </div>
+                                    <Slider
+                                      min={bounds.min}
+                                      max={bounds.max}
+                                      value={current as unknown as number[]}
+                                      onValueChange={(vals) =>
+                                        setRangeFilters((prev) => ({
+                                          ...prev,
+                                          [def.key]: [
+                                            Number(vals[0]),
+                                            Number(vals[1]),
+                                          ] as [number, number],
+                                        }))
+                                      }
+                                    />
+                                  </div>
+                                );
+                              }
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <SheetFooter>
+                        <div className="flex items-center justify-between gap-2">
+                          <Button
+                            variant="ghost"
+                            className="border-white/20 bg-white/5 text-gray-300"
+                            onClick={() => {
+                              setSelectedBrands([]);
+                              setSearchQuery("");
+                              setOptionFilters({});
+                              setRangeFilters({});
+                              setPriceRange([priceMin, priceMax]);
+                            }}
+                          >
+                            Clear filters
+                          </Button>
+                          <SheetClose asChild>
+                            <Button className="bg-gradient-to-r from-sky-600 to-blue-600">
+                              Close
+                            </Button>
+                          </SheetClose>
+                        </div>
+                      </SheetFooter>
+                    </SheetContent>
+                  </Sheet>
                   {/* View Mode Toggle */}
                   <div className="flex items-center gap-1 p-1 rounded-lg bg-white/10">
                     <Button
@@ -6304,8 +7134,16 @@ export function PCBuilder({
               </p>
             </div>
 
-            <Tabs defaultValue="keyboard" className="space-y-6 sm:space-y-8">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 bg-white/10 backdrop-blur-xl p-2 rounded-xl gap-2 h-auto">
+            <Tabs defaultValue="software" className="space-y-6 sm:space-y-8">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 bg-white/10 backdrop-blur-xl p-2 rounded-xl gap-2 h-auto">
+                <TabsTrigger
+                  value="software"
+                  className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
+                >
+                  <Shield className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Software</span>
+                  <span className="sm:hidden">OS</span>
+                </TabsTrigger>
                 <TabsTrigger
                   value="keyboard"
                   className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
@@ -6347,6 +7185,40 @@ export function PCBuilder({
                   <span className="sm:hidden">Mat</span>
                 </TabsTrigger>
               </TabsList>
+
+              {/* Software / Operating System */}
+              <TabsContent value="software" className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white">
+                      Operating System
+                    </h3>
+                    <p className="text-gray-400 mt-1 text-sm sm:text-base">
+                      Choose Windows edition for your build
+                    </p>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="text-sm self-start sm:self-auto"
+                  >
+                    {(selectedPeripherals.software || []).length} selected
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+                  {(activeOptionalExtrasData.software || []).map((software) => (
+                    <MemoPeripheralCard
+                      key={software.id}
+                      peripheral={software as PCOptionalExtra}
+                      category="software"
+                      isSelected={(selectedPeripherals.software || []).includes(
+                        software.id
+                      )}
+                      onToggle={handlePeripheralToggle}
+                      viewMode={viewMode}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
 
               {/* Keyboards */}
               <TabsContent value="keyboard" className="space-y-6">
@@ -6649,12 +7521,8 @@ export function PCBuilder({
             onClose={() => setShowComparisonModal(false)}
             builds={savedBuildsForComparison}
             onRemoveBuild={handleRemoveBuildFromComparison}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            componentData={activeComponentData as Record<string, Array<any>>}
-            optionalExtrasData={
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              activeOptionalExtrasData as Record<string, Array<any>>
-            }
+            componentData={activeComponentData}
+            optionalExtrasData={activeOptionalExtrasData}
           />
 
           {/* Product Comparison Modal */}

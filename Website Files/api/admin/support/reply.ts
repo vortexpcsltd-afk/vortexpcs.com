@@ -1,17 +1,22 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { ApiError, DecodedToken } from "../../../types/api";
 
 // Initialize Firebase Admin once (same pattern as other admin endpoints)
-let admin: any = null;
+type FirebaseAdmin = typeof import("firebase-admin");
+let admin: FirebaseAdmin | null = null;
 let initError: string | null = null;
 
 async function getAdmin() {
   if (admin) return admin;
   try {
     const imported = await import("firebase-admin");
-    admin = (imported as any).default ? (imported as any).default : imported;
+    const candidate = (imported as unknown as { default?: FirebaseAdmin })
+      .default
+      ? (imported as unknown as { default: FirebaseAdmin }).default
+      : (imported as unknown as FirebaseAdmin);
+    admin = candidate;
 
-    const apps = (admin as any).apps;
-    if (!apps || (Array.isArray(apps) && apps.length === 0)) {
+    if (!admin.apps || admin.apps.length === 0) {
       const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
       if (!serviceAccountBase64) {
         throw new Error(
@@ -74,11 +79,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!token)
       return res.status(401).json({ message: "Missing Bearer token" });
 
-    let decoded: any;
+    let decoded: DecodedToken;
     try {
       decoded = await adm.auth().verifyIdToken(token);
-    } catch (e: any) {
-      console.error("verifyIdToken failed", e?.message || e);
+    } catch (e: unknown) {
+      const error = e as ApiError;
+      console.error("verifyIdToken failed", error?.message || e);
       return res.status(401).json({ message: "Invalid or expired token" });
     }
 
@@ -124,10 +130,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     return res.status(200).json({ success: true, message: entry });
-  } catch (error: any) {
-    console.error("support ticket reply error", error);
+  } catch (error: unknown) {
+    const err = error as ApiError;
+    console.error("support ticket reply error", err);
     return res
       .status(500)
-      .json({ message: error?.message || "Internal Server Error" });
+      .json({ message: err?.message || "Internal Server Error" });
   }
 }

@@ -28,6 +28,7 @@ import {
 } from "../services/cms";
 import { logger } from "../services/logger";
 import { FAQItemSkeleton, PageHeaderSkeleton } from "./SkeletonComponents";
+import { HtmlContent } from "./cms/HtmlContent";
 
 interface FAQ {
   id: string;
@@ -502,9 +503,8 @@ export function FAQPage({ onNavigate }: FAQPageProps) {
                       <AccordionContent className="px-6 md:px-8 pb-6 md:pb-8">
                         <div className="pt-4 border-t border-white/10">
                           <div className="text-lg md:text-xl text-gray-300 leading-relaxed prose prose-invert prose-lg max-w-none">
-                            <div
-                              dangerouslySetInnerHTML={{ __html: faq.answer }}
-                            />
+                            {/* Sanitize FAQ HTML answers */}
+                            <HtmlContent html={faq.answer} />
                           </div>
                         </div>
                       </AccordionContent>

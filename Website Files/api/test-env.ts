@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(
+  _req: VercelRequest,
+  res: VercelResponse
+) {
   // Simple test endpoint to check environment variables
   const hasBase64 = !!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
   const hasProjectId = !!process.env.FIREBASE_PROJECT_ID;

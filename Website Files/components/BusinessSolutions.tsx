@@ -27,6 +27,26 @@ import {
   MessageSquare,
   Calendar,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { toast } from "sonner";
+import { logger } from "../services/logger";
+import { SubscriptionModal } from "./SubscriptionModal";
 
 interface BusinessSolutionsProps {
   setCurrentView: (view: string) => void;
@@ -45,6 +65,7 @@ interface WorkstationConfig {
     storage: string;
     graphics: string;
     warranty: string;
+    os?: string;
   };
   features: string[];
   idealFor: string[];
@@ -69,10 +90,22 @@ interface ServiceTier {
 }
 
 export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
-  const [_selectedWorkstation, setSelectedWorkstation] = useState<
-    string | null
-  >(null);
-  const [_selectedService, setSelectedService] = useState<string | null>(null);
+  const [selectedWorkstation, setSelectedWorkstation] =
+    useState<WorkstationConfig | null>(null);
+  const [selectedService, setSelectedService] = useState<ServiceTier | null>(
+    null
+  );
+  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteForm, setQuoteForm] = useState({
+    businessName: "",
+    postcode: "",
+    contactName: "",
+    contractNumber: "",
+    email: "",
+    os: "Windows 11 Pro",
+  });
 
   const workstations: WorkstationConfig[] = [
     {
@@ -87,6 +120,7 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
         storage: "512GB NVMe SSD",
         graphics: "Intel UHD Graphics 730",
         warranty: "3-Year Business Warranty",
+        os: "Windows 11 Pro",
       },
       features: [
         "Microsoft Office ready",
@@ -120,6 +154,7 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
         storage: "1TB NVMe SSD",
         graphics: "NVIDIA T400 4GB",
         warranty: "3-Year Business Warranty",
+        os: "Windows 11 Pro",
       },
       features: [
         "Accelerated multitasking",
@@ -152,6 +187,7 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
         storage: "2TB NVMe SSD",
         graphics: "NVIDIA RTX 4060 8GB",
         warranty: "3-Year Business Warranty",
+        os: "Windows 11 Pro",
       },
       features: [
         "Colour-accurate workflow support",
@@ -184,6 +220,7 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
         storage: "1TB NVMe SSD + 4TB HDD",
         graphics: "NVIDIA T1000 8GB",
         warranty: "3-Year Business Warranty",
+        os: "Windows 11 Pro",
       },
       features: [
         "High core count for parallel processing",
@@ -216,6 +253,7 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
         storage: "2TB NVMe SSD + 2TB HDD",
         graphics: "NVIDIA RTX A2000 12GB",
         warranty: "5-Year Business Warranty",
+        os: "Windows 11 Pro",
       },
       features: [
         "ISV certified for CAD applications",
@@ -248,6 +286,7 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
         storage: "4TB NVMe SSD (RAID 0) + 8TB HDD",
         graphics: "NVIDIA RTX A4000 16GB",
         warranty: "5-Year Business Warranty",
+        os: "Windows 11 Pro",
       },
       features: [
         "Extreme multi-threaded performance",
@@ -338,13 +377,17 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
   ];
 
   const handleAddToCart = (workstation: WorkstationConfig) => {
-    setSelectedWorkstation(workstation.id);
-    // Add to cart logic here
+    setSelectedWorkstation(workstation);
+    setQuoteForm((prev) => ({
+      ...prev,
+      os: workstation.specs.os || "Windows 11 Pro",
+    }));
+    setQuoteOpen(true);
   };
 
   const handleSelectService = (tier: ServiceTier) => {
-    setSelectedService(tier.id);
-    // Service selection logic here
+    setSelectedService(tier);
+    setSubscriptionModalOpen(true);
   };
 
   return (
@@ -391,6 +434,160 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
           </div>
         </div>
       </section>
+
+      {/* Request Quote Modal */}
+      <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
+        <DialogContent className="bg-black/95 border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">
+              Request Business Quote
+            </DialogTitle>
+            <DialogDescription>
+              {selectedWorkstation
+                ? `For: ${selectedWorkstation.name} (${selectedWorkstation.specs.processor}, ${selectedWorkstation.specs.ram})`
+                : "Provide your details to receive a tailored quote."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            <div className="space-y-2">
+              <Label htmlFor="businessName">Business Name</Label>
+              <Input
+                id="businessName"
+                placeholder="e.g. Vortex Consulting Ltd"
+                value={quoteForm.businessName}
+                onChange={(e) =>
+                  setQuoteForm((p) => ({ ...p, businessName: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="postcode">Postcode</Label>
+              <Input
+                id="postcode"
+                placeholder="e.g. NR1 1AA"
+                value={quoteForm.postcode}
+                onChange={(e) =>
+                  setQuoteForm((p) => ({ ...p, postcode: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contactName">Contact Name</Label>
+              <Input
+                id="contactName"
+                placeholder="e.g. Jane Smith"
+                value={quoteForm.contactName}
+                onChange={(e) =>
+                  setQuoteForm((p) => ({ ...p, contactName: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contractNumber">Contract Number (optional)</Label>
+              <Input
+                id="contractNumber"
+                placeholder="If applicable"
+                value={quoteForm.contractNumber}
+                onChange={(e) =>
+                  setQuoteForm((p) => ({
+                    ...p,
+                    contractNumber: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="email">Business Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@company.com"
+                value={quoteForm.email}
+                onChange={(e) =>
+                  setQuoteForm((p) => ({ ...p, email: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Operating System</Label>
+              <Select
+                value={quoteForm.os}
+                onValueChange={(v) => setQuoteForm((p) => ({ ...p, os: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select OS" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Windows 11 Home">
+                    Windows 11 Home
+                  </SelectItem>
+                  <SelectItem value="Windows 11 Pro">Windows 11 Pro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+              disabled={quoteLoading}
+              onClick={async () => {
+                if (!selectedWorkstation) return;
+                const { businessName, postcode, contactName, email, os } =
+                  quoteForm;
+                if (!businessName || !postcode || !contactName || !email) {
+                  toast.error(
+                    "Please fill in business name, postcode, contact name and email"
+                  );
+                  return;
+                }
+                try {
+                  setQuoteLoading(true);
+                  const res = await fetch("/api/business/quote", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      businessName,
+                      postcode,
+                      contactName,
+                      contractNumber: quoteForm.contractNumber,
+                      email,
+                      os,
+                      workstation: {
+                        id: selectedWorkstation.id,
+                        name: selectedWorkstation.name,
+                        price: selectedWorkstation.price,
+                        specs: selectedWorkstation.specs,
+                      },
+                    }),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok || !data?.success) {
+                    throw new Error(data?.error || "Failed to submit quote");
+                  }
+                  toast.success(
+                    "Quote request sent. We'll be in touch shortly."
+                  );
+                  setQuoteOpen(false);
+                  setSelectedWorkstation(null);
+                } catch (e) {
+                  logger.error("Business quote submit error", {
+                    error: e instanceof Error ? e.message : String(e),
+                  });
+                  toast.error(
+                    e instanceof Error ? e.message : "Failed to submit quote"
+                  );
+                } finally {
+                  setQuoteLoading(false);
+                }
+              }}
+            >
+              {quoteLoading ? "Sending..." : "Send Request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Workstations Grid */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 relative">
@@ -464,6 +661,14 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
                         {workstation.specs.graphics}
                       </span>
                     </div>
+                    {workstation.specs.os && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <Settings className="w-4 h-4 text-sky-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-300">
+                          {workstation.specs.os}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-start gap-2 text-sm">
                       <Shield className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
                       <span className="text-gray-300">
@@ -793,6 +998,13 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
           </div>
         </div>
       </section>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        open={subscriptionModalOpen}
+        onOpenChange={setSubscriptionModalOpen}
+        selectedTier={selectedService}
+      />
     </div>
   );
 }

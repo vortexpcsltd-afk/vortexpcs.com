@@ -24,9 +24,17 @@ import {
 } from "@contentful/rich-text-types";
 import { ShareBar } from "./ShareBar";
 import { CTAInline } from "./CTAInline";
+import { HtmlContent } from "./cms/HtmlContent";
 import { useRef } from "react";
 
 // Utilities to generate stable heading IDs and a TOC
+const hasContentArray = (
+  node: unknown
+): node is { content: Array<Block | Inline | RichTextNode> } =>
+  !!node &&
+  typeof node === "object" &&
+  Array.isArray((node as { content?: unknown }).content);
+
 const getNodeText = (
   node:
     | RichDocument
@@ -44,12 +52,8 @@ const getNodeText = (
     if ((n as RichTextNode).nodeType === "text") {
       return (n as RichTextNode).value || "";
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const anyNode = n as any;
-    if (Array.isArray(anyNode.content)) {
-      return (anyNode.content as Array<Block | Inline | RichTextNode>)
-        .map(getNodeText)
-        .join("");
+    if (hasContentArray(n)) {
+      return n.content.map(getNodeText).join("");
     }
   }
   return "";
@@ -94,9 +98,7 @@ const extractHeadings = (doc: RichDocument): TocHeading[] => {
             : 4;
         result.push({ id, text, level });
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const anyNode = n as any;
-      if (Array.isArray(anyNode.content)) visit(anyNode.content);
+      if (hasContentArray(n)) visit(n.content);
     }
   };
 
@@ -315,17 +317,24 @@ export function BlogPost({ slug }: { slug: string }) {
           </blockquote>
         ),
         [BLOCKS.HR]: () => <hr className="my-8 border-white/10" />,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        [INLINES.HYPERLINK]: (node: any, children: ReactNode) => (
-          <a
-            href={node.data.uri}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sky-400 hover:text-sky-300 underline"
-          >
-            {children}
-          </a>
-        ),
+        [INLINES.HYPERLINK]: (node: Block | Inline, children: ReactNode) => {
+          let href = "#";
+          const data = (node as unknown as { data?: unknown }).data;
+          if (data && typeof data === "object" && "uri" in data) {
+            const val = (data as { uri?: unknown }).uri;
+            if (typeof val === "string") href = val;
+          }
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sky-400 hover:text-sky-300 underline"
+            >
+              {children}
+            </a>
+          );
+        },
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -455,9 +464,9 @@ export function BlogPost({ slug }: { slug: string }) {
                   )}
                 </div>
               ) : (
-                <div
+                <HtmlContent
+                  html={post.contentHtml || ""}
                   className="prose-blog"
-                  dangerouslySetInnerHTML={{ __html: post.contentHtml || "" }}
                 />
               )}
             </Card>

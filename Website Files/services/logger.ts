@@ -92,7 +92,12 @@ class Logger {
 
     // Send to analytics service (Vercel Analytics, Google Analytics, etc.)
     if (this.isProduction && window.va) {
-      window.va("track", eventName, properties);
+      // Vercel Analytics expects the "track" verb
+      try {
+        window.va("track", eventName, properties);
+      } catch {
+        // ignore analytics errors
+      }
     }
   }
 

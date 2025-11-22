@@ -1,3 +1,6 @@
+import React from "react";
+import { FaCcVisa, FaCcMastercard, FaCcAmex, FaPaypal } from "react-icons/fa";
+import { SiDhl, SiDpd, SiUps, SiFedex } from "react-icons/si";
 import {
   Shield,
   Lock,
@@ -56,11 +59,11 @@ export function SecurityBadges({
       <div
         className={`flex items-center justify-center gap-4 flex-wrap ${className}`}
       >
-        {badges.slice(0, 3).map((badge, index) => {
+        {badges.slice(0, 3).map((badge, i) => {
           const Icon = badge.icon;
           return (
             <div
-              key={index}
+              key={i}
               className="flex items-center gap-2 text-sm text-gray-400"
             >
               <div
@@ -79,10 +82,10 @@ export function SecurityBadges({
   if (variant === "inline") {
     return (
       <div className={`flex items-center gap-6 flex-wrap ${className}`}>
-        {badges.map((badge, index) => {
+        {badges.map((badge, i) => {
           const Icon = badge.icon;
           return (
-            <div key={index} className="flex items-center gap-2">
+            <div key={i} className="flex items-center gap-2">
               <div
                 className={`${badge.bgColor} ${badge.borderColor} border rounded-lg p-2`}
               >
@@ -99,17 +102,16 @@ export function SecurityBadges({
     );
   }
 
-  // Grid variant (default)
   return (
     <div className={`grid grid-cols-2 gap-3 ${className}`}>
-      {badges.map((badge, index) => {
+      {badges.map((badge, i) => {
         const Icon = badge.icon;
         return (
           <div
-            key={index}
+            key={i}
             className={`${badge.bgColor} ${badge.borderColor} border backdrop-blur-sm rounded-lg p-3 flex items-center gap-3 hover:scale-105 transition-transform duration-200`}
           >
-            <div className={`flex-shrink-0`}>
+            <div className="flex-shrink-0">
               <Icon className={`w-5 h-5 ${badge.color}`} />
             </div>
             <div>
@@ -128,59 +130,116 @@ export function PaymentProviderLogos({
 }: {
   className?: string;
 }) {
-  const logos = [
-    { name: "Visa", color: "text-blue-400" },
-    { name: "Mastercard", color: "text-orange-400" },
-    { name: "Amex", color: "text-green-400" },
-    { name: "PayPal", color: "text-sky-400" },
+  const logos: Array<{
+    name: string;
+    className: string;
+    Icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  }> = [
+    {
+      name: "Visa",
+      className: "border-blue-500/30 text-blue-400",
+      Icon: FaCcVisa,
+    },
+    {
+      name: "Mastercard",
+      className: "border-orange-500/30 text-orange-400",
+      Icon: FaCcMastercard,
+    },
+    {
+      name: "Amex",
+      className: "border-teal-500/30 text-teal-400",
+      Icon: FaCcAmex,
+    },
+    {
+      name: "PayPal",
+      className: "border-sky-500/30 text-sky-400",
+      Icon: FaPaypal,
+    },
   ];
-
   return (
-    <div className={`flex items-center justify-center gap-4 ${className}`}>
-      <span className="text-xs text-gray-500">We accept:</span>
-      {logos.map((logo, index) => (
-        <div
-          key={index}
-          className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold"
-        >
-          <span className={logo.color}>{logo.name}</span>
-        </div>
+    <ul
+      className={`flex flex-wrap items-center justify-start gap-2 ${className}`}
+      aria-label="Accepted payment providers"
+    >
+      {logos.map(({ name, className: brand, Icon }) => (
+        <li key={name} className="m-0">
+          <span
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide bg-white/5 backdrop-blur-sm border ${brand} hover:border-sky-500/40 hover:bg-white/10 transition-colors`}
+          >
+            <Icon className="text-base" aria-hidden={true} />
+            <span>{name}</span>
+          </span>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
 export function TrustIndicators({ className = "" }: { className?: string }) {
   const indicators = [
-    {
-      icon: Award,
-      text: "5-Year Warranty",
-      color: "text-yellow-400",
-    },
-    {
-      icon: Zap,
-      text: "Fast Delivery",
-      color: "text-cyan-400",
-    },
-    {
-      icon: CheckCircle2,
-      text: "Easy Returns",
-      color: "text-green-400",
-    },
+    { icon: Award, text: "3-Year Warranty", color: "text-yellow-400" },
+    { icon: Zap, text: "Fast Delivery", color: "text-cyan-400" },
+    { icon: CheckCircle2, text: "Easy Returns", color: "text-green-400" },
   ];
-
   return (
     <div className={`flex items-center justify-center gap-6 ${className}`}>
-      {indicators.map((indicator, index) => {
+      {indicators.map((indicator, i) => {
         const Icon = indicator.icon;
         return (
-          <div key={index} className="flex items-center gap-2">
+          <div key={i} className="flex items-center gap-2">
             <Icon className={`w-4 h-4 ${indicator.color}`} />
             <span className="text-sm text-gray-400">{indicator.text}</span>
           </div>
         );
       })}
     </div>
+  );
+}
+
+export function DeliveryProviderLogos({
+  className = "",
+}: {
+  className?: string;
+}) {
+  const providers: Array<{
+    name: string;
+    className: string;
+    Icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  }> = [
+    {
+      name: "DHL",
+      className: "border-yellow-500/40 text-yellow-400",
+      Icon: SiDhl,
+    },
+    { name: "DPD", className: "border-red-500/40 text-red-400", Icon: SiDpd },
+    { name: "Royal Mail", className: "border-red-500/40 text-red-400" },
+    {
+      name: "UPS",
+      className: "border-amber-600/40 text-amber-500",
+      Icon: SiUps,
+    },
+    {
+      name: "FedEx",
+      className: "border-purple-500/40 text-purple-400",
+      Icon: SiFedex,
+    },
+  ];
+  return (
+    <ul
+      className={`flex flex-wrap items-center justify-start gap-2 ${className}`}
+      aria-label="Supported delivery providers"
+    >
+      {providers.map(({ name, className: brand, Icon }) => (
+        <li key={name}>
+          <span
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide bg-white/5 backdrop-blur-sm border ${brand} hover:border-sky-500/40 hover:bg-white/10 transition-colors`}
+          >
+            {Icon ? <Icon className="text-base" aria-hidden={true} /> : null}
+            <span>{name}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

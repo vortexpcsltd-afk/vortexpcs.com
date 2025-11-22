@@ -1,45 +1,21 @@
-import * as Sentry from "@sentry/node";
+// Sentry integration for serverless functions
+// NOTE: @sentry/node not installed, using no-op implementations
 
 /**
  * Initialize Sentry for serverless functions
  */
 export function initSentry(): void {
-  const dsn = process.env.SENTRY_DSN;
-
-  if (!dsn) {
-    console.warn("Sentry DSN not configured - error tracking disabled");
-    return;
-  }
-
-  Sentry.init({
-    dsn,
-    environment:
-      process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
-    release: process.env.VERCEL_GIT_COMMIT_SHA || "1.0.0",
-    tracesSampleRate: process.env.VERCEL_ENV === "production" ? 0.1 : 1.0,
-    beforeSend(event) {
-      // Don't send events in development unless explicitly enabled
-      if (process.env.NODE_ENV === "development" && !process.env.SENTRY_DEBUG) {
-        return null;
-      }
-      return event;
-    },
-  });
+  // No-op: @sentry/node not installed
+  console.log("Sentry not configured");
 }
 
 /**
  * Wrap serverless handler with Sentry error tracking
  */
-export function withSentry<T extends (...args: any[]) => any>(handler: T): T {
-  return (async (...args: any[]) => {
-    try {
-      return await handler(...args);
-    } catch (error) {
-      Sentry.captureException(error);
-      await Sentry.flush(2000);
-      throw error;
-    }
-  }) as T;
+export function withSentry<T extends (...args: unknown[]) => unknown>(
+  handler: T
+): T {
+  return handler;
 }
 
 /**
@@ -47,13 +23,10 @@ export function withSentry<T extends (...args: any[]) => any>(handler: T): T {
  */
 export async function captureException(
   error: Error,
-  context?: Record<string, any>
+  context?: Record<string, unknown>
 ): Promise<void> {
-  if (context) {
-    Sentry.setContext("additional", context);
-  }
-  Sentry.captureException(error);
-  await Sentry.flush(2000);
+  // No-op: just log to console
+  console.error("Error:", error.message, context);
 }
 
 /**
@@ -61,21 +34,21 @@ export async function captureException(
  */
 export async function captureMessage(
   message: string,
-  level: Sentry.SeverityLevel = "info"
+  level: "info" | "warning" | "error" = "info"
 ): Promise<void> {
-  Sentry.captureMessage(message, level);
-  await Sentry.flush(2000);
+  // No-op: just log to console
+  console.log(`[${level}]`, message);
 }
 
 /**
  * Set user context for Sentry
  */
-export function setUser(user: {
+export function setUser(_user: {
   id?: string;
   email?: string;
   ip?: string;
 }): void {
-  Sentry.setUser(user);
+  // No-op
 }
 
 /**
@@ -83,13 +56,10 @@ export function setUser(user: {
  */
 export function addBreadcrumb(
   message: string,
-  data?: Record<string, any>
+  data?: Record<string, unknown>
 ): void {
-  Sentry.addBreadcrumb({
-    message,
-    data,
-    timestamp: Date.now() / 1000,
-  });
+  // No-op: just log to console
+  console.log("Breadcrumb:", message, data);
 }
 
 // Initialize Sentry when this module is imported

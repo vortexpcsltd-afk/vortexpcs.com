@@ -22,6 +22,7 @@ import {
   Layers,
   X,
 } from "lucide-react";
+import { is3DEnabled } from "../utils/featureFlags";
 
 // Loading component for 3D scene
 function Loader() {
@@ -257,6 +258,7 @@ export function AR3DViewer({
   isOpen = false,
   onClose,
 }: AR3DViewerProps) {
+  const enabled = is3DEnabled();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRotate, setAutoRotate] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -304,7 +306,7 @@ export function AR3DViewer({
     }
   };
 
-  if (!isOpen) return null;
+  if (!enabled || !isOpen) return null;
 
   return (
     <div
@@ -493,7 +495,10 @@ export function View3DButton({
   color,
   className = "",
 }: View3DButtonProps) {
+  const enabled = is3DEnabled();
   const [showViewer, setShowViewer] = useState(false);
+
+  if (!enabled) return null;
 
   return (
     <>

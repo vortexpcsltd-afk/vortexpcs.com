@@ -7,7 +7,7 @@ export interface LogContext {
   userAgent?: string;
   endpoint?: string;
   method?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -58,21 +58,21 @@ class Logger {
   /**
    * Log at debug level
    */
-  debug(message: string, data?: Record<string, any>): void {
+  debug(message: string, data?: Record<string, unknown>): void {
     this.log("debug", message, data);
   }
 
   /**
    * Log at info level
    */
-  info(message: string, data?: Record<string, any>): void {
+  info(message: string, data?: Record<string, unknown>): void {
     this.log("info", message, data);
   }
 
   /**
    * Log at warning level
    */
-  warn(message: string, data?: Record<string, any>): void {
+  warn(message: string, data?: Record<string, unknown>): void {
     this.log("warn", message, data);
   }
 
@@ -82,7 +82,7 @@ class Logger {
   error(
     message: string,
     error?: Error | unknown,
-    data?: Record<string, any>
+    data?: Record<string, unknown>
   ): void {
     const errorInfo =
       error instanceof Error
@@ -102,7 +102,7 @@ class Logger {
   private log(
     level: LogLevel,
     message: string,
-    data?: Record<string, any>,
+    data?: Record<string, unknown>,
     error?: LogEntry["error"]
   ): void {
     const entry: LogEntry = {
@@ -141,13 +141,19 @@ class Logger {
 /**
  * Create a logger instance with request context
  */
-export function createLogger(req?: any): Logger {
+export function createLogger(req?: {
+  method?: string;
+  url?: string;
+  headers?: Record<string, string | string[] | undefined>;
+}): Logger {
   const context: LogContext = {};
 
   if (req) {
     context.method = req.method;
     context.endpoint = req.url;
-    context.ip = req.headers?.["x-forwarded-for"] || req.headers?.["x-real-ip"];
+    const ipHeader = (req.headers?.["x-forwarded-for"] ||
+      req.headers?.["x-real-ip"]) as string | string[] | undefined;
+    context.ip = Array.isArray(ipHeader) ? ipHeader[0] : ipHeader;
     context.userAgent = req.headers?.["user-agent"];
   }
 

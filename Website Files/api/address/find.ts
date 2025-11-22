@@ -104,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!r.ok) {
       logger.warn("getaddress.io API error", { status: r.status, postcode });
       // Attempt to forward error details from provider
-      let details: any = undefined;
+      let details: unknown = undefined;
       try {
         details = JSON.parse(text);
       } catch {
@@ -148,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     res.status(200).json({ addresses, provider: "getaddress.io (server)" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error("Address proxy error", err);
     await captureException(err, {
       context: "Address lookup",

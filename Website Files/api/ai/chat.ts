@@ -187,7 +187,10 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const { messages, expertMode } = await req.json();
+    const { messages, expertMode } = (await req.json()) as {
+      messages?: unknown;
+      expertMode?: boolean;
+    };
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(
@@ -216,7 +219,7 @@ export default async function handler(req: Request) {
     }
 
     // Configure OpenAI client explicitly (supports optional gateway)
-    const baseURL = (process.env as any).OPENAI_BASE_URL as string | undefined;
+    const baseURL = process.env.OPENAI_BASE_URL;
     const openai = createOpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       baseURL,
@@ -231,10 +234,20 @@ export default async function handler(req: Request) {
     console.log("�💬 Processing", messages.length, "messages");
 
     // Convert messages to AI SDK format
-    const formattedMessages = messages.map((msg: any) => ({
-      role: msg.type === "user" ? ("user" as const) : ("assistant" as const),
-      content: msg.content as string,
-    }));
+    type ChatMessage = { type: "user" | "assistant"; content: string };
+    const formattedMessages = (messages as unknown[]).map(
+      (
+        msg
+      ): {
+        role: "user" | "assistant";
+        content: string;
+      } => {
+        const m = msg as Partial<ChatMessage>;
+        const role = m?.type === "user" ? "user" : "assistant";
+        const content = typeof m?.content === "string" ? m.content : "";
+        return { role, content };
+      }
+    );
 
     // Use appropriate model based on expert mode
     const model = expertMode ? "gpt-4o" : "gpt-4o-mini";
@@ -245,8 +258,7 @@ export default async function handler(req: Request) {
       system: SYSTEM_PROMPT,
       messages: formattedMessages,
       temperature: 0.7,
-      maxTokens: 800,
-    } as any);
+    });
 
     // Create a readable stream
     const encoder = new TextEncoder();
@@ -264,7 +276,7 @@ export default async function handler(req: Request) {
           console.log(`✅ Stream complete. Total chunks: ${chunkCount}`);
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
-        } catch (error) {
+        } catch (error: unknown) {
           console.error("❌ Stream error:", error);
           controller.error(error);
         }
@@ -280,37 +292,44 @@ export default async function handler(req: Request) {
         "X-Accel-Buffering": "no",
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    type AIError = {
+      message?: string;
+      status?: number;
+      type?: string;
+      code?: string;
+    };
+    const err = error as AIError;
     console.error("❌ AI API Error:", error);
     console.error("Error details:", {
-      message: error.message,
-      status: error.status,
-      type: error.type,
-      code: error.code,
+      message: err?.message,
+      status: err?.status,
+      type: err?.type,
+      code: err?.code,
     });
     // Map common failure modes to clearer HTTP statuses/codes
     let status = 500;
     let code = "unknown_error";
-    if (error?.status === 401) {
+    if (err?.status === 401) {
       status = 401;
       code = "invalid_api_key";
-    } else if (error?.status === 429 || error?.code === "insufficient_quota") {
+    } else if (err?.status === 429 || err?.code === "insufficient_quota") {
       status = 429;
       code = "insufficient_quota";
-    } else if (error?.status === 400) {
+    } else if (err?.status === 400) {
       status = 400;
       code = "bad_request";
-    } else if (error?.status === 503) {
+    } else if (err?.status === 503) {
       status = 503;
       code = "service_unavailable";
     }
 
     return new Response(
       JSON.stringify({
-        error: error?.message || "Failed to generate AI response",
+        error: err?.message || "Failed to generate AI response",
         code,
         fallback: true,
-        details: error?.status ? `Status: ${error.status}` : undefined,
+        details: err?.status ? `Status: ${err.status}` : undefined,
       }),
       {
         status,

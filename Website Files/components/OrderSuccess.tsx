@@ -2,19 +2,38 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
-import { CheckCircle2, Package, Mail, Home, Loader2 } from "lucide-react";
-import { verifyPayment } from "../services/payment";
-import { trackEvent, createOrder } from "../services/database";
+import {
+  CheckCircle2,
+  Package,
+  Mail,
+  Home,
+  Loader2,
+  Shield as ShieldIcon,
+  Award as AwardIcon,
+  Zap as ZapIcon,
+} from "lucide-react";
+import { verifyPayment, verifyPaymentIntent } from "../services/payment";
+import {
+  trackEvent,
+  getOrder,
+  findOrderByStripePaymentIntentId,
+} from "../services/database";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import { logger } from "../services/logger";
 import type { CartItem } from "../types";
 
 interface OrderSuccessProps {
   onNavigate: (view: string) => void;
+  onTriggerLogin?: () => void; // opens auth dialog instead of navigating to missing route
 }
 
-export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
+export function OrderSuccess({
+  onNavigate,
+  onTriggerLogin,
+}: OrderSuccessProps) {
   const [loading, setLoading] = useState(true);
+  const { user, userProfile } = useAuth();
   // Minimal shape for payment verification details used in UI
   interface OrderDetails {
     customerEmail?: string;
@@ -32,6 +51,24 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
     };
   }
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
+  // Display-friendly order number (human readable if available)
+  const [displayOrderNumber, setDisplayOrderNumber] = useState<string | null>(
+    null
+  );
+  const [orderedItems, setOrderedItems] = useState<
+    Array<{
+      productId: string;
+      productName: string;
+      quantity: number;
+      price: number;
+    }>
+  >([]);
+  const emailConfigured = Boolean(
+    (import.meta as unknown as { env?: Record<string, string> }).env
+      ?.VITE_SMTP_HOST &&
+      (import.meta as unknown as { env?: Record<string, string> }).env
+        ?.VITE_SMTP_USER
+  );
   const [error, setError] = useState<string | null>(null);
   const location = useLocation();
 
@@ -44,32 +81,62 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
         urlParams.get("session_id") ||
         localStorage.getItem("stripe_session_id") ||
         undefined;
-
-      if (!sessionId) {
-        setError("No session ID found");
-        setLoading(false);
-        return;
-      }
+      // Support multiple Stripe param names + localStorage fallback (3DS redirects add payment_intent)
+      let paymentIntentId =
+        urlParams.get("pi") ||
+        urlParams.get("payment_intent") ||
+        urlParams.get("payment_intent_client_secret")?.split("_secret")[0] ||
+        null ||
+        localStorage.getItem("latest_payment_intent") ||
+        undefined;
+      // Preserve human friendly order number if passed
+      const explicitOrderNumber =
+        urlParams.get("order") ||
+        localStorage.getItem("latest_order_number") ||
+        null;
+      const paypalToken = urlParams.get("token") || undefined; // PayPal orderId
+      const bankOrderId = urlParams.get("bank") || undefined; // Bank transfer order reference
 
       try {
-        // Verify payment with backend
-        const data = await verifyPayment(sessionId);
-        setOrderDetails(data);
+        let analyticsAmount = 0;
+        let analyticsCurrency = "GBP";
+        let analyticsSource: string = "unknown";
+        // Branch by payment method in priority: PayPal -> Bank -> Stripe
+        if (paypalToken) {
+          // Capture PayPal order via backend (idempotent)
+          const resp = await fetch("/api/paypal/capture-order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: paypalToken }),
+          });
+          if (!resp.ok) {
+            const info = await resp.json().catch(() => ({}));
+            throw new Error(info?.message || "Failed to capture PayPal order");
+          }
+          const payload: {
+            orderId: string;
+            status?: string;
+            payerEmail?: string;
+            amount?: number;
+            currency?: string;
+          } = await resp.json();
 
-        // Create order in Firebase Firestore
-        try {
-          // Get user info from localStorage
-          const raw = localStorage.getItem("vortex_user");
-          const user = raw ? JSON.parse(raw) : null;
-          const userId = user?.uid || `guest_${sessionId}`;
+          const details: OrderDetails = {
+            customerEmail: payload.payerEmail,
+            amountTotal: Math.round(Number(payload.amount || 0) * 100),
+            currency: (payload.currency || "GBP").toLowerCase(),
+            status: (payload.status || "completed").toLowerCase(),
+          };
+          setOrderDetails(details);
+          analyticsAmount = Number(payload.amount || 0);
+          analyticsCurrency = String(payload.currency || "GBP");
+          analyticsSource = "paypal";
 
-          // Get cart items from localStorage (if available)
+          // Use local cart snapshot for items list
           const cartRaw = localStorage.getItem("vortex_cart");
           const cartItems = cartRaw ? JSON.parse(cartRaw) : [];
-
-          // Parse items from cart or create default item
           const orderItems =
-            cartItems.length > 0
+            Array.isArray(cartItems) && cartItems.length
               ? cartItems.map((item: CartItem) => ({
                   productId: item.id || "unknown",
                   productName: item.name || "PC Build",
@@ -81,48 +148,209 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
                     productId: "custom_build",
                     productName: "Custom PC Build",
                     quantity: 1,
+                    price: Number(payload.amount || 0),
+                  },
+                ];
+          setOrderedItems(orderItems);
+
+          // Do not create order here; backend capture endpoint persists it already.
+        } else if (bankOrderId) {
+          // Bank transfer: show pending status from local snapshot
+          const cartRaw = localStorage.getItem("vortex_cart");
+          const cartItems = cartRaw ? JSON.parse(cartRaw) : [];
+          const subtotal = (Array.isArray(cartItems) ? cartItems : []).reduce(
+            (sum: number, it: CartItem) =>
+              sum + (it.price || 0) * (it.quantity || 1),
+            0
+          );
+          const details: OrderDetails = {
+            customerEmail: user?.email || undefined,
+            amountTotal: Math.round(Number(subtotal) * 100),
+            currency: "gbp",
+            status: "pending",
+          };
+          setOrderDetails(details);
+          analyticsAmount = Number(subtotal);
+          analyticsCurrency = "GBP";
+          analyticsSource = "bank";
+          const orderItems = Array.isArray(cartItems)
+            ? cartItems.map((item: CartItem) => ({
+                productId: item.id || "unknown",
+                productName: item.name || "PC Build",
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+              }))
+            : [];
+          setOrderedItems(orderItems);
+        } else {
+          // Stripe flows: Payment Intent or Checkout Session
+          let data: OrderDetails;
+          if (paymentIntentId) {
+            data = await verifyPaymentIntent(paymentIntentId);
+          } else if (sessionId) {
+            data = await verifyPayment(sessionId);
+          } else {
+            setError("No payment reference found");
+            setLoading(false);
+            return;
+          }
+          setOrderDetails(data);
+          analyticsAmount = (data?.amountTotal || 0) / 100;
+          analyticsCurrency = (data?.currency || "gbp").toUpperCase();
+          analyticsSource = data?.devTest ? "dev" : "prod";
+
+          // Create order in Firebase Firestore (Stripe only; webhook may also persist)
+          try {
+            // Prefer authenticated Firebase user; fallback to localStorage; final fallback guest
+            let userId = user?.uid || userProfile?.uid || "";
+            if (!userId) {
+              const raw = localStorage.getItem("vortex_user");
+              try {
+                const cached = raw ? JSON.parse(raw) : null;
+                userId = cached?.uid || "";
+              } catch {
+                /* ignore parse */
+              }
+            }
+            if (!userId) {
+              userId = `guest_${paymentIntentId || sessionId}`;
+            }
+
+            // Get cart items from localStorage (if available)
+            const cartRaw = localStorage.getItem("vortex_cart");
+            const cartItems = cartRaw ? JSON.parse(cartRaw) : [];
+
+            // Build items from localStorage or metadata fallback
+            let orderItems: Array<{
+              productId: string;
+              productName: string;
+              quantity: number;
+              price: number;
+            }> = [];
+
+            if (Array.isArray(cartItems) && cartItems.length > 0) {
+              orderItems = cartItems.map((item: CartItem) => ({
+                productId: item.id || "unknown",
+                productName: item.name || "PC Build",
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+              }));
+            } else {
+              // Attempt metadata decode (PaymentIntent verification returns metadata prop)
+              const anyData = data as unknown as {
+                metadata?: Record<string, string>;
+              };
+              const meta = anyData?.metadata || {};
+              let decodedSuccess = false;
+              if (meta.components) {
+                try {
+                  const decoded = atob(meta.components);
+                  const parsed = JSON.parse(decoded) as Array<{
+                    id: string;
+                    n: string;
+                    p: number;
+                    cat?: string;
+                  }>;
+                  if (Array.isArray(parsed) && parsed.length) {
+                    orderItems = parsed.map((c) => ({
+                      productId: c.id || "component",
+                      productName: c.n || "Component",
+                      quantity: 1,
+                      price: c.p,
+                    }));
+                    decodedSuccess = true;
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
+              if (!decodedSuccess && meta.cart) {
+                try {
+                  const decoded = atob(meta.cart);
+                  const parsed = JSON.parse(decoded) as Array<{
+                    id: string;
+                    n: string;
+                    p: number;
+                    q: number;
+                  }>;
+                  if (Array.isArray(parsed) && parsed.length) {
+                    orderItems = parsed.map((item) => ({
+                      productId: item.id || "unknown",
+                      productName: item.n || "Item",
+                      quantity: item.q || 1,
+                      price: item.p,
+                    }));
+                    decodedSuccess = true;
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
+              if (!decodedSuccess) {
+                // Fallback generic item
+                orderItems = [
+                  {
+                    productId: "custom_build",
+                    productName: "Custom PC Build",
+                    quantity: 1,
                     price: (data?.amountTotal || 0) / 100,
                   },
                 ];
+              }
+            }
 
-          // Create order data
-          const orderData = {
-            userId: userId,
-            orderId: sessionId,
-            customerName: data?.customerName || "Guest Customer",
-            customerEmail: data?.customerEmail || "no-email@provided.com",
-            items: orderItems,
-            total: (data?.amountTotal || 0) / 100,
-            status: "pending" as const,
-            progress: 0,
-            orderDate: new Date(),
-            estimatedCompletion: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-            address: {
-              line1: data?.shippingAddress?.line1 || "",
-              line2: data?.shippingAddress?.line2 || "",
-              city: data?.shippingAddress?.city || "",
-              postcode: data?.shippingAddress?.postal_code || "",
-              country: data?.shippingAddress?.country || "UK",
-            },
-            paymentId: sessionId,
-          };
+            // Keep a local copy for confirmation display before we clear storage
+            setOrderedItems(orderItems);
 
-          // Save order to Firebase
-          const orderId = await createOrder(orderData);
-          logger.success("Order created successfully", { orderId });
+            // Check if order already exists (webhook may have created it)
+            const rawOrderId = paymentIntentId || sessionId || "unknown";
 
-          // Clear cart after successful order creation
-          localStorage.removeItem("vortex_cart");
+            try {
+              let existing = await getOrder(rawOrderId);
+              // Secondary lookup by stripePaymentIntentId if not found and we have PI id
+              if (!existing && paymentIntentId) {
+                existing = await findOrderByStripePaymentIntentId(
+                  paymentIntentId
+                );
+              }
 
-          // Show success toast
-          toast.success("Order saved successfully!");
-        } catch (orderError) {
-          logger.error("Failed to create order in Firebase", orderError);
-          // Don't fail the whole flow if order creation fails
-          // The order should still be in Stripe's records
-          toast.error(
-            "Order saved to payment system, but failed to save to database. Our team has been notified."
-          );
+              if (existing) {
+                logger.info("Order already exists - webhook created it", {
+                  orderId: rawOrderId,
+                });
+                setDisplayOrderNumber(
+                  explicitOrderNumber ||
+                    existing.orderNumber ||
+                    existing.orderId
+                );
+                toast.success("Order confirmed!");
+              } else {
+                // Webhook hasn't run yet - it will create the order
+                // Set a placeholder order number for display
+                setDisplayOrderNumber(explicitOrderNumber || rawOrderId);
+                logger.info("Order will be created by webhook", {
+                  orderId: rawOrderId,
+                });
+                toast.info("Payment confirmed! Your order is being processed.");
+              }
+            } catch (checkErr) {
+              logger.warn("Order check failed, relying on webhook", {
+                error: checkErr,
+              });
+              // Assume webhook will handle it
+              setDisplayOrderNumber(explicitOrderNumber || rawOrderId);
+              toast.info("Payment confirmed! Your order is being processed.");
+            }
+
+            // Clear cart after confirmation (order created by webhook or will be soon)
+            localStorage.removeItem("vortex_cart");
+          } catch (orderError) {
+            logger.error("Order check/creation failed", orderError);
+            // Webhook will create it - just show generic confirmation
+            const rawOrderId = paymentIntentId || sessionId || "unknown";
+            setDisplayOrderNumber(explicitOrderNumber || rawOrderId);
+            toast.info("Payment confirmed! Your order is being processed.");
+          }
         }
 
         // Analytics: purchase event (gated by cookie consent)
@@ -132,13 +360,14 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
             const raw = localStorage.getItem("vortex_user");
             const user = raw ? JSON.parse(raw) : null;
             const uid = user?.uid || null;
-            const amount = (data?.amountTotal || 0) / 100;
-            const currency = (data?.currency || "gbp").toUpperCase();
+            const amount = analyticsAmount;
+            const currency = analyticsCurrency;
             trackEvent(uid, "purchase", {
               amount,
               currency,
-              session_id: sessionId,
-              source: data?.devTest ? "dev" : "prod",
+              session_id:
+                sessionId || paymentIntentId || paypalToken || bankOrderId,
+              source: analyticsSource,
             });
           }
         } catch {
@@ -154,11 +383,11 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
     };
 
     loadOrderDetails();
-  }, [location?.search]);
+  }, [location?.search, user?.uid, userProfile?.uid, user?.email]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-sky-400 animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Verifying your payment...</p>
@@ -169,7 +398,7 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="bg-white/5 backdrop-blur-xl border-red-500/20 p-8 max-w-md">
           <div className="text-center">
             <div className="w-16 h-16 bg-red-500/20 border border-red-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -193,7 +422,7 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
   }
 
   return (
-    <div className="min-h-screen bg-black py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
         {/* Success Header */}
         <div className="text-center mb-8">
@@ -214,14 +443,23 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
               <Mail className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-white font-medium mb-1">
-                  Confirmation Email Sent
+                  {emailConfigured && orderDetails?.customerEmail
+                    ? "Confirmation Email Sent"
+                    : "Order Logged"}
                 </p>
-                <p className="text-sm text-gray-400">
-                  We've sent an order confirmation to{" "}
-                  <span className="text-white">
-                    {orderDetails?.customerEmail}
-                  </span>
-                </p>
+                {emailConfigured && orderDetails?.customerEmail ? (
+                  <p className="text-sm text-gray-400">
+                    We've sent an order confirmation to{" "}
+                    <span className="text-white">
+                      {orderDetails.customerEmail}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400">
+                    Your order is confirmed. Email delivery is currently
+                    unavailable; keep this page for your records.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -229,6 +467,14 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
             <div>
               <h3 className="text-white font-semibold mb-4">Order Summary</h3>
               <div className="space-y-3">
+                {displayOrderNumber && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Order Number</span>
+                    <span className="text-white font-medium">
+                      {displayOrderNumber}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Order Total</span>
                   <span className="text-white font-medium">
@@ -251,6 +497,44 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
                 )}
               </div>
             </div>
+
+            {/* Items Ordered */}
+            {orderedItems.length > 0 && (
+              <div>
+                <h3 className="text-white font-semibold mt-6 mb-3">
+                  Items Ordered
+                </h3>
+                <div className="space-y-2 text-sm">
+                  {orderedItems.map((it, idx) => (
+                    <div
+                      key={idx}
+                      className="flex justify-between items-start border border-white/10 rounded-lg p-3 bg-white/5"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-white font-medium truncate">
+                          {it.productName}
+                        </p>
+                        <p className="text-gray-400 text-xs">
+                          Qty: {it.quantity}
+                        </p>
+                      </div>
+                      <p className="text-white font-semibold">
+                        £{(it.price * it.quantity).toFixed(2)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between text-sm mt-3 pt-3 border-t border-white/10">
+                  <span className="text-gray-400">Subtotal</span>
+                  <span className="text-white font-medium">
+                    £
+                    {orderedItems
+                      .reduce((sum, i) => sum + i.price * i.quantity, 0)
+                      .toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Shipping Address */}
             {orderDetails?.shippingAddress && (
@@ -275,6 +559,54 @@ export function OrderSuccess({ onNavigate }: OrderSuccessProps) {
                     <p>{orderDetails.shippingAddress.country}</p>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Guest Account Benefits */}
+            {!localStorage.getItem("vortex_user") && (
+              <div className="border border-sky-600/30 bg-sky-950/40 rounded-lg p-4 sm:p-5">
+                <h3 className="text-white text-sm sm:text-base font-semibold mb-2 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-sky-400" /> Create a
+                  Free Account (Recommended)
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-300 mb-3">
+                  Register with the same email to automatically link this
+                  purchase and unlock:
+                </p>
+                <ul className="grid sm:grid-cols-2 gap-2 text-[11px] sm:text-xs text-gray-300 mb-3">
+                  <li className="flex items-start gap-2">
+                    <ShieldIcon className="w-3.5 h-3.5 text-sky-400" /> Build
+                    progress tracking
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Package className="w-3.5 h-3.5 text-sky-400" /> Order
+                    history & invoices
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <AwardIcon className="w-3.5 h-3.5 text-sky-400" /> Warranty
+                    management
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <ZapIcon className="w-3.5 h-3.5 text-sky-400" /> Early stock
+                    & promo alerts
+                  </li>
+                </ul>
+                <Button
+                  onClick={() => {
+                    if (onTriggerLogin) {
+                      onTriggerLogin();
+                    } else {
+                      // Fallback: navigate to member area which will prompt auth if not logged in
+                      onNavigate("member");
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white h-9"
+                >
+                  Create Free Account Now
+                </Button>
+                <p className="text-[10px] text-gray-500 mt-2">
+                  Use the same email you just purchased with—orders auto-link.
+                </p>
               </div>
             )}
 

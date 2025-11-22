@@ -4,7 +4,7 @@ import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { X, TrendingUp, TrendingDown, Award } from "lucide-react";
-import type { SelectedComponentIds } from "./PCBuilder";
+import type { SelectedComponentIds, ComponentDataMap } from "./PCBuilder";
 
 export interface SavedBuild {
   id: string;
@@ -20,10 +20,8 @@ interface BuildComparisonModalProps {
   onClose: () => void;
   builds: SavedBuild[];
   onRemoveBuild: (buildId: string) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  componentData: Record<string, Array<any>>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  optionalExtrasData: Record<string, Array<any>>;
+  componentData: ComponentDataMap;
+  optionalExtrasData: Record<string, { id: string; price?: number }[]>;
 }
 
 export function BuildComparisonModal({
@@ -98,7 +96,7 @@ export function BuildComparisonModal({
     if (!componentId) return 0;
     const component = getComponent(category, componentId);
     if (!component) return 0;
-    const value = component[specKey];
+    const value = (component as unknown as Record<string, unknown>)[specKey];
     return typeof value === "number" ? value : 0;
   };
 

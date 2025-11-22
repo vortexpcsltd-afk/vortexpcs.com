@@ -24,8 +24,9 @@ import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Progress } from "./ui/progress";
 import { Separator } from "./ui/separator";
 import { Alert, AlertDescription } from "./ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
-import { SecurityBadges, PaymentProviderLogos } from "./SecurityBadges";
+// Removed inline Terms/Privacy modals in favor of new-tab links
+import { SecurityBadges, PaymentProviderLogos } from "./SecurityBadgesClean";
+import { PaymentMethodSelector } from "./PaymentMethodSelector";
 import {
   Wrench,
   Truck,
@@ -57,9 +58,11 @@ import {
 } from "@stripe/react-stripe-js";
 import { stripePromise } from "../config/stripe";
 import { createPaymentIntent } from "../services/payment";
+import { createPayPalOrder } from "../services/paypal";
+import { toast } from "sonner";
+import { isPayPalConfigured } from "../config/paypal";
 import { logger } from "../services/logger";
-import { TermsPage } from "./TermsPage";
-import { PrivacyPage } from "./PrivacyPage";
+// Terms and Privacy pages are opened in a new tab from links
 
 // Payment Step Component
 interface PaymentStepContentProps {
@@ -85,11 +88,19 @@ function PaymentFormInner({
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<
+    "stripe" | "paypal" | null
+  >(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!stripe || !elements) {
+    if (!paymentMethod) {
+      setError("Please select a payment method.");
+      return;
+    }
+
+    if (paymentMethod === "stripe" && (!stripe || !elements)) {
       setError("Stripe has not loaded yet. Please try again.");
       return;
     }
@@ -98,6 +109,47 @@ function PaymentFormInner({
     setError(null);
 
     try {
+      if (paymentMethod === "paypal") {
+        // PayPal payment flow
+        const order = await createPayPalOrder(
+          [
+            {
+              id: "repair-collection",
+              name: `PC Repair Collection Service - ${bookingData.urgency}`,
+              price: totalPrice,
+              quantity: 1,
+              description: `PC Repair Collection Service - ${bookingData.urgency}`,
+            },
+          ],
+          String(bookingData.customerInfo.email || ""),
+          undefined,
+          {
+            serviceType: "pc-repair-collection",
+            urgency: bookingData.urgency,
+          }
+        );
+
+        if (!order?.orderId) {
+          throw new Error("Failed to create PayPal order");
+        }
+
+        // Redirect to PayPal for approval
+        const approvalUrl = order.links?.find(
+          (link: { rel: string }) => link.rel === "approve"
+        )?.href;
+
+        if (approvalUrl) {
+          window.location.href = approvalUrl;
+        } else {
+          throw new Error("PayPal approval URL not found");
+        }
+        return;
+      }
+
+      // Stripe payment flow
+      if (!stripe || !elements) {
+        throw new Error("Stripe not properly loaded");
+      }
       // Create payment intent for collection fee
       const paymentIntent = await createPaymentIntent(totalPrice, "gbp", {
         serviceType: "pc-repair-collection",
@@ -157,40 +209,108 @@ function PaymentFormInner({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <CreditCard className="w-5 h-5 text-sky-400" />
-          <h4 className="text-lg font-semibold text-white">Card Details</h4>
-        </div>
+      {/* Payment Method Selection */}
+      {!paymentMethod && (
+        <PaymentMethodSelector
+          onSelectStripe={() => setPaymentMethod("stripe")}
+          onSelectPayPal={() => {
+            if (isPayPalConfigured) {
+              setPaymentMethod("paypal");
+            } else {
+              toast.error("PayPal is not configured at the moment.");
+            }
+          }}
+          loading={processing}
+        />
+      )}
 
-        <div className="space-y-4">
-          <div>
-            <Label className="text-white mb-2 block">Card Information</Label>
-            <div className="p-4 bg-white/5 border border-white/10 rounded-md">
-              <CardElement
-                options={{
-                  style: {
-                    base: {
-                      fontSize: "16px",
-                      color: "#ffffff",
-                      "::placeholder": {
-                        color: "#9ca3af",
-                      },
-                    },
-                  },
-                }}
-              />
-            </div>
+      {/* Stripe Card Details */}
+      {paymentMethod === "stripe" && (
+        <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <CreditCard className="w-5 h-5 text-sky-400" />
+            <h4 className="text-lg font-semibold text-white">Card Details</h4>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setPaymentMethod(null)}
+              className="ml-auto text-gray-400 hover:text-white"
+            >
+              Change Method
+            </Button>
           </div>
 
-          {error && (
-            <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </div>
-      </Card>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-white mb-2 block">Card Information</Label>
+              <div className="p-5 bg-white/10 border border-white/20 rounded-lg focus-within:ring-2 focus-within:ring-sky-500/40">
+                <CardElement
+                  options={{
+                    style: {
+                      base: {
+                        color: "#ffffff",
+                        fontFamily:
+                          "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial",
+                        fontSize: "16px",
+                        fontSmoothing: "antialiased",
+                        iconColor: "#38bdf8",
+                        "::placeholder": { color: "#94a3b8" },
+                      },
+                      invalid: { color: "#f87171", iconColor: "#f87171" },
+                      complete: { color: "#a7f3d0", iconColor: "#34d399" },
+                    },
+                  }}
+                />
+              </div>
+            </div>
+
+            {error && (
+              <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* PayPal Ready State */}
+      {paymentMethod === "paypal" && (
+        <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+              <CreditCard className="w-6 h-6 text-blue-400" />
+            </div>
+            <div>
+              <h4 className="text-lg font-semibold text-white">
+                PayPal Payment
+              </h4>
+              <p className="text-sm text-gray-400">Secure payment via PayPal</p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setPaymentMethod(null)}
+              className="ml-auto text-gray-400 hover:text-white"
+            >
+              Change Method
+            </Button>
+          </div>
+          <p className="text-gray-300 text-sm">
+            Click the button below to be redirected to PayPal to complete your
+            payment securely.
+          </p>
+        </Card>
+      )}
+
+      {error && (
+        <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Trust Badges */}
       <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
@@ -205,7 +325,11 @@ function PaymentFormInner({
 
       <Button
         type="submit"
-        disabled={processing || !stripe}
+        disabled={
+          processing ||
+          !paymentMethod ||
+          (paymentMethod === "stripe" && !stripe)
+        }
         className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white py-6 text-lg font-semibold"
       >
         {processing ? (
@@ -213,11 +337,18 @@ function PaymentFormInner({
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
             Processing Payment...
           </>
-        ) : (
+        ) : paymentMethod === "paypal" ? (
+          <>
+            <CreditCard className="w-5 h-5 mr-2" />
+            Continue to PayPal - £{totalPrice.toFixed(2)}
+          </>
+        ) : paymentMethod === "stripe" ? (
           <>
             <CreditCard className="w-5 h-5 mr-2" />
             Pay £{totalPrice.toFixed(2)}
           </>
+        ) : (
+          "Select Payment Method"
         )}
       </Button>
     </form>
@@ -320,8 +451,7 @@ function BookingForm(props: BookingFormProps) {
   } = props;
 
   // Modal states for Terms and Privacy
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  // Removed inline Terms/Privacy modals; using external links instead
 
   const steps = [
     "Issue Details",
@@ -1000,51 +1130,27 @@ function BookingForm(props: BookingFormProps) {
             <Checkbox id="terms" required />
             <Label htmlFor="terms" className="text-white text-sm">
               I agree to the{" "}
-              <button
-                type="button"
-                onClick={() => setShowTermsModal(true)}
+              <a
+                href={`${window.location.origin}?view=terms`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-blue-400 underline hover:text-blue-300"
               >
                 Terms of Service
-              </button>{" "}
+              </a>{" "}
               and{" "}
-              <button
-                type="button"
-                onClick={() => setShowPrivacyModal(true)}
+              <a
+                href={`${window.location.origin}?view=privacy`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-blue-400 underline hover:text-blue-300"
               >
                 Privacy Policy
-              </button>
+              </a>
             </Label>
           </div>
 
-          {/* Terms of Service Modal */}
-          <Dialog open={showTermsModal} onOpenChange={setShowTermsModal}>
-            <DialogContent className="max-w-4xl max-h-[80vh] bg-gray-900 border-white/10 p-0 gap-0 [&>button]:bg-sky-500 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-sky-600 [&>button]:w-8 [&>button]:h-8 [&>button]:z-50">
-              <DialogHeader className="sticky top-0 z-40 bg-gray-900 border-b border-white/10 px-6 py-4">
-                <DialogTitle className="text-white text-xl">
-                  Terms of Service
-                </DialogTitle>
-              </DialogHeader>
-              <div className="overflow-y-auto px-6 py-4">
-                <TermsPage />
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Privacy Policy Modal */}
-          <Dialog open={showPrivacyModal} onOpenChange={setShowPrivacyModal}>
-            <DialogContent className="max-w-4xl max-h-[80vh] bg-gray-900 border-white/10 p-0 gap-0 [&>button]:bg-sky-500 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-sky-600 [&>button]:w-8 [&>button]:h-8 [&>button]:z-50">
-              <DialogHeader className="sticky top-0 z-40 bg-gray-900 border-b border-white/10 px-6 py-4">
-                <DialogTitle className="text-white text-xl">
-                  Privacy Policy
-                </DialogTitle>
-              </DialogHeader>
-              <div className="overflow-y-auto px-6 py-4">
-                <PrivacyPage />
-              </div>
-            </DialogContent>
-          </Dialog>
+          {/* Terms/Privacy modals removed in favor of external links */}
         </div>
       )}
 

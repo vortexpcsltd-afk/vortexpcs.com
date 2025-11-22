@@ -135,8 +135,11 @@ export function ExitIntentModal({
       <Card className="relative w-full max-w-lg bg-black/90 backdrop-blur-xl border-white/10 shadow-2xl animate-in zoom-in-95 duration-300">
         {/* Close Button */}
         <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="absolute top-4 right-4 p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-400 z-10"
           aria-label="Close modal"
         >
           <X className="w-5 h-5" />

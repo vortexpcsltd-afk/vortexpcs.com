@@ -18,8 +18,8 @@ export default async function handler() {
     const result = await generateText({
       model: openai("gpt-4o-mini"),
       prompt: "Say 'OpenAI connection successful' in exactly those words.",
-      maxTokens: 50,
-    } as any);
+      maxOutputTokens: 50,
+    });
 
     console.log("✅ Test result:", result.text);
 

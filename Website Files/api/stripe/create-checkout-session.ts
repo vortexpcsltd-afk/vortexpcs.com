@@ -1,17 +1,37 @@
-import Stripe from "stripe";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import Stripe from "stripe";
+import admin from "firebase-admin";
+import { logger } from "../../services/logger";
 
-// Log environment check (first 10 chars only for security)
-console.log("STRIPE_SECRET_KEY available:", !!process.env.STRIPE_SECRET_KEY);
-console.log(
-  "STRIPE_SECRET_KEY prefix:",
-  process.env.STRIPE_SECRET_KEY?.substring(0, 7)
-);
+// Initialize Stripe
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+  apiVersion: "2025-02-24.acacia",
+});
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+  try {
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
+      ? JSON.parse(
+          Buffer.from(
+            process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
+            "base64"
+          ).toString("utf-8")
+        )
+      : undefined;
+
+    if (serviceAccount) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+  } catch (error) {
+    logger.error("Failed to initialize Firebase Admin:", error);
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Enable CORS
+  // CORS headers
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
@@ -20,74 +40,172 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
+    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
   );
 
   if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
   if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { items, customerEmail, metadata, userId } = req.body;
-
-    if (!items || items.length === 0) {
-      return res.status(400).json({ message: "No items provided" });
+    // Authenticate user (optional - allows guest checkout)
+    let userId = "guest";
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ") && admin.apps.length > 0) {
+      try {
+        const token = authHeader.substring(7);
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        userId = decodedToken.uid;
+      } catch (error) {
+        logger.warn("Invalid auth token, proceeding as guest");
+      }
     }
 
-    // Create Stripe checkout session
+    const {
+      amount,
+      currency = "gbp",
+      cartItems,
+      shippingAddress,
+      customerEmail,
+      customerName,
+      customerPhone,
+    } = req.body;
+
+    // Validation
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+
+    if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
+      return res.status(400).json({ error: "Cart items are required" });
+    }
+
+    if (!customerEmail) {
+      return res.status(400).json({ error: "Customer email is required" });
+    }
+
+    if (!shippingAddress) {
+      return res.status(400).json({ error: "Shipping address is required" });
+    }
+
+    // Generate order number
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const orderNumber = `VPC-${dateStr}-${randomSuffix}`;
+
+    // Create Stripe line items
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
+      cartItems.map(
+        (item: { name: string; price: number; quantity: number }) => ({
+          price_data: {
+            currency: currency.toLowerCase(),
+            product_data: {
+              name: item.name,
+            },
+            unit_amount: Math.round(item.price * 100), // Convert to pence
+          },
+          quantity: item.quantity,
+        })
+      );
+
+    // Create order in Firestore (pending payment)
+    let orderId = "";
+    if (admin.apps.length > 0) {
+      const db = admin.firestore();
+      const orderData = {
+        orderNumber,
+        userId,
+        customerEmail,
+        customerName: customerName || "",
+        customerPhone: customerPhone || "",
+        amount,
+        currency: currency.toUpperCase(),
+        status: "pending_payment",
+        paymentMethod: "stripe",
+        items: cartItems.map(
+          (item: {
+            id: string;
+            name: string;
+            category?: string;
+            price: number;
+            quantity: number;
+            image?: string;
+          }) => ({
+            productId: item.id,
+            name: item.name,
+            category: item.category || "",
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image || "",
+          })
+        ),
+        shippingAddress,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        notes: "Awaiting Stripe payment confirmation",
+      };
+
+      const orderRef = await db.collection("orders").add(orderData);
+      orderId = orderRef.id;
+
+      logger.info("Pending order created for Stripe checkout", {
+        orderId,
+        orderNumber,
+        userId,
+      });
+    }
+
+    // Get base URL for success/cancel redirects
+    const baseUrl =
+      process.env.VITE_BASE_URL ||
+      process.env.NEXT_PUBLIC_BASE_URL ||
+      req.headers.origin ||
+      `https://${req.headers.host}`;
+
+    // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      line_items: items.map((item: any) => ({
-        price_data: {
-          currency: "gbp",
-          product_data: {
-            name: item.name,
-            images: item.image ? [item.image] : [],
-            description: item.category || "",
-          },
-          unit_amount: Math.round(item.price * 100), // Convert pounds to pence
-        },
-        quantity: item.quantity,
-      })),
+      line_items: lineItems,
       mode: "payment",
+      success_url: `${baseUrl}/order-success?session_id={CHECKOUT_SESSION_ID}&order=${orderNumber}`,
+      cancel_url: `${baseUrl}/?cancelled=true`,
       customer_email: customerEmail,
       metadata: {
-        ...metadata,
-        userId: userId || "",
-        orderDate: new Date().toISOString(),
+        orderNumber,
+        orderId,
+        userId,
+        customerName: customerName || "",
+        customerPhone: customerPhone || "",
       },
-      success_url: `${
-        process.env.VITE_APP_URL || req.headers.origin
-      }/order-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${
-        process.env.VITE_APP_URL || req.headers.origin
-      }/?cancelled=true`,
-      billing_address_collection: "required",
       shipping_address_collection: {
         allowed_countries: ["GB"],
       },
     });
 
-    res.status(200).json({
+    logger.info("Stripe checkout session created", {
+      sessionId: session.id,
+      orderNumber,
+      orderId,
+    });
+
+    return res.status(200).json({
       sessionId: session.id,
       url: session.url,
+      orderNumber,
+      orderId,
     });
-  } catch (error: any) {
-    console.error("Stripe checkout session error:", error);
-    console.error("Error details:", {
-      message: error.message,
-      type: error.type,
-      code: error.code,
-      statusCode: error.statusCode,
-    });
-    res.status(500).json({
-      message: error.message || "Failed to create checkout session",
-      error: error.type || "unknown_error",
+  } catch (error: unknown) {
+    logger.error("Error creating Stripe checkout session:", error);
+    return res.status(500).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to create checkout session",
     });
   }
 }

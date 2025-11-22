@@ -4,8 +4,17 @@
  * Features: Particle effects, 3D card interactions, confetti, gamification
  * Version: 2025-11-06-UNFORGETTABLE
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { ComponentType } from "react";
 import { useState, useEffect } from "react";
+type Answers = {
+  purpose?: string;
+  budget?: number;
+  performance_ambition?: string;
+  priority_component?: string;
+  aesthetics?: string;
+  timeline?: string;
+  [key: string]: string | number | undefined;
+};
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -364,10 +373,10 @@ export function PCFinderSpectacular({
   setCurrentView,
 }: {
   setCurrentView: (view: string) => void;
-  _setRecommendedBuild: (build: any) => void;
+  _setRecommendedBuild: (build: unknown) => void;
 }) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [answers, setAnswers] = useState<Answers>({});
   const [showResults, setShowResults] = useState(false);
   const [questionHistory, setQuestionHistory] = useState<number[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -414,11 +423,12 @@ export function PCFinderSpectacular({
     const questions = [
       {
         id: "purpose",
-        title: "What's Your Mission?",
-        subtitle: "Choose your primary quest with this powerful machine",
+        title: "Build Without Fear. Power Without Limits.",
+        subtitle:
+          "At Vortex PCs, we don't just assemble machines—we engineer weapons of choice for gamers, creators, and professionals who refuse to settle. Our PC Builder puts you in control: every component, every upgrade, every ounce of performance is yours to command. Forget cookie-cutter rigs and bland 'good enough' builds. With Vortex, you design a system that's unapologetically yours—whether it's a sleek workstation that crushes deadlines or a fire-breathing gaming beast that leaves competitors in the dust. Premium parts. Transparent pricing. No hidden nonsense. Just pure, class-leading performance, backed by service menus that prove we're as serious about support as we are about speed. Ready to build? Let's turn your vision into a machine that makes the slow guys look silly.",
         helpText:
           "Understanding how you'll use your PC helps us prioritise the right components. Gamers need powerful GPUs, creators need fast CPUs and lots of RAM, whilst professionals benefit from reliability and multitasking power.",
-        emoji: "🎯",
+        emoji: "⚡",
         type: "choice",
         options: [
           {
@@ -629,7 +639,7 @@ export function PCFinderSpectacular({
   const questions = getQuestions();
   const currentQuestion = questions[currentStep];
 
-  const handleAnswer = (questionId: string, value: any) => {
+  const handleAnswer = (questionId: string, value: string | number) => {
     const newAnswers = { ...answers, [questionId]: value };
     setAnswers(newAnswers);
     setQuestionHistory([...questionHistory, currentStep]);
@@ -638,7 +648,7 @@ export function PCFinderSpectacular({
     setScore(score + 100);
 
     // Trigger confetti on certain answers
-    if (questionId === "budget" && value >= 3000) {
+    if (questionId === "budget" && typeof value === "number" && value >= 3000) {
       triggerConfetti();
     }
 
@@ -807,8 +817,8 @@ export function PCFinderSpectacular({
                       </div>
                       <div className="text-4xl md:text-5xl font-black bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
                         £
-                        {(answers.budget || 1500) +
-                          (recommendation?.fulfilment.surcharge || 0)}
+                        {Number(answers.budget ?? 1500) +
+                          Number(recommendation?.fulfilment.surcharge ?? 0)}
                       </div>
                       {recommendation?.fulfilment.priorityFlag && (
                         <div className="mt-1 text-xs text-amber-300">
@@ -1212,7 +1222,7 @@ export function PCFinderSpectacular({
                         )}
 
                         {/* Budget tier specific insights */}
-                        {answers.budget >= 3000 && (
+                        {Number(answers.budget) >= 3000 && (
                           <p className="text-base text-amber-200 leading-relaxed">
                             ⭐ <strong>Premium Build Standard:</strong> At this
                             investment level, every component receives 24-hour
@@ -1222,23 +1232,25 @@ export function PCFinderSpectacular({
                             deadlines loom.
                           </p>
                         )}
-                        {answers.budget >= 2000 && answers.budget < 3000 && (
-                          <p className="text-base text-emerald-200 leading-relaxed">
-                            ✨ <strong>Enthusiast Sweet Spot:</strong> This
-                            price range is where price-to-performance peaks.
-                            You're getting 90% of flagship performance at 60% of
-                            the cost—the smart choice for demanding users.
-                          </p>
-                        )}
-                        {answers.budget < 2000 && answers.budget >= 1200 && (
-                          <p className="text-base text-blue-200 leading-relaxed">
-                            🎯 <strong>Value Optimised:</strong> I've squeezed
-                            every ounce of performance from your budget by
-                            selecting components with proven reliability and
-                            strong real-world benchmarks—no compromises where it
-                            counts.
-                          </p>
-                        )}
+                        {Number(answers.budget) >= 2000 &&
+                          Number(answers.budget) < 3000 && (
+                            <p className="text-base text-emerald-200 leading-relaxed">
+                              ✨ <strong>Enthusiast Sweet Spot:</strong> This
+                              price range is where price-to-performance peaks.
+                              You're getting 90% of flagship performance at 60%
+                              of the cost—the smart choice for demanding users.
+                            </p>
+                          )}
+                        {Number(answers.budget) < 2000 &&
+                          Number(answers.budget) >= 1200 && (
+                            <p className="text-base text-blue-200 leading-relaxed">
+                              🎯 <strong>Value Optimised:</strong> I've squeezed
+                              every ounce of performance from your budget by
+                              selecting components with proven reliability and
+                              strong real-world benchmarks—no compromises where
+                              it counts.
+                            </p>
+                          )}
 
                         {/* Aesthetics insight */}
                         {answers.aesthetics === "rgb_max" && (
@@ -1331,39 +1343,63 @@ export function PCFinderSpectacular({
     <div className="min-h-screen py-20">
       <div className="container mx-auto px-4 relative z-10">
         {/* Epic Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-purple-500/20 border border-cyan-400/30 mb-6 backdrop-blur-xl shadow-xl">
-            <Rocket className="w-5 h-5 text-cyan-400 mr-2 animate-bounce" />
-            <span className="text-sm font-bold bg-gradient-to-r from-cyan-300 to-purple-300 bg-clip-text text-transparent">
-              AI-POWERED PERFECT MATCH SYSTEM
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center px-5 py-2.5 rounded-full bg-slate-900/80 border border-sky-500/40 mb-8 backdrop-blur-sm shadow-lg shadow-sky-500/20">
+            <Zap className="w-4 h-4 text-sky-400 mr-2" />
+            <span className="text-xs font-semibold tracking-wider text-sky-300 uppercase">
+              Premium PC Engineering
             </span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black mb-6">
-            <span
-              className="block bg-gradient-to-r from-pink-500 via-purple-500 via-blue-500 via-cyan-500 via-green-500 via-yellow-500 to-pink-500 bg-clip-text text-transparent"
-              style={{
-                backgroundSize: "200% auto",
-                animation: "gradient 3s linear infinite",
-              }}
-            >
-              Find Your
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black mb-8 leading-[1.1] tracking-tight">
+            <span className="relative block mb-3">
+              <span className="relative bg-gradient-to-r from-sky-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent animate-pulse">
+                Build Without Fear.
+              </span>
             </span>
-            <span
-              className="block bg-gradient-to-r from-yellow-500 via-green-500 via-cyan-500 via-blue-500 via-purple-500 via-pink-500 to-yellow-500 bg-clip-text text-transparent"
-              style={{
-                backgroundSize: "200% auto",
-                animation: "gradient 3s linear infinite",
-                animationDelay: "0.5s",
-              }}
-            >
-              Perfect PC
+            <span className="relative block">
+              <span className="relative bg-gradient-to-r from-blue-500 via-cyan-400 to-sky-400 bg-clip-text text-transparent animate-pulse">
+                Power Without Limits.
+              </span>
             </span>
           </h1>
 
-          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 max-w-3xl mx-auto px-4">
-            {currentQuestion?.emoji} {currentQuestion?.subtitle}
-          </p>
+          <div className="max-w-4xl mx-auto px-4 space-y-6">
+            <p className="text-xl sm:text-2xl text-white font-medium leading-relaxed">
+              At Vortex PCs, we don't just assemble machines—we engineer weapons
+              of choice for gamers, creators, and professionals who refuse to
+              settle.
+            </p>
+
+            <p className="text-lg sm:text-xl text-gray-300 leading-relaxed">
+              Our PC Builder puts you in control: every component, every
+              upgrade, every ounce of performance is yours to command.
+            </p>
+
+            <div className="h-px bg-gradient-to-r from-transparent via-sky-500/50 to-transparent my-8"></div>
+
+            <p className="text-lg sm:text-xl text-gray-300 leading-relaxed">
+              Forget cookie-cutter rigs and bland "good enough" builds. With
+              Vortex, you design a system that's unapologetically yours—whether
+              it's a sleek workstation that crushes deadlines or a
+              fire-breathing gaming beast that leaves competitors in the dust.
+            </p>
+
+            <p className="text-lg sm:text-xl text-gray-300 leading-relaxed">
+              <span className="text-sky-400 font-semibold">
+                Premium parts. Transparent pricing. No hidden nonsense.
+              </span>{" "}
+              Just pure, class-leading performance, backed by service that
+              proves we're as serious about support as we are about speed.
+            </p>
+
+            <div className="pt-4">
+              <p className="text-xl sm:text-2xl text-white font-semibold">
+                Ready to build? Let's turn your vision into a machine that makes
+                the slow guys look silly.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Progress with Score */}
@@ -1415,38 +1451,49 @@ export function PCFinderSpectacular({
             {/* Question Options */}
             {currentQuestion?.type === "choice" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {currentQuestion.options?.map((option: any, idx: number) => (
-                  <button
-                    key={option.value}
-                    onClick={() =>
-                      handleAnswer(currentQuestion.id, option.value)
-                    }
-                    className="group relative p-6 md:p-8 rounded-2xl border-2 border-white/10 hover:border-sky-400/50 transition-all duration-300 text-left bg-gradient-to-br from-slate-800/50 to-slate-900/50 hover:scale-105 hover:shadow-2xl overflow-hidden"
-                    style={{ animationDelay: `${idx * 0.1}s` }}
-                  >
-                    {/* Animated gradient background on hover */}
-                    <div
-                      className={`absolute inset-0 bg-gradient-to-br ${option.color} opacity-0 group-hover:opacity-20 transition-opacity duration-500`}
-                    ></div>
-
-                    <div className="relative flex items-start gap-4">
+                {currentQuestion.options?.map(
+                  (
+                    option: {
+                      value: string;
+                      label: string;
+                      icon: ComponentType<{ className?: string }>;
+                      description: string;
+                      color: string;
+                    },
+                    idx: number
+                  ) => (
+                    <button
+                      key={option.value}
+                      onClick={() =>
+                        handleAnswer(currentQuestion.id, option.value)
+                      }
+                      className="group relative p-6 md:p-8 rounded-2xl border-2 border-white/10 hover:border-sky-400/50 transition-all duration-300 text-left bg-gradient-to-br from-slate-800/50 to-slate-900/50 hover:scale-105 hover:shadow-2xl overflow-hidden"
+                      style={{ animationDelay: `${idx * 0.1}s` }}
+                    >
+                      {/* Animated gradient background on hover */}
                       <div
-                        className={`p-4 rounded-xl bg-gradient-to-br ${option.color} shadow-lg group-hover:scale-110 group-hover:rotate-12 transition-all duration-300`}
-                      >
-                        <option.icon className="w-8 h-8 text-white" />
+                        className={`absolute inset-0 bg-gradient-to-br ${option.color} opacity-0 group-hover:opacity-20 transition-opacity duration-500`}
+                      ></div>
+
+                      <div className="relative flex items-start gap-4">
+                        <div
+                          className={`p-4 rounded-xl bg-gradient-to-br ${option.color} shadow-lg group-hover:scale-110 group-hover:rotate-12 transition-all duration-300`}
+                        >
+                          <option.icon className="w-8 h-8 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-cyan-300 transition-colors">
+                            {option.label}
+                          </h3>
+                          <p className="text-gray-400 group-hover:text-gray-300 transition-colors">
+                            {option.description}
+                          </p>
+                        </div>
+                        <ArrowRight className="w-6 h-6 text-sky-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-300" />
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-cyan-300 transition-colors">
-                          {option.label}
-                        </h3>
-                        <p className="text-gray-400 group-hover:text-gray-300 transition-colors">
-                          {option.description}
-                        </p>
-                      </div>
-                      <ArrowRight className="w-6 h-6 text-sky-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-300" />
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  )
+                )}
               </div>
             )}
 
@@ -1458,8 +1505,13 @@ export function PCFinderSpectacular({
                     <div className="absolute inset-0 bg-gradient-to-r from-green-500/30 to-emerald-500/30 blur-3xl rounded-full"></div>
                     <div className="relative text-6xl md:text-7xl font-black bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent px-12 py-6">
                       {currentQuestion.formatValue?.(
-                        answers[currentQuestion.id] ||
-                          currentQuestion.defaultValue
+                        Number(
+                          (answers[currentQuestion.id] as number | undefined) ??
+                            (currentQuestion.defaultValue as
+                              | number
+                              | undefined) ??
+                            0
+                        )
                       )}
                     </div>
                   </div>
@@ -1471,8 +1523,13 @@ export function PCFinderSpectacular({
                 <div className="px-8">
                   <Slider
                     value={[
-                      answers[currentQuestion.id] ||
-                        currentQuestion.defaultValue,
+                      Number(
+                        (answers[currentQuestion.id] as number | undefined) ??
+                          (currentQuestion.defaultValue as
+                            | number
+                            | undefined) ??
+                          0
+                      ),
                     ]}
                     onValueChange={(value) =>
                       setAnswers({ ...answers, [currentQuestion.id]: value[0] })
@@ -1497,8 +1554,13 @@ export function PCFinderSpectacular({
                     onClick={() =>
                       handleAnswer(
                         currentQuestion.id,
-                        answers[currentQuestion.id] ||
-                          currentQuestion.defaultValue
+                        Number(
+                          (answers[currentQuestion.id] as number | undefined) ??
+                            (currentQuestion.defaultValue as
+                              | number
+                              | undefined) ??
+                            0
+                        )
                       )
                     }
                     className="bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-500 hover:via-emerald-500 hover:to-teal-500 text-white text-xl px-12 py-6 rounded-xl shadow-2xl shadow-green-500/50 hover:shadow-green-500/70 hover:scale-110 transition-all duration-300"

@@ -1,13 +1,18 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { ApiError } from "../../../types/api";
 
-// Firebase Admin singleton (align with other endpoints)
-let admin: any = null;
+type FirebaseAdmin = typeof import("firebase-admin");
+// Firebase Admin singleton
+let admin: FirebaseAdmin | null = null;
 let initialized = false;
 
 async function getAdmin() {
   if (admin && initialized) return admin;
   const imported = await import("firebase-admin");
-  admin = (imported as any).default ? (imported as any).default : imported;
+  const candidate = (imported as unknown as { default?: FirebaseAdmin }).default
+    ? (imported as unknown as { default: FirebaseAdmin }).default
+    : (imported as unknown as FirebaseAdmin);
+  admin = candidate;
 
   if (!initialized) {
     try {
@@ -16,7 +21,7 @@ async function getAdmin() {
       if (saB64) {
         const json = Buffer.from(saB64, "base64").toString("utf-8");
         const creds = JSON.parse(json);
-        if (!(admin as any).apps?.length) {
+        if (!admin.apps?.length) {
           admin.initializeApp({
             credential: admin.credential.cert(creds),
             projectId: creds.project_id,
@@ -24,7 +29,7 @@ async function getAdmin() {
         }
       } else {
         // Fallback to Application Default Credentials (useful locally)
-        if (!(admin as any).apps?.length) {
+        if (!admin.apps?.length) {
           admin.initializeApp({
             credential: admin.credential.applicationDefault(),
             projectId: process.env.FIREBASE_PROJECT_ID,
@@ -98,9 +103,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Delete user authentication account
     try {
       await adm.auth().deleteUser(userId);
-    } catch (authError: any) {
+    } catch (authError: unknown) {
+      const err = authError as ApiError & { code?: string };
       // If user doesn't exist in Auth, continue with Firestore cleanup
-      if (authError.code !== "auth/user-not-found") {
+      if (err.code !== "auth/user-not-found") {
         throw authError;
       }
     }
@@ -164,7 +170,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           supportTickets: deletedTickets,
         },
       });
-    } catch {}
+    } catch (auditError) {
+      console.warn("delete-user audit log failed:", auditError);
+    }
 
     return res.status(200).json({
       success: true,
@@ -175,10 +183,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         supportTickets: deletedTickets,
       },
     });
-  } catch (error: any) {
-    console.error("delete-user error:", error);
+  } catch (error: unknown) {
+    const err = error as ApiError;
+    console.error("delete-user error:", err);
     return res
       .status(500)
-      .json({ message: error.message || "Internal Server Error" });
+      .json({ message: err.message || "Internal Server Error" });
   }
 }

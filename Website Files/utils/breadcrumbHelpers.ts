@@ -53,6 +53,8 @@ export function getBreadcrumbs(currentView: string): BreadcrumbItem[] {
       { label: "Admin", href: "admin" },
       { label: "CMS Diagnostics", current: true },
     ],
+    "business-solutions": [{ label: "Business Solutions", current: true }],
+    "business-dashboard": [{ label: "Business Dashboard", current: true }],
   };
 
   // Blog list

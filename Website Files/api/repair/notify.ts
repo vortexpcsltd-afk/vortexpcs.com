@@ -4,6 +4,7 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
+import { getSmtpConfig } from "../services/smtp.js";
 import { createLogger } from "../services/logger";
 import {
   checkEmailRateLimit,
@@ -77,12 +78,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       urgency: bookingData.urgency,
     });
 
-    // Load SMTP configuration
-    const smtpHost = process.env.VITE_SMTP_HOST;
-    const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "465", 10);
-    const smtpSecure = process.env.VITE_SMTP_SECURE === "true";
-    const smtpUser = process.env.VITE_SMTP_USER;
-    const smtpPass = process.env.VITE_SMTP_PASS;
+    // Load SMTP configuration via centralized helper
+    const {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      user: smtpUser,
+      pass: smtpPass,
+      warning,
+    } = getSmtpConfig(req);
     const businessEmail =
       process.env.VITE_BUSINESS_EMAIL || "info@vortexpcs.com";
 
@@ -105,6 +109,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       host: smtpHost,
       port: smtpPort,
     });
+    if (warning) {
+      logger.warn("SMTP host normalized", { warning });
+    }
 
     // Create transporter
     const transporter = nodemailer.createTransport({
@@ -118,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       await transporter.verify();
       logger.debug("SMTP connection verified");
-    } catch (verifyError: any) {
+    } catch (verifyError: unknown) {
       const { message, code } = verifyError || {};
       logger.error("SMTP verify failed", verifyError, { code });
       await captureException(verifyError, {
@@ -265,14 +272,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 gap: 12px;
               }
               .info-item {
-                background: #f8fafc;
-                padding: 12px;
-                border-radius: 8px;
-                border: 1px solid #e2e8f0;
-              }
+      logger.error("Repair notification error", error as Error);
+      await captureException(error as Error, {
+        context: "Repair notification",
+        customerEmail: req.body?.customerInfo?.email,
+      });
               .info-label {
                 font-size: 12px;
-                color: #64748b;
+        details: (error as Error)?.message,
                 text-transform: uppercase;
                 letter-spacing: 0.3px;
                 margin-bottom: 4px;
@@ -684,7 +691,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message: "Repair booking notifications sent successfully",
       bookingRef,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error("Repair notification error", error);
     await captureException(error, {
       context: "Repair notification",

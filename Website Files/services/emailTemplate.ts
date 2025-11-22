@@ -128,6 +128,27 @@ export function buildPlainTextFromHtml(html: string): string {
     .trim();
 }
 
+/**
+ * Wrap raw HTML in the branded template if the logo is not already present.
+ * Prevents double-wrapping bulk/admin emails.
+ */
+export function ensureBranded(
+  html: string,
+  subject: string,
+  opts: Partial<EmailTemplateOptions> = {}
+): string {
+  if (/vortexpcs-logo\.png/i.test(html)) return html; // already branded
+  return buildBrandedEmailHtml({
+    title: subject || opts.title || "Vortex PCs",
+    preheader: opts.preheader || "",
+    logoUrl: opts.logoUrl || "https://vortexpcs.com/vortexpcs-logo.png",
+    accentFrom: opts.accentFrom,
+    accentTo: opts.accentTo,
+    contentHtml: html,
+    footerHtml: opts.footerHtml,
+  });
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")

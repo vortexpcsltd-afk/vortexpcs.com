@@ -23,23 +23,35 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'admin@vortexpcs.com' ||
-        isWhitelistedAdminEmail()
+        isWhitelistedAdminEmail() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'admin@vortexpcs.com'))
       );
     }
     
     // Users collection
     match /users/{userId} {
-      // Users can read their own profile
-      allow read: if isOwner(userId) || isAdmin();
+      // Users can always read their own profile (even if it doesn't exist)
+      // This allows the app to check if profile exists and create it if needed
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isWhitelistedAdminEmail());
       
-      // Users can create their own profile on signup
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Users can create their own profile on signup or first login
+      // Ensure they can only set role to 'user' unless they're a whitelisted admin
+      allow create: if isAuthenticated() && request.auth.uid == userId && 
+                       (request.resource.data.role == 'user' || 
+                        !('role' in request.resource.data) ||
+                        isWhitelistedAdminEmail());
       
-      // Users can update their own profile, but cannot change their role. Admins can update any field.
-      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+      // Users can update their own profile, but cannot change their role unless admin
+      // Allow updates even if document doesn't exist yet (for race conditions)
+      allow update: if isAuthenticated() && 
+                       ((request.auth.uid == userId && 
+                         (!('role' in request.resource.data) ||
+                          !exists(/databases/$(database)/documents/users/$(userId)) ||
+                          request.resource.data.role == resource.data.role)) || 
+                        isWhitelistedAdminEmail());
       
       // Only admins can delete users
       allow delete: if isAdmin();
@@ -47,15 +59,23 @@ service cloud.firestore {
     
     // Orders collection
     match /orders/{orderId} {
-      // Users can read their own orders, admins can read all
-      allow read: if isAuthenticated() && 
-                     (request.auth.uid == resource.data.userId || isAdmin());
+      // Users can read orders where they are the userId OR where their email matches
+      // Admins can read all orders
+      allow read: if isAuthenticated() && (
+                     resource.data.userId == request.auth.uid ||
+                     resource.data.customerEmail == request.auth.token.email ||
+                     isAdmin()
+                   );
       
       // Authenticated users can create orders
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
       
-      // Only admins can update orders (for status changes)
-      allow update: if isAdmin();
+      // Users can update their own orders (for claiming), admins can update any
+      allow update: if isAuthenticated() && (
+                       resource.data.userId == request.auth.uid ||
+                       resource.data.customerEmail == request.auth.token.email ||
+                       isAdmin()
+                     );
       
       // Only admins can delete orders
       allow delete: if isAdmin();
@@ -101,6 +121,65 @@ service cloud.firestore {
       allow read: if isAdmin();
       
       // No updates or deletes
+      allow update, delete: if false;
+    }
+
+    // Advanced analytics: sessions (public write; admin read)
+    // Allow anonymous clients to create and update ONLY specific fields of their own session doc.
+    match /analytics_sessions/{sessionId} {
+      // Anyone can create a session document
+      allow create: if true;
+
+      // Allow updates to activity fields only
+      // Do NOT check referrer, userAgent, device, location equality since objects fail equality checks
+      allow update: if
+        // Ensure core session ID doesn't change
+        request.resource.data.sessionId == resource.data.sessionId &&
+        // Only allow these fields in updates
+        request.resource.data.keys().hasOnly([
+          "sessionId",
+          "userId", 
+          "startTime",
+          "lastActivity",
+          "pageViews",
+          "pages",
+          "referrer",
+          "userAgent",
+          "location",
+          "device",
+          "isActive"
+        ]) &&
+        // Type validation for changeable fields
+        request.resource.data.lastActivity is timestamp &&
+        request.resource.data.pageViews is number &&
+        request.resource.data.pages is list &&
+        request.resource.data.isActive is bool;
+
+      // Only admins can read sessions
+      allow read: if isAdmin();
+
+      // No deletes from clients
+      allow delete: if false;
+    }
+
+    // Advanced analytics: pageviews (public write; admin read)
+    match /analytics_pageviews/{docId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Advanced analytics: custom events (public write; admin read)
+    match /analytics_events/{docId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Advanced analytics: security events (public write; admin read)
+    match /security_events/{docId} {
+      allow create: if true;
+      allow read: if isAdmin();
       allow update, delete: if false;
     }
     

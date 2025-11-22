@@ -43,7 +43,8 @@ export default defineConfig(({ mode }) => {
       minify: "terser",
       cssMinify: true,
       cssCodeSplit: true,
-      chunkSizeWarningLimit: 500,
+      // Raise limit to reduce noisy large-chunk warnings (we also split vendors below)
+      chunkSizeWarningLimit: 1200,
       terserOptions: {
         compress: {
           drop_console: true,
@@ -56,21 +57,25 @@ export default defineConfig(({ mode }) => {
         },
       },
       rollupOptions: {
+        // Quiet specific Rollup warnings about modules that are both dynamically and
+        // statically imported — these do not affect correctness but generate noise.
+        onwarn(warning, defaultHandler) {
+          const msg =
+            typeof warning.message === "string" ? warning.message : "";
+          if (
+            msg.includes("dynamically imported") &&
+            msg.includes("but also statically imported")
+          ) {
+            return;
+          }
+          defaultHandler(warning);
+        },
         output: {
-          manualChunks: {
-            "react-vendor": ["react", "react-dom"],
-            "ui-vendor": [
-              "lucide-react",
-              "@radix-ui/react-dialog",
-              "@radix-ui/react-tabs",
-            ],
-            // Split large feature/vendor chunks to reduce initial JS
-            "cms-vendor": ["contentful"],
-            "stripe-vendor": ["@stripe/react-stripe-js", "@stripe/stripe-js"],
-            // Further split Firebase to reduce single large vendor chunk
-            "firebase-auth": ["firebase/auth"],
-            "firebase-db": ["firebase/app", "firebase/firestore"],
-            charts: ["recharts"],
+          // Simplified chunking to mitigate ReferenceError in vendor bundle.
+          manualChunks(id) {
+            if (id.includes("node_modules")) {
+              return "vendor"; // single stable vendor chunk
+            }
           },
         },
       },
@@ -92,16 +97,15 @@ export default defineConfig(({ mode }) => {
         protocol: "ws",
         host: "localhost",
       },
-      // Proxy stripe API requests during development to avoid CORS issues
+      // Proxy ALL API requests during development to Vercel deployment
       proxy: {
-        // Forward any local /api/stripe requests to the configured backend
-        "/api/stripe": {
+        "/api": {
           target:
             env.VITE_STRIPE_BACKEND_URL ||
             "https://vortexpcs-blu4m4bq5-vortexpc5.vercel.app",
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/stripe/, "/api/stripe"),
+          rewrite: (path) => path, // Keep the full /api path
         },
       },
     },

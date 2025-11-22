@@ -6,6 +6,8 @@ import { BrowserRouter } from "react-router-dom";
 import "./styles/globals.css";
 import * as Sentry from "@sentry/react";
 import { logger } from "./services/logger";
+import { getConsent } from "./utils/consent";
+import { initPerformanceMonitoring } from "./services/performanceMonitoring";
 
 // Initialize Sentry for error tracking
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -35,6 +37,9 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   });
 }
 
+// Initialize comprehensive performance monitoring
+initPerformanceMonitoring();
+
 // Web Vitals monitoring for Core Web Vitals tracking
 if (import.meta.env.PROD) {
   // Dynamically import web-vitals to avoid blocking initial render
@@ -46,12 +51,17 @@ if (import.meta.env.PROD) {
         rating: string;
       }) => {
         // Send to analytics (Vercel Analytics, Google Analytics, etc.)
-        if (window.va) {
-          window.va("event", "Web Vitals", {
-            metric: metric.name,
-            value: Math.round(metric.value),
-            rating: metric.rating,
-          });
+        const { analytics: consentAnalytics } = getConsent();
+        if (consentAnalytics && window.va) {
+          try {
+            window.va("track", "Web Vitals", {
+              metric: metric.name,
+              value: Math.round(metric.value),
+              rating: metric.rating,
+            });
+          } catch {
+            // ignore analytics errors
+          }
         }
 
         // Log in development for debugging
@@ -80,6 +90,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+//
 
 // Register service worker for offline caching (only in production & supported browsers)
 if ("serviceWorker" in navigator && import.meta.env.PROD) {

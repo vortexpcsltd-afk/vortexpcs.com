@@ -136,7 +136,9 @@ export const loginUser = async (
 
   try {
     const { signInWithEmailAndPassword } = await import("firebase/auth");
-    const { doc, updateDoc } = await import("firebase/firestore");
+    const { doc, getDoc, setDoc, updateDoc } = await import(
+      "firebase/firestore"
+    );
 
     const userCredential = await signInWithEmailAndPassword(
       auth,
@@ -145,10 +147,36 @@ export const loginUser = async (
     );
     const user = userCredential.user;
 
-    // Update last login
-    await updateDoc(doc(db, "users", user.uid), {
-      lastLogin: new Date(),
-    });
+    // Check if user document exists, create if not
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        // Create user profile if it doesn't exist (role defaults to 'user')
+        const userProfile: UserProfile = {
+          uid: user.uid,
+          email: user.email!,
+          displayName: user.displayName || email.split("@")[0],
+          accountType: "general",
+          role: "user",
+          marketingOptOut: false,
+          createdAt: new Date(),
+          lastLogin: new Date(),
+        };
+        await setDoc(userDocRef, userProfile);
+      } else {
+        // Update last login if document exists
+        await updateDoc(userDocRef, {
+          lastLogin: new Date(),
+        });
+      }
+    } catch (profileError) {
+      // Log but don't fail login if profile update fails
+      logger.warn("Failed to update user profile on login", {
+        error: String(profileError),
+      });
+    }
 
     return user;
   } catch (error: unknown) {
@@ -159,6 +187,10 @@ export const loginUser = async (
       error && typeof error === "object" && "code" in error
         ? (error as { code: string }).code
         : null;
+
+    // Log the actual error for debugging
+    console.error("[Auth] Login failed with error code:", errorCode);
+    console.error("[Auth] Full error:", error);
 
     switch (errorCode) {
       case "auth/invalid-email":
@@ -181,10 +213,17 @@ export const loginUser = async (
         throw new Error(
           "Network error. Please check your connection and try again."
         );
-      default:
+      case "permission-denied":
         throw new Error(
-          "Login failed. Please check your credentials and try again."
+          "Permission denied. Your account may not be properly set up. Please contact support."
         );
+      default: {
+        // Include error code in message for debugging
+        const debugMessage = errorCode
+          ? `Login failed (${errorCode}). Please check your credentials and try again.`
+          : "Login failed. Please check your credentials and try again.";
+        throw new Error(debugMessage);
+      }
     }
   }
 };
@@ -364,6 +403,20 @@ export const getUserProfile = async (
 
     return null;
   } catch (error: unknown) {
+    // Check for permission-denied error
+    const errorCode =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: string }).code
+        : null;
+
+    if (errorCode === "permission-denied") {
+      logger.warn(
+        "Permission denied reading user profile - may need to create profile",
+        { uid }
+      );
+      return null; // Return null instead of throwing to allow graceful handling
+    }
+
     logger.error("Get user profile error:", error);
     const errorMessage =
       error && typeof error === "object" && "message" in error
@@ -408,6 +461,92 @@ export const getCurrentUser = (): User | null => {
     return null;
   }
   return auth.currentUser;
+};
+
+/**
+ * Change the current user's password (requires recent login)
+ */
+export const changeUserPassword = async (
+  currentPassword: string,
+  newPassword: string
+): Promise<void> => {
+  if (!auth) throw new Error("Firebase not initialized");
+  const user = auth.currentUser;
+  if (!user || !user.email)
+    throw new Error("No authenticated user to update password");
+
+  try {
+    const { EmailAuthProvider, reauthenticateWithCredential, updatePassword } =
+      await import("firebase/auth");
+    // Reauthenticate with email/password
+    const cred = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, cred);
+    await updatePassword(user, newPassword);
+  } catch (error: unknown) {
+    logger.error("Change password error:", error);
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: string }).code
+        : null;
+    switch (code) {
+      case "auth/wrong-password":
+      case "auth/invalid-credential":
+        throw new Error("Current password is incorrect.");
+      case "auth/weak-password":
+        throw new Error(
+          "Password too weak. Use at least 6 characters and try again."
+        );
+      case "auth/requires-recent-login":
+        throw new Error("Please log in again and then change your password.");
+      default:
+        throw new Error("Failed to change password. Please try again.");
+    }
+  }
+};
+
+/**
+ * Change the current user's email. Sends a verification link to the new email.
+ * Requires recent login. Firestore email will be updated after verification on next sync.
+ */
+export const changeUserEmail = async (
+  currentPassword: string,
+  newEmail: string
+): Promise<void> => {
+  if (!auth) throw new Error("Firebase not initialized");
+  const user = auth.currentUser;
+  if (!user || !user.email)
+    throw new Error("No authenticated user to update email");
+
+  try {
+    const {
+      EmailAuthProvider,
+      reauthenticateWithCredential,
+      verifyBeforeUpdateEmail,
+    } = await import("firebase/auth");
+    // Reauthenticate
+    const cred = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, cred);
+    await verifyBeforeUpdateEmail(user, newEmail);
+  } catch (error: unknown) {
+    logger.error("Change email error:", error);
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: string }).code
+        : null;
+    switch (code) {
+      case "auth/invalid-email":
+        throw new Error("Invalid email address. Please check and try again.");
+      case "auth/email-already-in-use":
+        throw new Error("This email is already in use by another account.");
+      case "auth/requires-recent-login":
+        throw new Error("Please log in again and then change your email.");
+      case "auth/wrong-password":
+      case "auth/invalid-credential":
+        throw new Error("Current password is incorrect.");
+      default:
+        throw new Error("Failed to start email change. Please try again.");
+    }
+  }
 };
 
 /**

@@ -71,4 +71,10 @@ if (isFirebaseConfigured) {
 }
 
 export { auth, db, storage, googleProvider, app };
+// Minimal client-visible config for diagnostics/UI (avoid exposing secrets beyond what's already public in client SDK)
+export const firebaseClientConfig = {
+  projectId: firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain,
+};
+export const firebaseIsConfigured = Boolean(isFirebaseConfigured);
 export default app;
