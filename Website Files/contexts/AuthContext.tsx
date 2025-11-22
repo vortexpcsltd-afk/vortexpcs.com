@@ -66,12 +66,13 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(false); // Start with false since we're not loading anything initially
+  const [loading, setLoading] = useState(true); // Start with true while checking auth state
 
   useEffect(() => {
     // Listen to Firebase auth state changes
     const unsubscribe = onAuthStateChanged((firebaseUser) => {
       setUser(firebaseUser);
+      setLoading(false); // Auth state determined
       if (firebaseUser) {
         // Load user profile from Firestore
         import("../services/auth").then(({ getUserProfile }) => {

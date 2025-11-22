@@ -219,7 +219,7 @@ export function MemberArea({
       </div>
     );
   }
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
   const [editingProfile, setEditingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [ordersRefreshing, setOrdersRefreshing] = useState(false);
@@ -648,6 +648,29 @@ export function MemberArea({
   };
 
   // Check both isLoggedIn prop AND actual Firebase user from context
+  // Show loading if auth is still initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen py-20">
+        <div className="container mx-auto px-4">
+          <div className="max-w-md mx-auto">
+            <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-8">
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center mx-auto mb-4">
+                  <Loader2 className="w-8 h-8 text-white animate-spin" />
+                </div>
+                <h1 className="text-2xl font-bold text-white mb-2">
+                  Loading...
+                </h1>
+                <p className="text-gray-400">Checking authentication status</p>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!isLoggedIn || !user) {
     return (
       <div className="min-h-screen py-20">
