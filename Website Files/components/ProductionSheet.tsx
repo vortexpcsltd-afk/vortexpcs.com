@@ -160,13 +160,46 @@ export const ProductionSheet: React.FC<ProductionSheetProps> = ({
         format: "a4",
       });
       const left = 14;
-      let y = 16;
-      doc.setFontSize(16);
-      doc.text(`Production Sheet #${order.displayId}`, left, y);
-      y += 8;
+      const right = 196;
+      let y = 20;
+
+      // Header with logo placeholder and title
+      doc.setFillColor(14, 165, 233); // Sky blue
+      doc.rect(0, 0, 210, 15, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("VORTEX PCS", left, 10);
       doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("Production Sheet", right - 40, 10);
+
+      y = 22;
+      doc.setTextColor(0, 0, 0);
+
+      // Order ID and Date
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Order #${order.displayId}`, left, y);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const dateStr = order.orderDate
+        ? new Date(order.orderDate).toLocaleDateString("en-GB")
+        : "N/A";
+      doc.text(dateStr, right - doc.getTextWidth(dateStr), y);
+      y += 10;
+
+      // Customer Section
+      doc.setFillColor(240, 240, 240);
+      doc.rect(left - 2, y - 5, right - left + 4, 8, "F");
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("CUSTOMER INFORMATION", left, y);
+      y += 8;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
       doc.text(
-        `Customer: ${
+        `Name: ${
           (order.original as Order & { customerName?: string })?.customerName ||
           "N/A"
         }`,
@@ -183,49 +216,122 @@ export const ProductionSheet: React.FC<ProductionSheetProps> = ({
         y
       );
       y += 5;
-      doc.text(`Status: ${order.status}`, left, y);
-      y += 5;
-      doc.text(
-        `Order Date: ${
-          order.orderDate
-            ? new Date(order.orderDate).toLocaleDateString("en-GB")
-            : "N/A"
-        }`,
-        left,
-        y
-      );
+      const addr = order.address || order.original?.address;
+      if (addr) {
+        doc.text(
+          `Address: ${addr.line1 || ""}${
+            addr.line2 ? ", " + addr.line2 : ""
+          }, ${addr.city || ""}, ${addr.postcode || ""}, ${addr.country || ""}`,
+          left,
+          y,
+          { maxWidth: right - left - 10 }
+        );
+        y += 10;
+      } else {
+        y += 5;
+      }
+
+      // Order Details Section
+      doc.setFillColor(240, 240, 240);
+      doc.rect(left - 2, y - 5, right - left + 4, 8, "F");
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("ORDER DETAILS", left, y);
+      y += 8;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Status: ${order.status.toUpperCase()}`, left, y);
+      doc.text(`Payment: ${order.paymentMethod || "N/A"}`, left + 60, y);
       y += 5;
       doc.text(`Total: £${order.total.toFixed(2)}`, left, y);
+      doc.text(`Shipping: ${order.shippingMethod || "N/A"}`, left + 60, y);
+      y += 10;
+
+      // Notes
+      const notes =
+        order.notes ||
+        (order.original as Order & { notes?: string })?.notes ||
+        "";
+      if (notes) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Notes:", left, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        const splitNotes = doc.splitTextToSize(notes, right - left - 10);
+        doc.text(splitNotes, left, y);
+        y += splitNotes.length * 4 + 5;
+      }
+
+      // Components Section
+      doc.setFillColor(240, 240, 240);
+      doc.rect(left - 2, y - 5, right - left + 4, 8, "F");
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("COMPONENTS", left, y);
       y += 8;
-      doc.setFontSize(12);
-      doc.text("Items", left, y);
+
+      // Table header
+      doc.setFillColor(14, 165, 233);
+      doc.rect(left, y - 4, right - left, 7, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text("Component", left + 2, y);
+      doc.text("Category", left + 95, y);
+      doc.text("Qty", left + 130, y);
+      doc.text("Price", left + 145, y);
       y += 6;
-      doc.setFontSize(9);
-      const header = ["Component", "Cat", "Qty", "Unit", "Line"];
-      doc.text(header.join(" | "), left, y);
-      y += 4;
-      doc.setDrawColor(180);
-      doc.line(left, y, 196, y);
-      y += 2;
-      order.items.forEach((i) => {
-        const unitPrice = i.quantity ? i.lineTotal / i.quantity : i.lineTotal;
-        const row = [
-          i.name.slice(0, 40),
-          (i.category || "").slice(0, 10),
-          String(i.quantity),
-          `£${unitPrice.toFixed(2)}`,
-          `£${i.lineTotal.toFixed(2)}`,
-        ];
-        doc.text(row.join(" | "), left, y);
-        y += 4;
-        if (y > 280) {
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
+
+      // Table rows
+      order.items.forEach((i, idx) => {
+        if (y > 270) {
           doc.addPage();
-          y = 16;
+          y = 20;
         }
+
+        // Alternate row colors
+        if (idx % 2 === 0) {
+          doc.setFillColor(250, 250, 250);
+          doc.rect(left, y - 4, right - left, 6, "F");
+        }
+
+        doc.setFontSize(8);
+        const componentText =
+          i.name.length > 50 ? i.name.slice(0, 47) + "..." : i.name;
+        doc.text(componentText, left + 2, y);
+        doc.text((i.category || "").slice(0, 15), left + 95, y);
+        doc.text(String(i.quantity), left + 130, y);
+        doc.text(`£${i.lineTotal.toFixed(2)}`, left + 145, y);
+        y += 6;
       });
-      y += 4;
+
+      // Total
+      y += 2;
+      doc.setDrawColor(0);
+      doc.line(left + 130, y - 2, right - 2, y - 2);
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
-      doc.text("Generated by Vortex PCs Production System", left, y);
+      doc.text("TOTAL:", left + 95, y + 2);
+      doc.text(`£${order.total.toFixed(2)}`, left + 145, y + 2);
+
+      // Footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(128, 128, 128);
+        doc.setFont("helvetica", "normal");
+        doc.text(
+          `Generated by Vortex PCs Production System - Page ${i} of ${pageCount}`,
+          105,
+          290,
+          { align: "center" }
+        );
+      }
+
       doc.save(`production-sheet-${order.displayId}.pdf`);
     } catch (err) {
       console.error("PDF export failed", err);
@@ -542,21 +648,21 @@ export const ProductionSheet: React.FC<ProductionSheetProps> = ({
           <div className="flex flex-wrap gap-4 justify-center">
             <button
               onClick={printSheet}
-              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transition-all duration-300"
+              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transition-all duration-300 hover:scale-105"
             >
-              Print
+              🖨️ Print
             </button>
             <button
               onClick={exportPDF}
-              className="bg-white/10 border border-white/20 hover:border-sky-500/40 text-white font-semibold py-3 px-6 rounded-lg backdrop-blur-xl transition-all duration-300"
+              className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transition-all duration-300 hover:scale-105"
             >
-              Download PDF
+              📄 Download PDF
             </button>
             <button
               onClick={exportCSV}
-              className="bg-white/10 border border-white/20 hover:border-cyan-500/40 text-white font-semibold py-3 px-6 rounded-lg backdrop-blur-xl transition-all duration-300"
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transition-all duration-300 hover:scale-105"
             >
-              Download CSV
+              📊 Download CSV
             </button>
           </div>
         </div>

@@ -4258,24 +4258,62 @@ export function AdminPanel() {
                           </p>
                         </div>
                       </div>
-                      {(() => {
-                        const rawNotes = (
-                          selectedOrder as unknown as { notes?: unknown }
-                        ).notes;
-                        if (typeof rawNotes === "string" && rawNotes.trim()) {
-                          return (
-                            <div>
-                              <p className="text-sm text-gray-400 mb-1">
-                                Notes
-                              </p>
-                              <div className="p-3 rounded border border-white/10 bg-white/5 text-xs text-gray-300 whitespace-pre-wrap">
-                                {rawNotes}
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm text-gray-400">Order Notes</p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              const currentNotes =
+                                (selectedOrder as unknown as { notes?: string })
+                                  .notes || "";
+                              const newNotes = prompt(
+                                "Edit order notes:",
+                                currentNotes
+                              );
+                              if (
+                                newNotes !== null &&
+                                newNotes !== currentNotes
+                              ) {
+                                try {
+                                  if (!selectedOrder.id) {
+                                    alert("Order ID not found");
+                                    return;
+                                  }
+                                  await updateOrder(selectedOrder.id, {
+                                    notes: newNotes,
+                                  } as Partial<Order>);
+                                  const updatedOrder = {
+                                    ...selectedOrder,
+                                    notes: newNotes,
+                                  };
+                                  setSelectedOrder(updatedOrder as Order);
+                                  const updated = await getAllOrdersExtended();
+                                  setAllOrders(updated);
+                                  alert("Notes updated successfully");
+                                } catch (err) {
+                                  console.error("Failed to update notes", err);
+                                  alert("Failed to update notes");
+                                }
+                              }
+                            }}
+                            className="border-white/20 text-white hover:bg-white/10 h-7 text-xs"
+                          >
+                            <Edit className="w-3 h-3 mr-1" />
+                            Edit
+                          </Button>
+                        </div>
+                        <Textarea
+                          value={
+                            (selectedOrder as unknown as { notes?: string })
+                              .notes || ""
+                          }
+                          readOnly
+                          placeholder="No notes added yet"
+                          className="bg-white/5 border-white/10 text-gray-300 min-h-[80px] text-xs"
+                        />
+                      </div>
                       <div>
                         <p className="text-sm text-gray-400 mb-2">Items</p>
                         <div className="rounded border border-white/10 overflow-hidden">
