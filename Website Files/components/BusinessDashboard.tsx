@@ -342,51 +342,52 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
         return;
       }
       // Query assumed content type: businessDownload (fields: title, description, file)
-      const res = await contentfulClient.getEntries({
+      interface DownloadAssetFile {
+        url?: string;
+        fileName?: string;
+      }
+      interface DownloadAssetFields {
+        file?: DownloadAssetFile;
+      }
+      interface DownloadAsset {
+        sys?: { id: string };
+        fields?: DownloadAssetFields;
+      }
+      interface DownloadFieldsType {
+        title?: string;
+        description?: string;
+        file?: DownloadAsset | null;
+        asset?: DownloadAsset | null;
+        downloadFile?: DownloadAsset | null;
+      }
+      interface DownloadSkeleton {
+        contentTypeId: "businessDownload";
+        fields: DownloadFieldsType;
+      }
+      interface DownloadEntry {
+        sys: { id: string };
+        fields?: DownloadFieldsType;
+      }
+      const res = await contentfulClient.getEntries<DownloadSkeleton>({
         content_type: "businessDownload",
-        order: ["fields.title"],
+        order: ["-sys.createdAt"],
         include: 1,
-      } as unknown as Record<string, unknown>);
-      const items = (res.items || []).map((entry: unknown) => {
-        const e = entry as {
-          sys: { id: string };
-          fields?: Record<string, unknown>;
-        };
-        const f = e.fields || {};
-        // Attempt to resolve asset URL
+      });
+      const items = (
+        Array.isArray(res.items) ? (res.items as DownloadEntry[]) : []
+      ).map((entry) => {
+        const f = entry.fields || {};
         let url = "";
         let fileName = "download";
-        const file = f.file || f.asset || f.downloadFile;
-        if (file) {
-          // Linked asset
+        const file: DownloadAsset | null | undefined =
+          f.file || f.asset || f.downloadFile;
+        if (file && typeof file === "object") {
           if (file.fields?.file?.url) {
             url = `https:${file.fields.file.url}`;
             fileName = file.fields.file.fileName || fileName;
-          } else if (
-            file.sys?.id &&
-            (
-              res as unknown as {
-                includes?: {
-                  Asset?: Array<{
-                    sys: { id: string };
-                    fields?: { file?: { url?: string; fileName?: string } };
-                  }>;
-                };
-              }
-            ).includes?.Asset
-          ) {
-            const assetArray =
-              (
-                res as unknown as {
-                  includes?: {
-                    Asset?: Array<{
-                      sys: { id: string };
-                      fields?: { file?: { url?: string; fileName?: string } };
-                    }>;
-                  };
-                }
-              ).includes?.Asset || [];
-            const asset = assetArray.find((a) => a.sys.id === file.sys.id);
+          } else if (file.sys?.id && res.includes?.Asset) {
+            const assetArray = res.includes.Asset as DownloadAsset[];
+            const asset = assetArray.find((a) => a.sys?.id === file.sys?.id);
             if (asset?.fields?.file?.url) {
               url = `https:${asset.fields.file.url}`;
               fileName = asset.fields.file.fileName || fileName;
@@ -394,17 +395,11 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
           }
         }
         return {
-          id: e.sys.id,
+          id: entry.sys.id,
           title: f.title || "Download",
           description: f.description || "",
           url,
           fileName,
-        } as {
-          id: string;
-          title: string;
-          description?: string;
-          url: string;
-          fileName: string;
         };
       });
       setBusinessDownloads(items);

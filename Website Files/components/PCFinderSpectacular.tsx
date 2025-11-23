@@ -425,7 +425,7 @@ export function PCFinderSpectacular({
         id: "purpose",
         title: "Build Without Fear. Power Without Limits.",
         subtitle:
-          "At Vortex PCs, we don't just assemble machines—we engineer weapons of choice for gamers, creators, and professionals who refuse to settle. Our PC Builder puts you in control: every component, every upgrade, every ounce of performance is yours to command. Forget cookie-cutter rigs and bland 'good enough' builds. With Vortex, you design a system that's unapologetically yours—whether it's a sleek workstation that crushes deadlines or a fire-breathing gaming beast that leaves competitors in the dust. Premium parts. Transparent pricing. No hidden nonsense. Just pure, class-leading performance, backed by service menus that prove we're as serious about support as we are about speed. Ready to build? Let's turn your vision into a machine that makes the slow guys look silly.",
+          " ",
         helpText:
           "Understanding how you'll use your PC helps us prioritise the right components. Gamers need powerful GPUs, creators need fast CPUs and lots of RAM, whilst professionals benefit from reliability and multitasking power.",
         emoji: "⚡",
@@ -1368,7 +1368,7 @@ export function PCFinderSpectacular({
             <p className="text-xl sm:text-2xl text-white font-medium leading-relaxed">
               At Vortex PCs, we don't just assemble machines—we engineer weapons
               of choice for gamers, creators, and professionals who refuse to
-              settle.
+              settle for anything less than the absolute best.
             </p>
 
             <p className="text-lg sm:text-xl text-gray-300 leading-relaxed">
@@ -1379,7 +1379,7 @@ export function PCFinderSpectacular({
             <div className="h-px bg-gradient-to-r from-transparent via-sky-500/50 to-transparent my-8"></div>
 
             <p className="text-lg sm:text-xl text-gray-300 leading-relaxed">
-              Forget cookie-cutter rigs and bland "good enough" builds. With
+              Forget cookie-cutter rigs and bland 'good enough' builds. With
               Vortex, you design a system that's unapologetically yours—whether
               it's a sleek workstation that crushes deadlines or a
               fire-breathing gaming beast that leaves competitors in the dust.
@@ -1389,14 +1389,14 @@ export function PCFinderSpectacular({
               <span className="text-sky-400 font-semibold">
                 Premium parts. Transparent pricing. No hidden nonsense.
               </span>{" "}
-              Just pure, class-leading performance, backed by service that
-              proves we're as serious about support as we are about speed.
+              Just pure, class-leading performance, backed by service menus that
+              prove we're as serious about support as we are about speed.
             </p>
 
             <div className="pt-4">
               <p className="text-xl sm:text-2xl text-white font-semibold">
-                Ready to build? Let's turn your vision into a machine that makes
-                the slow guys look silly.
+                Ready to build? Let's turn your vision into a machine that does
+                exactly what you demand to crush whatever you throw at it.
               </p>
             </div>
           </div>

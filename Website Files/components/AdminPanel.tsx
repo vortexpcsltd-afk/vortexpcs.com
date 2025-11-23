@@ -30,10 +30,13 @@ import {
   Code,
   Image,
   Mail,
+  Trash2,
+  Printer,
 } from "lucide-react";
 import { useState, useEffect, memo, type ComponentType } from "react";
 import React from "react";
 import { ComponentErrorBoundary } from "./ErrorBoundary";
+import { ProductionSheet } from "./ProductionSheet";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -68,6 +71,7 @@ import {
 } from "./ui/pagination";
 import {
   getAllOrders,
+  getAllOrdersExtended,
   getAllUsers,
   getDashboardStats,
   getAnalytics,
@@ -76,6 +80,8 @@ import {
   updateSupportTicket,
   getAllRefundRequests,
   updateOrder,
+  deleteOrder,
+  verifyBankTransfer,
   type RawUserRecord,
   type SupportTicket,
   type RefundRequest,
@@ -123,6 +129,129 @@ const dedupeOrders = (orders: Order[]): Order[] => {
     if (!map.has(key)) map.set(key, o);
   }
   return Array.from(map.values());
+};
+
+// Normalize differing order schemas so Admin panel can display all orders
+// Handles: orderNumber -> orderId, amount -> total, item.name -> item.productName, createdAt -> orderDate
+type CombinedItem = Order["items"][number] & { name?: string };
+interface LegacyFields {
+  orderNumber?: string;
+  amount?: number;
+  createdAt?: Date;
+  items?: CombinedItem[];
+}
+type ExtendedOrder = Order & { legacy?: boolean };
+const normalizeOrders = (orders: Order[]): ExtendedOrder[] => {
+  return orders.map((orig) => {
+    const legacy = orig as Order & LegacyFields;
+    const rawItems: CombinedItem[] = Array.isArray(legacy.items)
+      ? legacy.items!
+      : [];
+    const normalizedItems: Order["items"] = rawItems.map((i) => ({
+      productId: i.productId || "unknown",
+      productName: i.productName || i.name || "Item",
+      price: typeof i.price === "number" ? i.price : 0,
+      quantity: typeof i.quantity === "number" ? i.quantity : 1,
+    }));
+    const computedTotal =
+      typeof legacy.total === "number"
+        ? legacy.total
+        : typeof legacy.amount === "number"
+        ? legacy.amount
+        : normalizedItems.reduce(
+            (sum, i) => sum + (i.price || 0) * (i.quantity || 1),
+            0
+          );
+    // Map legacy shippingAddress -> address if present
+    let address = (orig as Order).address;
+    interface LegacyShip {
+      line1?: string;
+      line2?: string;
+      city?: string;
+      town?: string;
+      postcode?: string;
+      postalCode?: string;
+      country?: string;
+    }
+    const legacyShipping = (orig as unknown as { shippingAddress?: LegacyShip })
+      .shippingAddress;
+    if (!address && legacyShipping && typeof legacyShipping === "object") {
+      address = {
+        line1: legacyShipping.line1 || "",
+        line2: legacyShipping.line2 || "",
+        city: legacyShipping.city || legacyShipping.town || "",
+        postcode: legacyShipping.postcode || legacyShipping.postalCode || "",
+        country: legacyShipping.country || "",
+      };
+    }
+    // Normalize bankTransferVerifiedAt which may be a Firestore Timestamp
+    const rawVerifiedAt = (
+      orig as unknown as { bankTransferVerifiedAt?: unknown }
+    ).bankTransferVerifiedAt;
+    let bankTransferVerifiedAt: Date | undefined = undefined;
+    if (rawVerifiedAt instanceof Date) {
+      bankTransferVerifiedAt = rawVerifiedAt;
+    } else if (
+      rawVerifiedAt &&
+      typeof rawVerifiedAt === "object" &&
+      "toDate" in (rawVerifiedAt as Record<string, unknown>) &&
+      typeof (rawVerifiedAt as { toDate: () => Date }).toDate === "function"
+    ) {
+      try {
+        bankTransferVerifiedAt = (
+          rawVerifiedAt as { toDate: () => Date }
+        ).toDate();
+      } catch {
+        bankTransferVerifiedAt = undefined;
+      }
+    } else if (
+      typeof rawVerifiedAt === "string" ||
+      typeof rawVerifiedAt === "number"
+    ) {
+      const parsed = new Date(rawVerifiedAt);
+      if (!isNaN(parsed.getTime())) bankTransferVerifiedAt = parsed;
+    }
+    const isLegacy =
+      !!legacy.orderNumber ||
+      !!legacy.amount ||
+      (!!legacy.createdAt && !orig.orderDate) ||
+      !(orig as Order).paymentMethod; // heuristic: missing paymentMethod
+    return {
+      ...orig,
+      items: normalizedItems,
+      orderId: legacy.orderId || legacy.orderNumber || orig.id,
+      total: computedTotal,
+      orderDate: orig.orderDate || legacy.createdAt || orig.orderDate,
+      address,
+      bankTransferVerifiedAt,
+      legacy: isLegacy,
+    } as ExtendedOrder;
+  });
+};
+
+// Helper to safely format verified payment date (handles Firestore Timestamp, Date, string, number)
+const formatVerifiedDate = (value: unknown): string => {
+  if (!value) return "";
+  let d: Date | null = null;
+  if (value instanceof Date) {
+    d = value;
+  } else if (
+    typeof value === "object" &&
+    value !== null &&
+    "toDate" in (value as Record<string, unknown>) &&
+    typeof (value as { toDate: () => Date }).toDate === "function"
+  ) {
+    try {
+      d = (value as { toDate: () => Date }).toDate();
+    } catch {
+      d = null;
+    }
+  } else if (typeof value === "string" || typeof value === "number") {
+    const tmp = new Date(value);
+    if (!isNaN(tmp.getTime())) d = tmp;
+  }
+  if (!d) return "";
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 };
 
 // Simple CSV export helper for current tab data
@@ -413,6 +542,9 @@ export function AdminPanel() {
   const [lastAdminLogin, setLastAdminLogin] = useState<Date | null>(null);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [lastOrdersRefresh, setLastOrdersRefresh] = useState<Date | null>(null); // displayed in Orders header
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState<boolean>(false); // toggles 60s polling
+  const [ordersRefreshing, setOrdersRefreshing] = useState(false);
   type CustomerRow = {
     id: string;
     name: string;
@@ -428,6 +560,18 @@ export function AdminPanel() {
   const [inventory, setInventory] = useState<(PCComponent | PCOptionalExtra)[]>(
     []
   );
+  // Helper: legacy vs primary counts (legacy flagged during normalization)
+  const getOrderCounts = () => {
+    let legacy = 0;
+    for (const o of allOrders) {
+      if ((o as unknown as { legacy?: boolean }).legacy) legacy++;
+    }
+    return {
+      legacy,
+      primary: allOrders.length - legacy,
+      total: allOrders.length,
+    };
+  };
   const [inventoryPage, setInventoryPage] = useState(1);
   const [inventoryItemsPerPage, setInventoryItemsPerPage] = useState(25);
   const [analyticsData, setAnalyticsData] = useState({
@@ -441,6 +585,7 @@ export function AdminPanel() {
   // New states for build progress, tickets, and refunds
   const [showBuildProgressModal, setShowBuildProgressModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showProductionSheet, setShowProductionSheet] = useState(false);
   // Order details modal visibility
   const [showOrderModal, setShowOrderModal] = useState(false);
   // Shipping tracking states
@@ -459,6 +604,14 @@ export function AdminPanel() {
     null
   );
   const [refundRequests, setRefundRequests] = useState<RefundRequest[]>([]);
+  // Order deletion dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [cascadeRefunds, setCascadeRefunds] = useState(true);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  // Security alert reporting state
+  const [securityAlertReportLoading, setSecurityAlertReportLoading] =
+    useState(false);
   const [showTicketDetailModal, setShowTicketDetailModal] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(
     null
@@ -742,12 +895,54 @@ export function AdminPanel() {
         setDashboardStats(stats);
         logger.debug("Dashboard stats loaded", { stats });
 
-        // Load all orders
-        const ordersRaw = await getAllOrders(100);
-        const orders = dedupeOrders(ordersRaw);
-        setAllOrders(orders);
-        setRecentOrders(orders.slice(0, 5)); // Show top 5 for dashboard
-        logger.debug("Admin Panel - Orders loaded", { count: orders.length });
+        // Load & normalize all orders including legacy schema (extended fetch)
+        let ordersRaw = await getAllOrdersExtended(1200, 600);
+        // Fallback if extended returns nothing (rare)
+        if (!ordersRaw || ordersRaw.length === 0) {
+          logger.warn(
+            "Extended orders fetch returned empty; falling back to basic getAllOrders"
+          );
+          ordersRaw = await getAllOrders(1000);
+        }
+        const ordersMerged = dedupeOrders(
+          normalizeOrders(ordersRaw) as Order[]
+        );
+        // Sort by orderDate descending for consistent recentOrders
+        const sorted = [...ordersMerged].sort((a, b) => {
+          const ta =
+            a.orderDate instanceof Date && !isNaN(a.orderDate.getTime())
+              ? a.orderDate.getTime()
+              : 0;
+          const tb =
+            b.orderDate instanceof Date && !isNaN(b.orderDate.getTime())
+              ? b.orderDate.getTime()
+              : 0;
+          return tb - ta;
+        });
+        setAllOrders(sorted);
+        setRecentOrders(sorted.slice(0, 5)); // Show top 5 latest
+        setLastOrdersRefresh(new Date());
+        // Save cache
+        try {
+          const cachePayload = sorted.map((o) => ({
+            ...o,
+            orderDate:
+              o.orderDate instanceof Date ? o.orderDate.toISOString() : null,
+            bankTransferVerifiedAt:
+              o.bankTransferVerifiedAt instanceof Date
+                ? o.bankTransferVerifiedAt.toISOString()
+                : null,
+          }));
+          sessionStorage.setItem(
+            "admin_orders_cache_v1",
+            JSON.stringify(cachePayload)
+          );
+        } catch {
+          // ignore cache errors
+        }
+        logger.debug("Admin Panel - Extended orders loaded", {
+          count: sorted.length,
+        });
 
         // Load all users
         const users = await getAllUsers();
@@ -757,7 +952,7 @@ export function AdminPanel() {
         const customersWithStats: CustomerRow[] = users
           .filter((user): user is RawUserRecord & { id: string } => !!user.id)
           .map((user) => {
-            const userOrders = orders.filter(
+            const userOrders = sorted.filter(
               (order) => order.userId === user.id
             );
             const totalSpent = userOrders.reduce(
@@ -900,7 +1095,42 @@ export function AdminPanel() {
       }
     };
 
+    // Preload from cache for snappy UI before network fetch
     if (isAdmin) {
+      try {
+        const cached = sessionStorage.getItem("admin_orders_cache_v1");
+        if (cached) {
+          const parsed: unknown[] = JSON.parse(cached);
+          const revived = parsed.map((o) => {
+            const obj = o as Partial<Order> & {
+              orderDate?: string | null;
+              bankTransferVerifiedAt?: string | null;
+            };
+            return {
+              ...obj,
+              orderDate: obj.orderDate ? new Date(obj.orderDate) : null,
+              bankTransferVerifiedAt: obj.bankTransferVerifiedAt
+                ? new Date(obj.bankTransferVerifiedAt)
+                : undefined,
+            } as Order;
+          });
+          const sortedCached = [...revived].sort((a, b) => {
+            const ta =
+              a.orderDate instanceof Date && !isNaN(a.orderDate.getTime())
+                ? a.orderDate.getTime()
+                : 0;
+            const tb =
+              b.orderDate instanceof Date && !isNaN(b.orderDate.getTime())
+                ? b.orderDate.getTime()
+                : 0;
+            return tb - ta;
+          });
+          setAllOrders(sortedCached);
+          setRecentOrders(sortedCached.slice(0, 5));
+        }
+      } catch {
+        /* ignore cache errors */
+      }
       loadAdminData();
       loadInventory();
       loadAnalytics();
@@ -965,6 +1195,56 @@ export function AdminPanel() {
       setLoading(false);
     }
   }, [isAdmin]);
+
+  // Auto refresh polling
+  useEffect(() => {
+    if (!autoRefreshEnabled || !isAdmin) return;
+    const interval = setInterval(async () => {
+      try {
+        let ordersRaw = await getAllOrdersExtended(1200, 600);
+        if (!ordersRaw || ordersRaw.length === 0) {
+          ordersRaw = await getAllOrders(1000);
+        }
+        const ordersMerged = dedupeOrders(
+          normalizeOrders(ordersRaw) as Order[]
+        );
+        const sorted = [...ordersMerged].sort((a, b) => {
+          const ta =
+            a.orderDate instanceof Date && !isNaN(a.orderDate.getTime())
+              ? a.orderDate.getTime()
+              : 0;
+          const tb =
+            b.orderDate instanceof Date && !isNaN(b.orderDate.getTime())
+              ? b.orderDate.getTime()
+              : 0;
+          return tb - ta;
+        });
+        setAllOrders(sorted);
+        setRecentOrders(sorted.slice(0, 5));
+        setLastOrdersRefresh(new Date());
+        try {
+          const cachePayload = sorted.map((o) => ({
+            ...o,
+            orderDate:
+              o.orderDate instanceof Date ? o.orderDate.toISOString() : null,
+            bankTransferVerifiedAt:
+              o.bankTransferVerifiedAt instanceof Date
+                ? o.bankTransferVerifiedAt.toISOString()
+                : null,
+          }));
+          sessionStorage.setItem(
+            "admin_orders_cache_v1",
+            JSON.stringify(cachePayload)
+          );
+        } catch {
+          /* ignore cache save failure */
+        }
+      } catch (e) {
+        logger.warn("Auto refresh failed", { e });
+      }
+    }, 60000); // 60s
+    return () => clearInterval(interval);
+  }, [autoRefreshEnabled, isAdmin]);
 
   // Get filtered inventory based on selected category
   const getFilteredInventory = () => {
@@ -1045,9 +1325,9 @@ export function AdminPanel() {
         buildNote
       );
 
-      // Reload orders to show updates
-      const ordersRaw = await getAllOrders(100);
-      const orders = dedupeOrders(ordersRaw);
+      // Reload & normalize orders to show updates
+      const ordersRaw = await getAllOrders(1000);
+      const orders = dedupeOrders(normalizeOrders(ordersRaw));
       setAllOrders(orders);
       setRecentOrders(orders.slice(0, 5));
 
@@ -1056,6 +1336,133 @@ export function AdminPanel() {
     } catch (error) {
       logger.error("Error updating build progress", { error });
       alert("Failed to update build progress. Please try again.");
+    }
+  };
+
+  // Open deletion confirmation
+  const handleOpenDeleteOrder = (order: Order) => {
+    setOrderToDelete(order);
+    setCascadeRefunds(true);
+    setDeleteOpen(true);
+  };
+
+  // Confirm deletion
+  const handleConfirmDelete = async () => {
+    if (!orderToDelete?.id) {
+      toast.error("Order ID is missing");
+      logger.error("Delete attempt with no order ID", { orderToDelete });
+      return;
+    }
+    setDeleteLoading(true);
+    try {
+      logger.info("Deleting order", {
+        orderId: orderToDelete.id,
+        orderId2: orderToDelete.orderId,
+      });
+      const res = await deleteOrder(orderToDelete.id, {
+        rejectRefundRequests: cascadeRefunds,
+      });
+      setAllOrders((prev) => prev.filter((o) => o.id !== orderToDelete.id));
+      setRecentOrders((prev) => prev.filter((o) => o.id !== orderToDelete.id));
+      if (cascadeRefunds) {
+        setRefundRequests((prev) =>
+          prev.map((r) =>
+            r.orderId === orderToDelete.id && r.status === "pending"
+              ? { ...r, status: "rejected" }
+              : r
+          )
+        );
+      }
+      toast.success(
+        `Order deleted${
+          res.refundRequestsRejected > 0
+            ? ` (${res.refundRequestsRejected} refund request(s) rejected)`
+            : ""
+        }`
+      );
+    } catch (e) {
+      logger.error("Delete order failed", {
+        error: e,
+        orderId: orderToDelete.id,
+      });
+      toast.error(e instanceof Error ? e.message : "Failed to delete order.");
+    } finally {
+      setDeleteLoading(false);
+      setDeleteOpen(false);
+      setOrderToDelete(null);
+    }
+  };
+
+  // Report selected security alert via email
+  const handleReportSecurityAlert = async () => {
+    if (!selectedSecurityAlert) {
+      toast.error("No alert selected");
+      return;
+    }
+    setSecurityAlertReportLoading(true);
+    try {
+      const sev =
+        (selectedSecurityAlert as unknown as { severity?: string }).severity ||
+        "High";
+      const status =
+        (selectedSecurityAlert as unknown as { status?: string }).status ||
+        "Requires Review";
+      const ts =
+        selectedSecurityAlert.timestamp instanceof Date
+          ? selectedSecurityAlert.timestamp
+          : new Date();
+      const subject = `Security Alert: ${selectedSecurityAlert.type} (Severity: ${sev})`;
+      const recommendedActions = [
+        "Investigate the event immediately",
+        "Review system logs for related activity",
+        "Verify no unauthorized access persists",
+        "Escalate to security lead if anomalous patterns found",
+      ];
+      const contentHtml = `
+        <h2 style="margin:0 0 12px;font-size:20px;font-weight:600;">Security Alert Detected</h2>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+          <tr><td style="padding:4px 8px;font-weight:600;background:#0f172a;color:#fff;">Alert ID</td><td style="padding:4px 8px;background:#1e293b;color:#fff;">${
+            selectedSecurityAlert.id
+          }</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;background:#0f172a;color:#fff;">Type</td><td style="padding:4px 8px;background:#1e293b;color:#fff;">${
+            selectedSecurityAlert.type
+          }</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;background:#0f172a;color:#fff;">Detected At</td><td style="padding:4px 8px;background:#1e293b;color:#fff;">${ts.toLocaleString(
+            "en-GB"
+          )}</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;background:#0f172a;color:#fff;">Severity</td><td style="padding:4px 8px;background:#1e293b;color:#fff;">${sev}</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;background:#0f172a;color:#fff;">Status</td><td style="padding:4px 8px;background:#1e293b;color:#fff;">${status}</td></tr>
+        </table>
+        <h3 style="margin:0 0 8px;font-size:16px;font-weight:600;">Event Description</h3>
+        <p style="margin:0 0 16px;font-size:14px;line-height:1.5;">${
+          selectedSecurityAlert.description || "No description provided."
+        }</p>
+        <h3 style="margin:0 0 8px;font-size:16px;font-weight:600;">Recommended Actions</h3>
+        <ol style="margin:0 0 16px;padding-left:18px;font-size:14px;line-height:1.5;">${recommendedActions
+          .map((a) => `<li>${a}</li>`)
+          .join("")}</ol>
+        <p style="margin:0;font-size:12px;color:#64748b;">This alert was reported automatically from the Admin Dashboard. An audit snapshot has been recorded.</p>
+      `;
+      const branded = buildBrandedEmailHtml({
+        title: subject,
+        preheader: `Security alert ${selectedSecurityAlert.type} requires attention`,
+        contentHtml,
+      });
+      await sendBulkEmail({
+        subject,
+        html: branded,
+        preheader: subject,
+        mode: "emails",
+        recipients: ["kevin@vortexpcs.com"],
+      });
+      toast.success("Security alert reported via email");
+      setShowSecurityAlertModal(false);
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to send alert email"
+      );
+    } finally {
+      setSecurityAlertReportLoading(false);
     }
   };
 
@@ -1071,6 +1478,8 @@ export function AdminPanel() {
         return "bg-green-500/20 text-green-300 border-green-500/30";
       case "pending":
         return "bg-orange-500/20 text-orange-300 border-orange-500/30";
+      case "pending_payment":
+        return "bg-amber-500/20 text-amber-300 border-amber-500/30";
       case "in-stock":
         return "bg-green-500/20 text-green-300 border-green-500/30";
       case "low-stock":
@@ -1118,7 +1527,6 @@ export function AdminPanel() {
               {change}
             </Badge>
           </div>
-
           {!isAdmin && (
             <Card className="bg-gradient-to-r from-amber-500/10 to-red-500/10 border-amber-500/30 backdrop-blur-xl p-4 mb-6">
               <div className="flex items-start space-x-3">
@@ -2154,11 +2562,116 @@ export function AdminPanel() {
                         className="bg-white/5 border-white/10 text-white w-full sm:w-64"
                       />
                     </div>
+                    <div className="hidden md:flex items-center gap-2 mr-2">
+                      {(() => {
+                        const c = getOrderCounts();
+                        return (
+                          <>
+                            <Badge
+                              className="bg-blue-500/20 border-blue-500/40 text-blue-300"
+                              title="Total orders loaded"
+                            >
+                              {`Total: ${c.total}`}
+                            </Badge>
+                            <Badge
+                              className="bg-green-500/20 border-green-500/40 text-green-300"
+                              title="Primary (new schema) orders"
+                            >
+                              {`Primary: ${c.primary}`}
+                            </Badge>
+                            <Badge
+                              className="bg-amber-500/20 border-amber-500/40 text-amber-300"
+                              title="Legacy (older schema) orders"
+                            >
+                              {`Legacy: ${c.legacy}`}
+                            </Badge>
+                            {lastOrdersRefresh && (
+                              <Badge
+                                className="bg-white/10 border-white/20 text-gray-300"
+                                title="Last successful refresh time (auto or manual)"
+                              >
+                                {lastOrdersRefresh.toLocaleTimeString("en-GB", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  second: "2-digit",
+                                })}
+                              </Badge>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                     <Button
                       variant="outline"
                       className="border-white/20 text-white hover:bg-white/10"
                     >
                       <Filter className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant={autoRefreshEnabled ? "premium" : "outline"}
+                      onClick={() => setAutoRefreshEnabled((v) => !v)}
+                      className={
+                        autoRefreshEnabled
+                          ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white"
+                          : "border-white/20 text-white hover:bg-white/10"
+                      }
+                      title="Toggle 60s auto refresh polling"
+                    >
+                      {autoRefreshEnabled ? "Auto: On" : "Auto: Off"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={ordersRefreshing}
+                      onClick={async () => {
+                        setOrdersRefreshing(true);
+                        try {
+                          const extended = await getAllOrdersExtended(
+                            1200,
+                            600
+                          );
+                          const normalized = dedupeOrders(
+                            normalizeOrders(extended)
+                          );
+                          setAllOrders(normalized);
+                          setRecentOrders(normalized.slice(0, 5));
+                          setLastOrdersRefresh(new Date());
+                          try {
+                            const cachePayload = normalized.map((o) => ({
+                              ...o,
+                              orderDate:
+                                o.orderDate instanceof Date
+                                  ? o.orderDate.toISOString()
+                                  : null,
+                              bankTransferVerifiedAt:
+                                o.bankTransferVerifiedAt instanceof Date
+                                  ? o.bankTransferVerifiedAt.toISOString()
+                                  : null,
+                            }));
+                            sessionStorage.setItem(
+                              "admin_orders_cache_v1",
+                              JSON.stringify(cachePayload)
+                            );
+                          } catch {
+                            /* ignore cache save errors */
+                          }
+                          toast.success("Orders refreshed");
+                        } catch (e) {
+                          toast.error(
+                            e instanceof Error ? e.message : "Refresh failed"
+                          );
+                        } finally {
+                          setOrdersRefreshing(false);
+                        }
+                      }}
+                      className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10"
+                      title="Fetch latest & legacy orders"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 mr-1 ${
+                          ordersRefreshing ? "animate-spin" : ""
+                        }`}
+                      />
+                      Refresh Orders
                     </Button>
                   </div>
                 </div>
@@ -2168,22 +2681,40 @@ export function AdminPanel() {
                     <Table>
                       <TableHeader>
                         <TableRow className="border-white/10">
-                          <TableHead className="text-white">Order ID</TableHead>
+                          <TableHead className="text-white">
+                            Order / Placed
+                          </TableHead>
                           <TableHead className="text-white">Customer</TableHead>
                           <TableHead className="text-white">Product</TableHead>
+                          <TableHead className="text-white">Payment</TableHead>
                           <TableHead className="text-white">Status</TableHead>
-                          <TableHead className="text-white">
-                            Placed At
-                          </TableHead>
                           <TableHead className="text-white">Total</TableHead>
                           <TableHead className="text-white">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {allOrders.slice(0, 20).map((order) => (
+                        {/* Display all fetched orders (was limited to 20) */}
+                        {allOrders.map((order) => (
                           <TableRow key={order.id} className="border-white/10">
-                            <TableCell className="text-white font-medium whitespace-nowrap">
-                              {order.orderId}
+                            <TableCell className="text-white font-medium">
+                              <div className="flex flex-col">
+                                <span className="font-semibold tracking-wide">
+                                  {order.orderId}
+                                </span>
+                                <span className="text-xs text-gray-400 mt-0.5">
+                                  {order.orderDate &&
+                                  order.orderDate instanceof Date &&
+                                  !isNaN(order.orderDate.getTime())
+                                    ? order.orderDate.toLocaleString("en-GB", {
+                                        day: "2-digit",
+                                        month: "short",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : "Date pending"}
+                                </span>
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div className="min-w-[150px]">
@@ -2200,25 +2731,33 @@ export function AdminPanel() {
                             </TableCell>
                             <TableCell>
                               <Badge
+                                className={
+                                  order.paymentMethod === "card"
+                                    ? "bg-blue-500/20 text-blue-300 border-blue-500/30 whitespace-nowrap"
+                                    : order.paymentMethod === "paypal"
+                                    ? "bg-purple-500/20 text-purple-300 border-purple-500/30 whitespace-nowrap"
+                                    : order.paymentMethod === "bank_transfer"
+                                    ? "bg-amber-500/20 text-amber-300 border-amber-500/30 whitespace-nowrap"
+                                    : "bg-gray-500/20 text-gray-300 border-gray-500/30 whitespace-nowrap"
+                                }
+                              >
+                                {order.paymentMethod === "card"
+                                  ? "Card"
+                                  : order.paymentMethod === "paypal"
+                                  ? "PayPal"
+                                  : order.paymentMethod === "bank_transfer"
+                                  ? "Bank Transfer"
+                                  : "Unknown"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
                                 className={`${getStatusColor(
                                   order.status
                                 )} border whitespace-nowrap`}
                               >
                                 {order.status}
                               </Badge>
-                            </TableCell>
-                            <TableCell className="text-white whitespace-nowrap">
-                              {order.orderDate &&
-                              order.orderDate instanceof Date &&
-                              !isNaN(order.orderDate.getTime())
-                                ? order.orderDate.toLocaleString("en-GB", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
-                                : "N/A"}
                             </TableCell>
                             <TableCell className="text-green-400 font-bold whitespace-nowrap">
                               £{order.total.toLocaleString()}
@@ -2246,6 +2785,103 @@ export function AdminPanel() {
                                 >
                                   <Edit className="w-4 h-4 mr-1" />
                                   {order.progress}%
+                                </Button>
+                                {order.paymentMethod === "bank_transfer" &&
+                                  !order.bankTransferVerified && (
+                                    <Button
+                                      size="sm"
+                                      className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold shadow-lg"
+                                      onClick={async () => {
+                                        try {
+                                          await verifyBankTransfer(order.id!);
+                                          toast.success(
+                                            "Bank transfer verified - order moved to building"
+                                          );
+                                          setAllOrders((prev) =>
+                                            prev.map((o) =>
+                                              o.id === order.id
+                                                ? {
+                                                    ...o,
+                                                    bankTransferVerified: true,
+                                                    bankTransferVerifiedAt:
+                                                      new Date(),
+                                                    status:
+                                                      o.status === "pending" ||
+                                                      o.status ===
+                                                        "pending_payment"
+                                                        ? "building"
+                                                        : o.status,
+                                                    progress:
+                                                      o.status === "pending" ||
+                                                      o.status ===
+                                                        "pending_payment"
+                                                        ? 5
+                                                        : o.progress,
+                                                  }
+                                                : o
+                                            )
+                                          );
+                                          setRecentOrders((prev) =>
+                                            prev.map((o) =>
+                                              o.id === order.id
+                                                ? {
+                                                    ...o,
+                                                    bankTransferVerified: true,
+                                                    bankTransferVerifiedAt:
+                                                      new Date(),
+                                                    status:
+                                                      o.status === "pending" ||
+                                                      o.status ===
+                                                        "pending_payment"
+                                                        ? "building"
+                                                        : o.status,
+                                                    progress:
+                                                      o.status === "pending" ||
+                                                      o.status ===
+                                                        "pending_payment"
+                                                        ? 5
+                                                        : o.progress,
+                                                  }
+                                                : o
+                                            )
+                                          );
+                                        } catch (e) {
+                                          toast.error(
+                                            e instanceof Error
+                                              ? e.message
+                                              : "Failed to verify bank transfer"
+                                          );
+                                        }
+                                      }}
+                                      title="Confirm bank transfer received"
+                                    >
+                                      <ShieldCheck className="w-4 h-4 mr-1" />
+                                      Verify Payment
+                                    </Button>
+                                  )}
+                                {order.paymentMethod === "bank_transfer" &&
+                                  order.bankTransferVerified && (
+                                    <Badge className="bg-green-500/20 border-green-500/40 text-green-400">
+                                      <ShieldCheck className="w-3 h-3 mr-1" />
+                                      Verified
+                                      {(() => {
+                                        const formatted = formatVerifiedDate(
+                                          order.bankTransferVerifiedAt as unknown
+                                        );
+                                        return formatted
+                                          ? ` - ${formatted}`
+                                          : null;
+                                      })()}
+                                    </Badge>
+                                  )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleOpenDeleteOrder(order)}
+                                  className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                  title="Delete Order"
+                                >
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
                             </TableCell>
@@ -2681,8 +3317,10 @@ export function AdminPanel() {
                             alert(
                               `Normalized ${updated} role value(s) to lowercase`
                             );
-                            // Trigger a refresh to reflect role changes
-                            const orders = await getAllOrders(100);
+                            // Trigger a refresh to reflect role changes (normalize orders too)
+                            const orders = normalizeOrders(
+                              await getAllOrders(1000)
+                            );
                             const refreshed: CustomerRow[] = users
                               .filter(
                                 (
@@ -2735,7 +3373,9 @@ export function AdminPanel() {
                         setLoading(true);
                         try {
                           logger.debug("Refreshing customers");
-                          const orders = await getAllOrders(100);
+                          const orders = normalizeOrders(
+                            await getAllOrders(1000)
+                          );
                           logger.debug("Orders fetched", {
                             count: orders.length,
                           });
@@ -3557,6 +4197,85 @@ export function AdminPanel() {
                           </p>
                         </div>
                       </div>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-400">
+                            Payment Method
+                          </p>
+                          <p className="text-white font-medium">
+                            {selectedOrder.paymentMethod || "N/A"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">
+                            Shipping Method
+                          </p>
+                          <p className="text-white font-medium">
+                            {(
+                              selectedOrder as unknown as {
+                                shippingMethod?: string;
+                              }
+                            ).shippingMethod || "N/A"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Updated At</p>
+                          <p className="text-white font-medium">
+                            {(() => {
+                              const v = (
+                                selectedOrder as unknown as {
+                                  updatedAt?: unknown;
+                                }
+                              ).updatedAt;
+                              try {
+                                if (
+                                  v &&
+                                  typeof v === "object" &&
+                                  "toDate" in v &&
+                                  typeof (v as { toDate?: unknown }).toDate ===
+                                    "function"
+                                ) {
+                                  const d = (
+                                    v as { toDate: () => Date }
+                                  ).toDate();
+                                  return !isNaN(d.getTime())
+                                    ? d.toLocaleDateString()
+                                    : "N/A";
+                                }
+                                const d =
+                                  v instanceof Date
+                                    ? v
+                                    : v
+                                    ? new Date(v as string)
+                                    : null;
+                                return d && !isNaN(d.getTime())
+                                  ? d.toLocaleDateString()
+                                  : "N/A";
+                              } catch {
+                                return "N/A";
+                              }
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                      {(() => {
+                        const rawNotes = (
+                          selectedOrder as unknown as { notes?: unknown }
+                        ).notes;
+                        if (typeof rawNotes === "string" && rawNotes.trim()) {
+                          return (
+                            <div>
+                              <p className="text-sm text-gray-400 mb-1">
+                                Notes
+                              </p>
+                              <div className="p-3 rounded border border-white/10 bg-white/5 text-xs text-gray-300 whitespace-pre-wrap">
+                                {rawNotes}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                       <div>
                         <p className="text-sm text-gray-400 mb-2">Items</p>
                         <div className="rounded border border-white/10 overflow-hidden">
@@ -3754,6 +4473,13 @@ export function AdminPanel() {
                       </div>
                       <div className="flex justify-end gap-2">
                         <Button
+                          className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
+                          onClick={() => setShowProductionSheet(true)}
+                        >
+                          <Printer className="w-4 h-4 mr-2" />
+                          Print Production Sheet
+                        </Button>
+                        <Button
                           variant="outline"
                           className="border-white/20 text-white hover:bg-white/10"
                           onClick={() => setShowOrderModal(false)}
@@ -3767,6 +4493,20 @@ export function AdminPanel() {
                   )}
                 </DialogContent>
               </Dialog>
+
+              {/* Production Sheet Modal */}
+              <Dialog
+                open={showProductionSheet}
+                onOpenChange={(open) => {
+                  setShowProductionSheet(open);
+                  if (!open) setShowProductionSheet(false);
+                }}
+              >
+                <DialogContent className="bg-white text-black max-w-[900px] max-h-[90vh] overflow-y-auto">
+                  {selectedOrder && <ProductionSheet order={selectedOrder} />}
+                </DialogContent>
+              </Dialog>
+
               <Dialog
                 open={showCreateBusiness}
                 onOpenChange={setShowCreateBusiness}
@@ -6263,6 +7003,105 @@ export function AdminPanel() {
               </DialogContent>
             </Dialog>
 
+            {/* Delete Order Confirmation Modal */}
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <DialogContent className="bg-zinc-900 border-white/10 text-white w-[95vw] sm:w-[90vw] max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-bold flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 flex items-center justify-center">
+                      <Trash2 className="w-5 h-5 text-white" />
+                    </div>
+                    <span>Delete Order</span>
+                  </DialogTitle>
+                </DialogHeader>
+                {orderToDelete && (
+                  <div className="space-y-4 mt-4">
+                    <Card className="bg-white/5 border-white/10 p-4">
+                      <p className="text-sm text-gray-300">
+                        You are about to permanently delete order
+                        <span className="font-semibold text-white ml-1">
+                          #{orderToDelete.orderId}
+                        </span>
+                        . This action cannot be undone.
+                      </p>
+                      <div className="mt-3 text-sm space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Customer:</span>
+                          <span className="text-white">
+                            {orderToDelete.customerName}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Email:</span>
+                          <span className="text-white">
+                            {orderToDelete.customerEmail}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Total:</span>
+                          <span className="text-green-400 font-bold">
+                            £{orderToDelete.total.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </Card>
+                    <Card className="bg-red-500/10 border-red-500/30 p-4">
+                      <div className="flex items-start space-x-3">
+                        <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5" />
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">
+                            Irreversible Action
+                          </h4>
+                          <p className="text-red-200 text-xs">
+                            The order document will be removed from the live
+                            database. An audit snapshot is stored in{" "}
+                            <code className="font-mono">deleted_orders</code>{" "}
+                            for compliance.
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                    <label className="flex items-center space-x-3 text-sm text-gray-300 select-none">
+                      <input
+                        type="checkbox"
+                        checked={cascadeRefunds}
+                        onChange={(e) => setCascadeRefunds(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 bg-white/10"
+                      />
+                      <span>
+                        Also reject any pending refund requests for this order
+                      </span>
+                    </label>
+                    <div className="flex justify-end space-x-3 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (deleteLoading) return;
+                          setDeleteOpen(false);
+                          setOrderToDelete(null);
+                        }}
+                        className="border-white/20 text-white hover:bg-white/10"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleConfirmDelete}
+                        disabled={deleteLoading}
+                        className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-50"
+                      >
+                        {deleteLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4 mr-2" />
+                        )}
+                        {deleteLoading ? "Deleting..." : "Delete Order"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
             {/* Ticket Detail Modal */}
             <Dialog
               open={showTicketDetailModal}
@@ -6730,13 +7569,15 @@ export function AdminPanel() {
                     {/* Action Buttons */}
                     <div className="flex gap-3 pt-2">
                       <Button
-                        className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
-                        onClick={() => {
-                          toast.success("Security team notified");
-                          setShowSecurityAlertModal(false);
-                        }}
+                        className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:opacity-50"
+                        disabled={securityAlertReportLoading}
+                        onClick={handleReportSecurityAlert}
                       >
-                        Report to Security Team
+                        {securityAlertReportLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "Report to Security Team"
+                        )}
                       </Button>
                       <Button
                         variant="outline"

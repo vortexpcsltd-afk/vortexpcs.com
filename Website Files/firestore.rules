@@ -24,10 +24,8 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && (
         isWhitelistedAdminEmail() ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'admin@vortexpcs.com'))
+        request.auth.token.email == 'admin@vortexpcs.com' ||
+        request.auth.token.email == 'info@vortexpcs.com'
       );
     }
     
@@ -61,10 +59,13 @@ service cloud.firestore {
     match /orders/{orderId} {
       // Users can read orders where they are the userId OR where their email matches
       // Admins can read all orders
+      // For list queries, only check if user is admin (can't check resource.data in list query)
       allow read: if isAuthenticated() && (
-                     resource.data.userId == request.auth.uid ||
-                     resource.data.customerEmail == request.auth.token.email ||
-                     isAdmin()
+                     isAdmin() ||
+                     (resource != null && (
+                       resource.data.userId == request.auth.uid ||
+                       resource.data.customerEmail == request.auth.token.email
+                     ))
                    );
       
       // Authenticated users can create orders
@@ -72,9 +73,9 @@ service cloud.firestore {
       
       // Users can update their own orders (for claiming), admins can update any
       allow update: if isAuthenticated() && (
+                       isAdmin() ||
                        resource.data.userId == request.auth.uid ||
-                       resource.data.customerEmail == request.auth.token.email ||
-                       isAdmin()
+                       resource.data.customerEmail == request.auth.token.email
                      );
       
       // Only admins can delete orders
@@ -110,6 +111,34 @@ service cloud.firestore {
       
       // Only admins can delete tickets
       allow delete: if isAdmin();
+    }
+    
+    // Refund requests
+    match /refund_requests/{requestId} {
+      // Users can create refund requests for their own orders
+      allow create: if isAuthenticated();
+      
+      // Users can read their own refund requests, admins can read all
+      allow read: if isAuthenticated() && 
+                     (request.auth.uid == resource.data.userId || isAdmin());
+      
+      // Only admins can update refund requests
+      allow update: if isAdmin();
+      
+      // Only admins can delete refund requests
+      allow delete: if isAdmin();
+    }
+    
+    // Deleted orders audit log
+    match /deleted_orders/{docId} {
+      // Only admins can create (when deleting orders)
+      allow create: if isAdmin();
+      
+      // Only admins can read
+      allow read: if isAdmin();
+      
+      // No updates or deletes
+      allow update, delete: if false;
     }
     
     // Analytics collection (write-only for tracking)

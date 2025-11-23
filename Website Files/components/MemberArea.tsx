@@ -11,7 +11,6 @@ import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { toast } from "sonner";
 import {
-  User,
   Package,
   Settings,
   CreditCard,
@@ -27,10 +26,16 @@ import {
   MessageSquare,
   XCircle,
   Activity,
+  User,
+  ChevronDown,
+  Calendar,
 } from "lucide-react";
-import { updateUserProfile } from "../services/auth";
-import { getCurrentUser } from "../services/auth";
-import { changeUserPassword, changeUserEmail } from "../services/auth";
+import {
+  updateUserProfile,
+  getCurrentUser,
+  changeUserPassword,
+  changeUserEmail,
+} from "../services/auth";
 import {
   getUserOrders,
   getUserConfigurations,
@@ -40,198 +45,41 @@ import {
   getUserRefundRequests,
   claimGuestOrders,
   claimGuestOrdersForUser,
-  Order,
   SavedConfiguration,
   type SupportTicket as DBSupportTicket,
   type RefundRequest,
 } from "../services/database";
+import {
+  normalizeOrders,
+  NormalizedOrder,
+} from "../services/normalizers/orderNormalizer";
 import { useAuth } from "../contexts/AuthContext";
 import { ProfileSkeleton, OrderCardSkeleton } from "./SkeletonComponents";
 import TicketCenter from "./customer/TicketCenter";
 import { logger } from "../services/logger";
 
 interface MemberAreaProps {
-  isLoggedIn: boolean;
-  setIsLoggedIn: (value: boolean) => void;
-  onNavigate?: (view: string) => void;
+  onNavigate?: (route: string) => void;
 }
 
-export function MemberArea({
-  isLoggedIn,
-  setIsLoggedIn,
-  onNavigate,
-}: MemberAreaProps) {
-  // Local helper component: Recent Activity Timeline
-  type TimelineBuildUpdate = {
-    note?: string;
-    progress?: number;
-    timestamp?:
-      | { toDate?: () => Date }
-      | Date
-      | string
-      | number
-      | null
-      | undefined;
-    [key: string]: unknown;
-  };
+interface ProfileDataState {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  marketingOptOut: boolean;
+}
 
-  function toDateMaybe(
-    value: { toDate?: () => Date } | Date | string | number | null | undefined
-  ): Date | undefined {
-    try {
-      if (!value) return undefined;
-      if (
-        typeof value === "object" &&
-        value !== null &&
-        "toDate" in (value as object) &&
-        typeof (value as { toDate?: unknown }).toDate === "function"
-      ) {
-        const d = (value as { toDate: () => Date }).toDate();
-        return d instanceof Date ? d : undefined;
-      }
-      if (value instanceof Date) return value;
-      if (typeof value === "string" || typeof value === "number") {
-        const d = new Date(value);
-        return isNaN(d.getTime()) ? undefined : d;
-      }
-    } catch {
-      /* ignore */
-    }
-    return undefined;
-  }
-
-  function ActivityTimeline({
-    orders,
-    tickets,
-    refunds,
-  }: {
-    orders: Order[];
-    tickets: DBSupportTicket[];
-    refunds: RefundRequest[];
-  }) {
-    type Item = {
-      date: Date;
-      kind:
-        | "order-placed"
-        | "build-update"
-        | "ticket-opened"
-        | "refund-request";
-      title: string;
-      description?: string;
-    };
-
-    const items: Item[] = [];
-
-    // Orders placed
-    for (const o of orders) {
-      if (o.orderDate) {
-        items.push({
-          date: o.orderDate,
-          kind: "order-placed",
-          title: `Order #${o.orderId} placed`,
-          description: `Total £${o.total.toLocaleString()}`,
-        });
-      }
-      // Last build update per order, if any
-      const updates =
-        (o.buildUpdates as TimelineBuildUpdate[] | undefined) || [];
-      if (updates.length > 0) {
-        const last = updates[updates.length - 1];
-        const d = toDateMaybe(last.timestamp);
-        if (d) {
-          items.push({
-            date: d,
-            kind: "build-update",
-            title: `Build update for #${o.orderId}`,
-            description: `${last.progress ?? ""}% - ${
-              typeof last.note === "string" ? last.note : "Update"
-            }`,
-          });
-        }
-      }
-    }
-
-    // Tickets opened
-    for (const t of tickets) {
-      const d = toDateMaybe(t.createdAt as Date | string | number | undefined);
-      if (d) {
-        items.push({
-          date: d,
-          kind: "ticket-opened",
-          title: `Ticket opened: ${t.subject}`,
-          description: `${t.type} • ${t.status}`,
-        });
-      }
-    }
-
-    // Refunds requested
-    for (const r of refunds) {
-      const d = toDateMaybe(r.createdAt);
-      if (d) {
-        items.push({
-          date: d,
-          kind: "refund-request",
-          title: `Refund requested for order #${r.orderId}`,
-          description: `${r.status}`,
-        });
-      }
-    }
-
-    items.sort((a, b) => b.date.getTime() - a.date.getTime());
-    const top = items.slice(0, 8);
-
-    const iconFor = (kind: Item["kind"]) => {
-      switch (kind) {
-        case "order-placed":
-          return <Package className="w-4 h-4 text-blue-400" />;
-        case "build-update":
-          return <Activity className="w-4 h-4 text-sky-400" />;
-        case "ticket-opened":
-          return <MessageSquare className="w-4 h-4 text-emerald-400" />;
-        case "refund-request":
-          return <AlertCircle className="w-4 h-4 text-orange-400" />;
-      }
-    };
-
-    if (top.length === 0) {
-      return <p className="text-gray-400">No recent activity yet.</p>;
-    }
-
-    return (
-      <div className="space-y-3">
-        {top.map((it, idx) => (
-          <div
-            key={idx}
-            className="flex items-start gap-3 p-3 rounded-lg bg-white/5 border border-white/10"
-          >
-            <div className="mt-0.5">{iconFor(it.kind)}</div>
-            <div className="flex-1">
-              <div className="text-white font-medium">{it.title}</div>
-              {it.description && (
-                <div className="text-sm text-gray-400">{it.description}</div>
-              )}
-            </div>
-            <div className="text-xs text-gray-400 whitespace-nowrap truncate max-w-[120px] text-right ml-2">
-              {it.date.toLocaleString()}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
+export default function MemberArea({ onNavigate }: MemberAreaProps) {
   const { user, userProfile, loading: authLoading } = useAuth();
-  const [editingProfile, setEditingProfile] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [ordersRefreshing, setOrdersRefreshing] = useState(false);
-  const [lastOrdersUpdate, setLastOrdersUpdate] = useState<Date | null>(null);
 
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [configurations, setConfigurations] = useState<SavedConfiguration[]>(
-    []
-  );
+  // Authentication gate (manual login simulation retained)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!user);
 
-  const [profileData, setProfileData] = useState({
+  // Local UI state
+  const [loading, setLoading] = useState<boolean>(false);
+  const [editingProfile, setEditingProfile] = useState<boolean>(false);
+  const [profileData, setProfileData] = useState<ProfileDataState>({
     name: "",
     email: "",
     phone: "",
@@ -239,34 +87,85 @@ export function MemberArea({
     marketingOptOut: false,
   });
 
-  // New state for support tickets and refunds
-  interface BuildUpdate {
-    note?: string;
-    progress?: number;
-    timestamp?:
-      | { toDate?: () => Date }
-      | Date
-      | string
-      | number
-      | null
-      | undefined;
-    [key: string]: unknown;
-  }
+  // Orders & related
+  const [orders, setOrders] = useState<NormalizedOrder[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<NormalizedOrder | null>(
+    null
+  );
+  const [lastOrdersUpdate, setLastOrdersUpdate] = useState<Date | null>(null);
+  const [ordersRefreshing, setOrdersRefreshing] = useState<boolean>(false);
+
+  // Configurations & support
+  const [configurations, setConfigurations] = useState<SavedConfiguration[]>(
+    []
+  );
   const [supportTickets, setSupportTickets] = useState<DBSupportTicket[]>([]);
-  const [activeSupportTab, setActiveSupportTab] = useState<
-    "progress" | "tickets" | "orders" | "center"
-  >("progress");
+  // Underscore prefix to intentionally suppress unused variable warnings until refund view implemented
   const [refundRequests, setRefundRequests] = useState<RefundRequest[]>([]);
+
+  // Tabs
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "orders" | "configurations" | "profile" | "support"
+    | "dashboard"
+    | "orders"
+    | "configurations"
+    | "support"
+    | "profile"
+    | "refunds"
   >("dashboard");
+  const [emailNew, setEmailNew] = useState("");
+  const [emailCurrentPwd, setEmailCurrentPwd] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [activeSupportTab, setActiveSupportTab] = useState<
+    "orders" | "center" | "refunds" | "progress" | "tickets"
+  >("orders");
   const [pwdCurrent, setPwdCurrent] = useState("");
   const [pwdNew, setPwdNew] = useState("");
   const [pwdConfirm, setPwdConfirm] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
-  const [emailNew, setEmailNew] = useState("");
-  const [emailCurrentPwd, setEmailCurrentPwd] = useState("");
-  const [emailBusy, setEmailBusy] = useState(false);
+
+  // Collection (Repair) Service Request Modal state
+  const [showCollectionDialog, setShowCollectionDialog] = useState(false);
+  const [collectionDeviceType, setCollectionDeviceType] = useState("");
+  const [collectionIssueSummary, setCollectionIssueSummary] = useState("");
+  const [collectionPreferredDate, setCollectionPreferredDate] = useState("");
+  const [collectionTimeWindow, setCollectionTimeWindow] = useState("Any");
+  const [collectionPhone, setCollectionPhone] = useState("");
+  const [collectionConsent, setCollectionConsent] = useState(false);
+  const [collectionSubmitting, setCollectionSubmitting] = useState(false);
+  const [collectionStatus, setCollectionStatus] = useState<
+    null | "success" | "error"
+  >(null);
+  const [collectionUrgency, setCollectionUrgency] = useState("standard");
+  const [collectionPrice, setCollectionPrice] = useState("25");
+
+  // Mark collection request state as used to satisfy strict unused-var linting
+  void (
+    showCollectionDialog ||
+    collectionDeviceType ||
+    collectionIssueSummary ||
+    collectionPreferredDate ||
+    collectionTimeWindow ||
+    collectionPhone ||
+    collectionConsent ||
+    collectionSubmitting ||
+    collectionStatus ||
+    collectionUrgency ||
+    collectionPrice
+  );
+
+  // Adjust suggested price when urgency changes (simple mapping)
+  useEffect(() => {
+    const suggestion =
+      collectionUrgency === "emergency"
+        ? "65"
+        : collectionUrgency === "priority"
+        ? "45"
+        : "25";
+    // Only auto-update if user hasn't manually changed price beyond suggestions
+    if (["25", "45", "65"].includes(collectionPrice)) {
+      setCollectionPrice(suggestion);
+    }
+  }, [collectionUrgency, collectionPrice]);
 
   // Redirect business accounts to business dashboard
   useEffect(() => {
@@ -317,7 +216,7 @@ export function MemberArea({
         logger.debug("Member Area - Orders loaded", {
           count: userOrders.length,
         });
-        setOrders(userOrders);
+        setOrders(normalizeOrders(userOrders));
         setLastOrdersUpdate(new Date());
 
         // Load saved configurations
@@ -409,7 +308,7 @@ export function MemberArea({
           }
         }
       }
-      setOrders(userOrders);
+      setOrders(normalizeOrders(userOrders));
       setLastOrdersUpdate(new Date());
       if (showToast) toast.success("Orders refreshed");
     } catch (e) {
@@ -479,8 +378,8 @@ export function MemberArea({
     if (orders.length > 0) {
       try {
         const sortedOrders = [...orders].sort((a, b) => {
-          const dateA = new Date(a.orderDate);
-          const dateB = new Date(b.orderDate);
+          const dateA = a.orderDate || new Date(0);
+          const dateB = b.orderDate || new Date(0);
           return dateA.getTime() - dateB.getTime();
         });
         const firstOrder = sortedOrders[0];
@@ -579,7 +478,7 @@ export function MemberArea({
 
       // Reload orders to show updated status
       const userOrders = await getUserOrders(user.uid);
-      setOrders(userOrders);
+      setOrders(normalizeOrders(userOrders));
     } catch (error) {
       logger.error("Refund request error:", error);
       alert(
@@ -600,7 +499,7 @@ export function MemberArea({
       const result = await claimGuestOrders(user.uid, user.email);
       if (result.claimed > 0) {
         const refreshed = await getUserOrders(user.uid);
-        setOrders(refreshed);
+        setOrders(normalizeOrders(refreshed));
         toast.success(
           `Linked ${result.claimed} past order${result.claimed > 1 ? "s" : ""}.`
         );
@@ -646,6 +545,18 @@ export function MemberArea({
         return "bg-gray-500/20 text-gray-300 border-gray-500/30";
     }
   };
+
+  // Diagnostics: log selected order when changed for crash tracing
+  useEffect(() => {
+    if (selectedOrder) {
+      logger.debug("MemberArea: rendering selectedOrder dialog", {
+        displayId: selectedOrder.displayId,
+        status: selectedOrder.status,
+        items: selectedOrder.items?.length || 0,
+        total: selectedOrder.total,
+      });
+    }
+  }, [selectedOrder]);
 
   // Check both isLoggedIn prop AND actual Firebase user from context
   // Show loading if auth is still initializing
@@ -817,35 +728,35 @@ export function MemberArea({
             }
             className="space-y-4 sm:space-y-6"
           >
-            <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 snap-x snap-mandatory">
-              <TabsList className="inline-flex sm:grid w-auto sm:w-full grid-cols-5 bg-gradient-to-r from-white/5 via-white/10 to-white/5 border border-white/20 backdrop-blur-xl shadow-lg min-w-max sm:min-w-0 p-1">
+            <div className="overflow-x-auto snap-x snap-mandatory">
+              <TabsList className="flex w-full justify-between bg-white/5 border border-white/15 backdrop-blur-xl shadow-lg rounded-xl px-4 py-3 space-x-2">
                 <TabsTrigger
                   value="dashboard"
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
+                  className="flex-1 text-center font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-600 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-[11px] sm:text-sm transition-all duration-300 hover:bg-white/10 px-3 py-2 rounded-md"
                 >
                   Dashboard
                 </TabsTrigger>
                 <TabsTrigger
                   value="orders"
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
+                  className="flex-1 text-center font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-600 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-[11px] sm:text-sm transition-all duration-300 hover:bg-white/10 px-3 py-2 rounded-md"
                 >
                   My Orders
                 </TabsTrigger>
                 <TabsTrigger
                   value="configurations"
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
+                  className="flex-1 text-center font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-600 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-[11px] sm:text-sm transition-all duration-300 hover:bg-white/10 px-3 py-2 rounded-md"
                 >
                   Saved Builds
                 </TabsTrigger>
                 <TabsTrigger
                   value="profile"
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
+                  className="flex-1 text-center font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-600 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-[11px] sm:text-sm transition-all duration-300 hover:bg-white/10 px-3 py-2 rounded-md"
                 >
                   Profile
                 </TabsTrigger>
                 <TabsTrigger
                   value="support"
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-xs sm:text-sm whitespace-nowrap snap-start transition-all duration-300 hover:bg-white/10"
+                  className="flex-1 text-center font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-600 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg text-gray-300 hover:text-white text-[11px] sm:text-sm transition-all duration-300 hover:bg-white/10 px-3 py-2 rounded-md"
                 >
                   Support
                 </TabsTrigger>
@@ -947,7 +858,7 @@ export function MemberArea({
                           >
                             <div className="flex items-center justify-between mb-2">
                               <div className="text-sm sm:text-base text-white font-semibold truncate mr-2">
-                                Order #{o.orderId}
+                                Order #{o.displayId}
                               </div>
                               <Badge
                                 className={`${getStatusColor(
@@ -1021,11 +932,9 @@ export function MemberArea({
                       <Activity className="w-5 h-5 text-emerald-400" />
                     </div>
                   </div>
-                  <ActivityTimeline
-                    orders={orders}
-                    tickets={supportTickets}
-                    refunds={refundRequests}
-                  />
+                  <div className="text-center py-8 text-gray-400">
+                    <p>Activity timeline coming soon</p>
+                  </div>
                 </div>
               </Card>
             </TabsContent>
@@ -1103,9 +1012,9 @@ export function MemberArea({
                     </div>
                     <p className="text-xs text-gray-500 mt-6 max-w-md mx-auto">
                       If you previously purchased as a guest using this email,
-                      click &nbsp;
-                      <span className="text-sky-400">Link Past Orders</span>
-                      &nbsp;to attach them to your account.
+                      click{" "}
+                      <span className="text-sky-400">Link Past Orders</span> to
+                      attach them.
                     </p>
                   </div>
                 </Card>
@@ -1114,7 +1023,7 @@ export function MemberArea({
                   {orders.map((order) => (
                     <Card
                       key={order.id}
-                      className="bg-gradient-to-br from-white/10 via-white/5 to-transparent border-white/20 backdrop-blur-xl shadow-xl p-6 hover:shadow-2xl hover:border-sky-500/40 transition-all duration-500 group"
+                      className="relative overflow-hidden bg-white/5 border border-white/15 rounded-2xl backdrop-blur-xl shadow-lg px-6 pt-6 pb-5 hover:shadow-xl hover:border-sky-500/40 transition-all duration-300 group"
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-sky-500/5 via-purple-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg" />
                       <div className="relative">
@@ -1122,8 +1031,7 @@ export function MemberArea({
                           <div>
                             <div className="flex items-center space-x-3 mb-2">
                               <h3 className="text-xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
-                                {order.items?.[0]?.productName ||
-                                  "Custom Build"}
+                                {order.items?.[0]?.name || "Custom Build"}
                               </h3>
                               <Badge
                                 className={`${getStatusColor(
@@ -1139,29 +1047,28 @@ export function MemberArea({
                               </Badge>
                             </div>
                             <p className="text-gray-400 font-mono text-sm">
-                              Order #{order.orderId || order.id}
+                              Order # {order.displayId}
                             </p>
-                            {/* Status stepper */}
                             <div className="mt-3 flex items-center gap-2 text-xs">
-                              {(
-                                [
+                              {[
+                                "pending",
+                                "pending_payment",
+                                "building",
+                                "testing",
+                                "shipped",
+                                "delivered",
+                                "completed",
+                              ].map((step, idx) => {
+                                const reachedIndex = [
                                   "pending",
+                                  "pending_payment",
                                   "building",
                                   "testing",
                                   "shipped",
                                   "delivered",
                                   "completed",
-                                ] as const
-                              ).map((step, idx) => {
-                                const reached =
-                                  [
-                                    "pending",
-                                    "building",
-                                    "testing",
-                                    "shipped",
-                                    "delivered",
-                                    "completed",
-                                  ].indexOf(order.status) >= idx;
+                                ].indexOf(order.status);
+                                const reached = reachedIndex >= idx;
                                 return (
                                   <div key={step} className="flex items-center">
                                     <div
@@ -1200,7 +1107,6 @@ export function MemberArea({
                             </p>
                           </div>
                         </div>
-
                         {(order.status === "building" ||
                           order.status === "testing") && (
                           <div className="mb-4">
@@ -1238,21 +1144,25 @@ export function MemberArea({
                               )}
                           </div>
                         )}
-
                         {order.items && order.items.length > 0 && (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {order.items.map((item, index) => (
+                          <div className="flex flex-wrap gap-2 mt-4">
+                            {order.items.slice(0, 8).map((item, index) => (
                               <Badge
                                 key={index}
                                 variant="secondary"
-                                className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-center"
+                                title={item.category || item.name}
+                                className="bg-blue-500/15 border border-blue-500/30 text-blue-300 text-center px-2 py-1 rounded-md"
                               >
-                                {item.productName}
+                                <span>{item.name}</span>
+                                {item.category && (
+                                  <span className="block text-[10px] uppercase opacity-70 tracking-wide">
+                                    {item.category}
+                                  </span>
+                                )}
                               </Badge>
                             ))}
                           </div>
                         )}
-
                         <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
                           <div className="text-sm text-gray-400">
                             {order.deliveryDate &&
@@ -1270,7 +1180,14 @@ export function MemberArea({
                               variant="outline"
                               size="sm"
                               className="border-white/20 text-white hover:bg-white/10"
-                              onClick={() => setSelectedOrder(order)}
+                              onClick={() => {
+                                logger.info("MemberArea: open order details", {
+                                  displayId: order.displayId,
+                                  status: order.status,
+                                  total: order.total,
+                                });
+                                setSelectedOrder(order);
+                              }}
                             >
                               View Details
                             </Button>
@@ -1530,7 +1447,6 @@ export function MemberArea({
                     </span>
                   </div>
                 </Card>
-
                 <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30 backdrop-blur-xl p-6 hover:border-green-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/20">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1552,31 +1468,30 @@ export function MemberArea({
                     </span>
                   </p>
                 </Card>
-
-                <Card className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30 backdrop-blur-xl p-6 hover:border-purple-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/20">
+                <Card className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30 backdrop-blur-xl p-6 hover:border-amber-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/30">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-gray-400 text-sm font-medium mb-1">
-                        Member Tier
+                        Collection Service
                       </p>
-                      <p className="text-2xl font-bold text-white">
-                        {getTotalSpent() >= 5000
-                          ? "Platinum"
-                          : getTotalSpent() >= 2000
-                          ? "Gold"
-                          : "Silver"}
-                      </p>
+                      <p className="text-3xl font-bold text-white">Book</p>
                     </div>
-                    <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                      <Star className="w-7 h-7 text-purple-400" />
+                    <div className="w-14 h-14 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                      <Truck className="w-7 h-7 text-amber-400" />
                     </div>
                   </div>
-                  <div className="mt-4 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm text-gray-400">
-                      Exclusive benefits
-                    </span>
-                  </div>
+                  <p className="mt-4 text-sm text-gray-400">
+                    Schedule a collect & return repair.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setShowCollectionDialog(true);
+                      setCollectionPhone(profileData.phone || "");
+                    }}
+                    className="mt-4 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500"
+                  >
+                    Request Collection
+                  </Button>
                 </Card>
               </div>
 
@@ -1986,11 +1901,18 @@ export function MemberArea({
                 <Tabs
                   value={activeSupportTab}
                   onValueChange={(v) =>
-                    setActiveSupportTab(v as "progress" | "tickets" | "orders")
+                    setActiveSupportTab(
+                      v as
+                        | "orders"
+                        | "center"
+                        | "refunds"
+                        | "progress"
+                        | "tickets"
+                    )
                   }
                   className="w-full"
                 >
-                  <TabsList className="grid w-full grid-cols-4 bg-white/5">
+                  <TabsList className="grid w-full grid-cols-5 bg-white/5">
                     <TabsTrigger value="progress">
                       <Activity className="w-4 h-4 mr-2" />
                       Build Progress
@@ -2007,7 +1929,77 @@ export function MemberArea({
                       <MessageSquare className="w-4 h-4 mr-2" />
                       Ticket Center (New)
                     </TabsTrigger>
+                    <TabsTrigger value="refunds">
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Refund Requests
+                    </TabsTrigger>
                   </TabsList>
+                  {/* Refund Requests Tab */}
+                  <TabsContent value="refunds" className="p-6 space-y-4">
+                    <h3 className="text-2xl font-bold text-white mb-4">
+                      Your Refund Requests
+                    </h3>
+                    {refundRequests.length === 0 ? (
+                      <div className="text-center py-12">
+                        <CreditCard className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                        <h4 className="text-xl font-bold text-white mb-2">
+                          No Refund Requests
+                        </h4>
+                        <p className="text-gray-400 max-w-md mx-auto">
+                          You have not submitted any refund requests yet. You
+                          can request a refund on an eligible order from the
+                          Billing & Returns tab.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {refundRequests.map((r) => {
+                          const statusClass =
+                            r.status === "approved"
+                              ? "bg-green-500/20 text-green-400 border-green-500/40"
+                              : r.status === "rejected"
+                              ? "bg-red-500/20 text-red-400 border-red-500/40"
+                              : "bg-yellow-500/20 text-yellow-400 border-yellow-500/40";
+                          return (
+                            <div
+                              key={r.id}
+                              className="rounded-lg border border-white/10 bg-white/5 backdrop-blur-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                            >
+                              <div className="space-y-1">
+                                <p className="text-sm text-gray-400">Order</p>
+                                <p className="text-white font-medium">
+                                  #{r.orderId}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  Requested:{" "}
+                                  {r.createdAt
+                                    ? new Date(r.createdAt).toLocaleDateString(
+                                        "en-GB"
+                                      )
+                                    : "N/A"}
+                                </p>
+                              </div>
+                              <div className="flex-1 min-w-[200px]">
+                                <p className="text-sm text-gray-400 mb-1">
+                                  Reason
+                                </p>
+                                <p className="text-xs text-gray-300 whitespace-pre-wrap">
+                                  {r.reason}
+                                </p>
+                              </div>
+                              <div className="flex flex-col items-start md:items-end">
+                                <span
+                                  className={`px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide ${statusClass}`}
+                                >
+                                  {r.status}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </TabsContent>
                   {/* Ticket Center (New) */}
                   <TabsContent value="center" className="p-6 space-y-4">
                     <TicketCenter />
@@ -2046,7 +2038,7 @@ export function MemberArea({
                               <div className="flex items-start justify-between mb-4">
                                 <div>
                                   <h4 className="text-lg font-bold text-white mb-1">
-                                    Order #{order.orderId}
+                                    Order # {order.displayId}
                                   </h4>
                                   <p className="text-gray-400 text-sm">
                                     {order.orderDate &&
@@ -2091,69 +2083,64 @@ export function MemberArea({
                                       Build Updates:
                                     </h5>
                                     <div className="space-y-2 max-h-48 overflow-y-auto">
-                                      {order.buildUpdates.map(
-                                        (update: BuildUpdate, idx: number) => (
-                                          <div
-                                            key={idx}
-                                            className="flex items-start space-x-3 text-sm"
-                                          >
-                                            <CheckCircle className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1">
-                                              <p className="text-white">
-                                                {typeof update.note === "string"
-                                                  ? update.note
-                                                  : ""}
-                                              </p>
-                                              <p className="text-gray-400 text-xs">
-                                                {(() => {
-                                                  const ts = update.timestamp;
-                                                  try {
-                                                    if (
-                                                      ts &&
-                                                      typeof ts === "object"
-                                                    ) {
-                                                      const candidate = ts as {
-                                                        toDate?: unknown;
-                                                      };
-                                                      if (
-                                                        typeof candidate.toDate ===
-                                                        "function"
-                                                      ) {
-                                                        const d = (
-                                                          candidate.toDate as () => Date
-                                                        )();
-                                                        return d instanceof Date
-                                                          ? d.toLocaleString()
-                                                          : "Recently";
-                                                      }
-                                                    }
-                                                    if (ts instanceof Date)
-                                                      return ts.toLocaleString();
-                                                    if (
-                                                      typeof ts === "string" ||
-                                                      typeof ts === "number"
-                                                    ) {
-                                                      const d = new Date(ts);
-                                                      return !isNaN(d.getTime())
-                                                        ? d.toLocaleString()
-                                                        : "Recently";
-                                                    }
-                                                  } catch {
-                                                    /* ignore */
-                                                  }
-                                                  return "Recently";
-                                                })()}
-                                              </p>
-                                            </div>
-                                            <span className="text-sky-400 font-semibold">
-                                              {typeof update.progress ===
-                                              "number"
-                                                ? `${update.progress}%`
+                                      {order.buildUpdates.map((update, idx) => (
+                                        <div
+                                          key={idx}
+                                          className="flex items-start space-x-3 text-sm"
+                                        >
+                                          <CheckCircle className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <p className="text-white">
+                                              {typeof update.note === "string"
+                                                ? update.note
                                                 : ""}
-                                            </span>
+                                            </p>
+                                            <p className="text-gray-400 text-xs">
+                                              {(() => {
+                                                const ts = update.timestamp;
+                                                try {
+                                                  if (
+                                                    ts &&
+                                                    typeof ts === "object"
+                                                  ) {
+                                                    const maybeFn = (
+                                                      ts as {
+                                                        toDate?: () => Date;
+                                                      }
+                                                    ).toDate;
+                                                    if (
+                                                      typeof maybeFn ===
+                                                      "function"
+                                                    ) {
+                                                      const d = maybeFn();
+                                                      if (d instanceof Date)
+                                                        return d.toLocaleString();
+                                                    }
+                                                  }
+                                                  if (ts instanceof Date)
+                                                    return ts.toLocaleString();
+                                                  if (
+                                                    typeof ts === "string" ||
+                                                    typeof ts === "number"
+                                                  ) {
+                                                    const d = new Date(ts);
+                                                    if (!isNaN(d.getTime()))
+                                                      return d.toLocaleString();
+                                                  }
+                                                } catch {
+                                                  /* ignore */
+                                                }
+                                                return "Recently";
+                                              })()}
+                                            </p>
                                           </div>
-                                        )
-                                      )}
+                                          <span className="text-sky-400 font-semibold">
+                                            {typeof update.progress === "number"
+                                              ? `${update.progress}%`
+                                              : ""}
+                                          </span>
+                                        </div>
+                                      ))}
                                     </div>
                                   </div>
                                 )}
@@ -2169,7 +2156,7 @@ export function MemberArea({
                                       key={idx}
                                       className="text-sm text-gray-300"
                                     >
-                                      • {item.productName} x{item.quantity}
+                                      • {item.name} x{item.quantity}
                                     </div>
                                   ))}
                                 </div>
@@ -2269,8 +2256,9 @@ export function MemberArea({
                         {orders.map((order) => {
                           const canCancel =
                             ["pending", "building"].includes(order.status) &&
-                            !order.refundRequested;
-                          const isRefundRequested = order.refundRequested;
+                            !order.original?.refundRequested;
+                          const isRefundRequested =
+                            !!order.original?.refundRequested;
 
                           return (
                             <Card
@@ -2280,7 +2268,7 @@ export function MemberArea({
                               <div className="flex items-start justify-between mb-4">
                                 <div>
                                   <h4 className="text-lg font-bold text-white mb-1">
-                                    Order #{order.orderId}
+                                    Order # {order.displayId}
                                   </h4>
                                   <p className="text-gray-400 text-sm">
                                     {order.orderDate &&
@@ -2334,13 +2322,10 @@ export function MemberArea({
                                       className="flex justify-between text-sm"
                                     >
                                       <span className="text-gray-300">
-                                        {item.productName} x{item.quantity}
+                                        {item.name} x{item.quantity}
                                       </span>
                                       <span className="text-white font-medium">
-                                        £
-                                        {(
-                                          item.price * item.quantity
-                                        ).toLocaleString()}
+                                        £{item.lineTotal.toLocaleString()}
                                       </span>
                                     </div>
                                   ))}
@@ -2394,12 +2379,11 @@ export function MemberArea({
 
           {selectedOrder && (
             <div className="space-y-6">
-              {/* Order Header */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-400">Order ID</p>
                   <p className="text-white font-semibold">
-                    {selectedOrder.orderId}
+                    {selectedOrder.displayId}
                   </p>
                 </div>
                 <div>
@@ -2411,8 +2395,6 @@ export function MemberArea({
                   </p>
                 </div>
               </div>
-
-              {/* Status and Total */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-400">Status</p>
@@ -2437,8 +2419,6 @@ export function MemberArea({
                   </p>
                 </div>
               </div>
-
-              {/* Build Progress */}
               {selectedOrder.progress !== undefined && (
                 <div>
                   <p className="text-sm text-gray-400 mb-2">Build Progress</p>
@@ -2448,8 +2428,6 @@ export function MemberArea({
                   </p>
                 </div>
               )}
-
-              {/* Items */}
               <div>
                 <p className="text-sm text-gray-400 mb-3">Order Items</p>
                 <div className="space-y-2">
@@ -2460,15 +2438,13 @@ export function MemberArea({
                         className="flex justify-between items-center bg-white/5 border border-white/10 rounded-lg p-3"
                       >
                         <div>
-                          <p className="text-white font-medium">
-                            {item.productName}
-                          </p>
+                          <p className="text-white font-medium">{item.name}</p>
                           <p className="text-sm text-gray-400">
                             Quantity: {item.quantity}
                           </p>
                         </div>
                         <p className="text-white font-semibold">
-                          £{(item.price * item.quantity).toLocaleString()}
+                          £{item.lineTotal.toLocaleString()}
                         </p>
                       </div>
                     ))
@@ -2477,8 +2453,6 @@ export function MemberArea({
                   )}
                 </div>
               </div>
-
-              {/* Shipping Address */}
               {selectedOrder.address && (
                 <div>
                   <p className="text-sm text-gray-400 mb-2">Shipping Address</p>
@@ -2499,8 +2473,6 @@ export function MemberArea({
                   </div>
                 </div>
               )}
-
-              {/* Tracking Number */}
               {selectedOrder.trackingNumber && (
                 <div>
                   <p className="text-sm text-gray-400 mb-2">Tracking Number</p>
@@ -2522,8 +2494,6 @@ export function MemberArea({
                   </div>
                 </div>
               )}
-
-              {/* Build Updates */}
               {selectedOrder.buildUpdates &&
                 selectedOrder.buildUpdates.length > 0 && (
                   <div>
@@ -2536,10 +2506,8 @@ export function MemberArea({
                         >
                           <div className="flex items-start justify-between mb-1">
                             <p className="text-sm text-gray-400">
-                              {update.timestamp
-                                ? toDateMaybe(
-                                    update.timestamp
-                                  )?.toLocaleDateString()
+                              {update.timestamp instanceof Date
+                                ? update.timestamp.toLocaleDateString()
                                 : "N/A"}
                             </p>
                             {update.progress !== undefined && (
@@ -2554,8 +2522,6 @@ export function MemberArea({
                     </div>
                   </div>
                 )}
-
-              {/* Close Button */}
               <div className="flex justify-end pt-4 border-t border-white/10">
                 <Button
                   onClick={() => setSelectedOrder(null)}
@@ -2566,6 +2532,245 @@ export function MemberArea({
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Collection Service Booking Dialog */}
+      <Dialog
+        open={showCollectionDialog}
+        onOpenChange={(open) => {
+          if (!open && !collectionSubmitting) {
+            setShowCollectionDialog(false);
+          } else if (open) {
+            setCollectionStatus(null);
+          }
+        }}
+      >
+        <DialogContent className="bg-gradient-to-br from-black/80 via-slate-900 to-black border-amber-500/30 text-white w-full max-w-[750px] max-h-[90vh] overflow-y-auto overflow-x-visible p-6">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
+              Request Collection & Return Service
+            </DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (collectionSubmitting) return;
+              setCollectionSubmitting(true);
+              setCollectionStatus(null);
+              try {
+                const payload = {
+                  bookingData: {
+                    urgency: collectionUrgency,
+                    issueTypes: [collectionIssueSummary || ""],
+                    description: collectionIssueSummary,
+                  },
+                  customerInfo: {
+                    name: profileData.name,
+                    email: profileData.email,
+                    phone: collectionPhone || profileData.phone,
+                    address: profileData.address,
+                  },
+                  // Estimated collection fee (not charged here)
+                  totalPrice: parseFloat(collectionPrice) || 0,
+                };
+                await fetch("/api/repair/notify", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload),
+                });
+                toast.success("Collection request submitted");
+                setCollectionStatus("success");
+                setShowCollectionDialog(false);
+                // basic reset
+                setCollectionDeviceType("");
+                setCollectionIssueSummary("");
+                setCollectionPreferredDate("");
+                setCollectionTimeWindow("Any");
+                setCollectionConsent(false);
+                setCollectionUrgency("standard");
+                setCollectionPrice("25");
+              } catch (err) {
+                console.error("Collection request failed", err);
+                toast.error("Failed to submit collection request");
+                setCollectionStatus("error");
+              } finally {
+                setCollectionSubmitting(false);
+              }
+            }}
+          >
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-gray-300 text-sm">Device Type</Label>
+                <Input
+                  value={collectionDeviceType}
+                  onChange={(e) => setCollectionDeviceType(e.target.value)}
+                  placeholder="e.g. Gaming PC"
+                  className="bg-white/5 border-white/15 focus:border-amber-500/50"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-300 text-sm">
+                  Preferred Pickup Date
+                </Label>
+                <div className="relative">
+                  <Input
+                    type="date"
+                    value={collectionPreferredDate}
+                    onChange={(e) => setCollectionPreferredDate(e.target.value)}
+                    className="bg-white/5 border-white/15 focus:border-amber-500/50 text-white pr-10 appearance-none hide-native-date-icon"
+                    required
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white pointer-events-none" />
+                </div>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="text-gray-300 text-sm">Time Window</Label>
+                <div className="relative">
+                  <select
+                    value={collectionTimeWindow}
+                    onChange={(e) => setCollectionTimeWindow(e.target.value)}
+                    className="w-full bg-white/5 border border-white/15 rounded-md px-3 py-2 text-sm focus:border-amber-500/50 outline-none appearance-none pr-9 text-white"
+                  >
+                    <option className="bg-slate-800 text-white">Any</option>
+                    <option className="bg-slate-800 text-white">Morning</option>
+                    <option className="bg-slate-800 text-white">
+                      Afternoon
+                    </option>
+                    <option className="bg-slate-800 text-white">Evening</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-300 text-sm">Contact Phone</Label>
+                <Input
+                  value={collectionPhone}
+                  onChange={(e) => setCollectionPhone(e.target.value)}
+                  placeholder="Phone number"
+                  className="bg-white/5 border-white/15 focus:border-amber-500/50"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-300 text-sm">Urgency</Label>
+                <div className="relative">
+                  <select
+                    value={collectionUrgency}
+                    onChange={(e) => setCollectionUrgency(e.target.value)}
+                    className="w-full bg-white/5 border border-white/15 rounded-md px-3 py-2 text-sm focus:border-amber-500/50 outline-none appearance-none pr-10 text-white"
+                  >
+                    <option
+                      value="standard"
+                      className="bg-slate-800 text-white"
+                    >
+                      Standard (24-48h)
+                    </option>
+                    <option
+                      value="priority"
+                      className="bg-slate-800 text-white"
+                    >
+                      Priority (Next Day)
+                    </option>
+                    <option
+                      value="emergency"
+                      className="bg-slate-800 text-white"
+                    >
+                      Emergency (Same Day)
+                    </option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div className="space-y-2 sm:col-span-1">
+                <Label className="text-gray-300 text-sm">
+                  Estimated Collection Fee (£)
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={collectionPrice}
+                  onChange={(e) => setCollectionPrice(e.target.value)}
+                  className="bg-white/5 border-white/15 focus:border-amber-500/50"
+                  required
+                />
+                <p className="text-[11px] text-gray-400">
+                  Auto-filled by urgency. Adjust if quoted differently.
+                </p>
+              </div>
+              <div className="sm:col-span-2 space-y-2">
+                <Label className="text-gray-300 text-sm">
+                  Issue Summary / Symptoms
+                </Label>
+                <textarea
+                  value={collectionIssueSummary}
+                  onChange={(e) => setCollectionIssueSummary(e.target.value)}
+                  placeholder="Describe the issue you're experiencing..."
+                  rows={5}
+                  className="w-full min-h-[140px] bg-white/5 border border-white/15 rounded-md px-4 py-3 text-sm leading-relaxed resize-y focus:border-amber-500/50 outline-none"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <input
+                id="collectionConsent"
+                type="checkbox"
+                checked={collectionConsent}
+                onChange={(e) => setCollectionConsent(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
+                required
+              />
+              <Label
+                htmlFor="collectionConsent"
+                className="text-xs text-gray-400 leading-relaxed"
+              >
+                I confirm I am the owner of this device and agree to the
+                standard diagnostic terms. A team member will contact me to
+                confirm collection details.
+              </Label>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  !collectionSubmitting && setShowCollectionDialog(false)
+                }
+                className="border-white/20 text-gray-300 hover:bg-white/10"
+                disabled={collectionSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  collectionSubmitting ||
+                  !collectionConsent ||
+                  !collectionDeviceType ||
+                  !collectionIssueSummary ||
+                  !collectionPreferredDate
+                }
+                className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50"
+              >
+                {collectionSubmitting ? (
+                  <span className="flex items-center">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Submitting...
+                  </span>
+                ) : (
+                  <span>Submit Request</span>
+                )}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

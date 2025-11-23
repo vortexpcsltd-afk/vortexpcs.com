@@ -26,9 +26,8 @@ const VisualPCConfigurator = lazy(() =>
 const AIAssistant = lazy(() =>
   import("./components/AIAssistant").then((m) => ({ default: m.AIAssistant }))
 );
-const MemberArea = lazy(() =>
-  import("./components/MemberArea").then((m) => ({ default: m.MemberArea }))
-);
+// MemberArea exports default only; use default directly
+const MemberArea = lazy(() => import("./components/MemberArea"));
 const AdminPanel = lazy(() =>
   import("./components/AdminPanel").then((m) => ({ default: m.AdminPanel }))
 );
@@ -818,11 +817,7 @@ export default function App() {
       case "member":
         return (
           <PageErrorBoundary pageName="Member Area">
-            <MemberArea
-              isLoggedIn={isLoggedIn}
-              setIsLoggedIn={setIsLoggedIn}
-              onNavigate={onNavigate}
-            />
+            <MemberArea onNavigate={onNavigate} />
           </PageErrorBoundary>
         );
       case "admin":
@@ -1047,7 +1042,10 @@ export default function App() {
               }`}
             >
               <div className="container mx-auto px-4 md:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-20 md:h-36">
+                <div
+                  className="flex items-center justify-between h-20 md:h-24"
+                  style={{ paddingTop: "70px", paddingBottom: "70px" }}
+                >
                   {/* Logo */}
                   <div
                     className="cursor-pointer group"
@@ -1581,7 +1579,7 @@ export default function App() {
 
                 const targetView = isAdminUser ? "admin" : "member";
                 logger.debug("Login - Redirecting to", { targetView });
-                navigate(`/${targetView}`);
+                onNavigate(targetView);
               }}
               activeTab={loginTab}
             />

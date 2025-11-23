@@ -76,6 +76,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Invalid amount" });
     }
 
+    // DIAGNOSTIC: Server-side amount validation
+    const serverCalculatedSubtotal = cartItems.reduce(
+      (sum: number, item: any) => sum + item.price * item.quantity,
+      0
+    );
+    const serverShippingCost =
+      typeof shippingCost === "number" ? shippingCost : 0;
+    const serverCalculatedTotal = serverCalculatedSubtotal + serverShippingCost;
+    const amountDiscrepancy = Math.abs(amount - serverCalculatedTotal);
+
+    console.log("🔍 SERVER AMOUNT VALIDATION", {
+      clientAmount: amount.toFixed(2),
+      serverSubtotal: serverCalculatedSubtotal.toFixed(2),
+      serverShipping: serverShippingCost.toFixed(2),
+      serverTotal: serverCalculatedTotal.toFixed(2),
+      discrepancy: amountDiscrepancy.toFixed(2),
+      shippingMethod: shippingMethod || "free",
+      itemCount: cartItems.length,
+    });
+
+    // Alert if significant discrepancy detected
+    if (amountDiscrepancy > 0.02) {
+      console.error("⚠️ AMOUNT MISMATCH DETECTED!", {
+        expected: serverCalculatedTotal,
+        received: amount,
+        difference: amountDiscrepancy,
+        items: cartItems.map(
+          (i: any) => `${i.name}: £${i.price} x${i.quantity}`
+        ),
+      });
+    }
+
     if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
       return res.status(400).json({ error: "Cart items are required" });
     }

@@ -52,6 +52,12 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log to console with full details for debugging
+    console.error("🔴 ErrorBoundary caught error:", error);
+    console.error("🔴 Error message:", error.message);
+    console.error("🔴 Error stack:", error.stack);
+    console.error("🔴 Component stack:", errorInfo.componentStack);
+
     logger.error("ErrorBoundary caught an error", {
       error: error.message,
       stack: error.stack,

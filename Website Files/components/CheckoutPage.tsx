@@ -388,6 +388,25 @@ export function CheckoutPage({
     orderData: Record<string, unknown>,
     authToken: string | null
   ) => {
+    // DIAGNOSTIC: Log exact values being sent
+    const itemsTotal = cartItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    logger.info("🔍 BANK TRANSFER DEBUG", {
+      itemsTotal: itemsTotal.toFixed(2),
+      shippingMethod: selectedShipping,
+      shippingCost: shippingCost.toFixed(2),
+      computedTotal: total.toFixed(2),
+      orderDataAmount: orderData.amount,
+      itemCount: cartItems.length,
+      items: cartItems.map((i) => ({
+        name: i.name,
+        price: i.price,
+        qty: i.quantity,
+      })),
+    });
+
     const response = await fetch("/api/orders/bank-transfer", {
       method: "POST",
       headers: {

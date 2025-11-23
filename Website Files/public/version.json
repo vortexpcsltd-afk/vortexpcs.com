@@ -1,8 +1,8 @@
 {
-  "version": "1.46.011",
-  "timestamp": "2025-11-16T12:00:00Z",
-  "build": "legal-links-and-dashboard-84px",
-  "description": "Standardized legal links to open in new tabs and adjusted Business Dashboard vertical title to 84px.",
+  "version": "1.47.011",
+  "timestamp": "2025-11-23T12:00:00Z",
+  "build": "order-normalization-and-typing-fixes",
+  "description": "Implemented centralized order normalization service and fixed TypeScript errors across MemberArea and BusinessDashboard components.",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
     "HomePage": "contentful-cms-integration-v1",
@@ -60,9 +60,13 @@
     ]
   },
   "changes": [
-    "LEGAL: Terms of Service and Privacy Policy links now open in a new tab from Login dialog, Checkout page, and Repair Service.",
-    "UI: Business Dashboard vertical page title reduced from 90px to 84px.",
-    "ADMIN: Removed Audit tab from Admin Panel navigation and code.",
-    "DEPLOY: Pushed to Vercel production."
+    "NORMALIZATION: Created centralized order normalization service to handle divergent order schemas (Stripe vs Bank Transfer).",
+    "NORMALIZATION: Extended NormalizedOrder with estimatedCompletion, deliveryDate, trackingNumber, courier, address, and buildUpdates fields.",
+    "MEMBER AREA: Replaced all legacy helper functions (getOrderDisplayId, getOrderDisplayTotal, getItemName) with normalized field access.",
+    "MEMBER AREA: Fixed date sorting to handle undefined orderDate values.",
+    "MEMBER AREA: Removed ActivityTimeline placeholder component.",
+    "BUSINESS DASHBOARD: Fixed Contentful TypeScript constraints with proper EntrySkeletonType interfaces.",
+    "APP: Fixed lazy import for MemberArea component.",
+    "BUILD: All TypeScript errors resolved, production build successful."
   ]
 }

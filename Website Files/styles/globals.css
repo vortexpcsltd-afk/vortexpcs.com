@@ -1066,3 +1066,12 @@ select:-webkit-autofill:focus {
   pointer-events: none;
   will-change: filter, opacity, background-position;
 }
+
+/* Utility: hide native calendar icon on dark themed custom date inputs */
+.hide-native-date-icon::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  display: none;
+}
+.hide-native-date-icon {
+  position: relative;
+}

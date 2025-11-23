@@ -53,6 +53,7 @@ export interface Order {
   total: number;
   status:
     | "pending"
+    | "pending_payment"
     | "building"
     | "testing"
     | "shipped"
@@ -74,6 +75,11 @@ export interface Order {
   paymentId?: string;
   /** Stripe PaymentIntent id stored by webhook for deterministic lookups */
   stripePaymentIntentId?: string;
+  /** Payment method (may be absent on legacy orders) */
+  paymentMethod?: "card" | "paypal" | "bank_transfer";
+  /** Bank transfer verification flags */
+  bankTransferVerified?: boolean;
+  bankTransferVerifiedAt?: Date;
   buildUpdates?: Array<{
     timestamp: Timestamp | Date;
     progress: number;
@@ -503,6 +509,8 @@ export const getAllOrders = async (
   limitCount: number = 50
 ): Promise<Order[]> => {
   try {
+    logger.debug("getAllOrders: Starting query", { limitCount });
+
     const q = query(
       collection(db, "orders"),
       orderBy("orderDate", "desc"),
@@ -511,6 +519,10 @@ export const getAllOrders = async (
 
     const querySnapshot = await getDocs(q);
     const orders: Order[] = [];
+
+    logger.debug("getAllOrders: Query successful", {
+      count: querySnapshot.size,
+    });
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
@@ -523,12 +535,124 @@ export const getAllOrders = async (
       } as Order);
     });
 
+    logger.debug("getAllOrders: Orders processed", {
+      ordersCount: orders.length,
+    });
     return orders;
   } catch (error: unknown) {
     logger.error("Get all orders error:", error);
+    if (error instanceof Error) {
+      logger.error("Error details:", {
+        message: error.message,
+        code: (error as { code?: string }).code,
+        stack: error.stack,
+      });
+    }
     throw new Error(
       error instanceof Error ? error.message : "Failed to get all orders"
     );
+  }
+};
+
+/**
+ * Extended order fetch: includes legacy orders missing `orderDate` but having `createdAt`.
+ * Performs two queries and merges results, deduping by id/orderId/paymentId.
+ */
+export const getAllOrdersExtended = async (
+  limitPrimary: number = 1000,
+  limitLegacy: number = 500
+): Promise<Order[]> => {
+  try {
+    logger.debug("getAllOrdersExtended: Starting combined queries", {
+      limitPrimary,
+      limitLegacy,
+    });
+
+    // Primary query (current schema with orderDate)
+    const primaryQ = query(
+      collection(db, "orders"),
+      orderBy("orderDate", "desc"),
+      limit(limitPrimary)
+    );
+    const primarySnap = await getDocs(primaryQ);
+
+    // Legacy/missing orderDate query (match null or missing, order by createdAt)
+    // Firestore allows where(field, '==', null) to match null OR missing.
+    let legacyOrders: Order[] = [];
+    try {
+      const legacyQ = query(
+        collection(db, "orders"),
+        where("orderDate", "==", null),
+        orderBy("createdAt", "desc"),
+        limit(limitLegacy)
+      );
+      const legacySnap = await getDocs(legacyQ);
+      legacySnap.forEach((docSnap) => {
+        const data = docSnap.data();
+        legacyOrders.push({
+          id: docSnap.id,
+          ...data,
+          orderDate: toDateSafe(data.orderDate) || toDateSafe(data.createdAt),
+          estimatedCompletion: toDateSafe(data.estimatedCompletion),
+          deliveryDate: toDateSafe(data.deliveryDate),
+        } as Order);
+      });
+    } catch (legacyErr) {
+      logger.warn("getAllOrdersExtended: Legacy query failed", { legacyErr });
+      // Fallback: naive scan (only if primarySnap size is below limitPrimary)
+      try {
+        const fullSnap = await getDocs(collection(db, "orders"));
+        fullSnap.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (!data.orderDate) {
+            legacyOrders.push({
+              id: docSnap.id,
+              ...data,
+              orderDate: toDateSafe(data.createdAt),
+              estimatedCompletion: toDateSafe(data.estimatedCompletion),
+              deliveryDate: toDateSafe(data.deliveryDate),
+            } as Order);
+          }
+        });
+      } catch (scanErr) {
+        logger.error("getAllOrdersExtended: Fallback scan failed", {
+          scanErr,
+        });
+      }
+    }
+
+    const primaryOrders: Order[] = [];
+    primarySnap.forEach((docSnap) => {
+      const data = docSnap.data();
+      primaryOrders.push({
+        id: docSnap.id,
+        ...data,
+        orderDate: toDateSafe(data.orderDate),
+        estimatedCompletion: toDateSafe(data.estimatedCompletion),
+        deliveryDate: toDateSafe(data.deliveryDate),
+      } as Order);
+    });
+
+    // Merge & dedupe
+    const mergedMap = new Map<string, Order>();
+    const all = [...primaryOrders, ...legacyOrders];
+    for (const o of all) {
+      const keyCandidate =
+        (o.paymentId as string | undefined) || o.orderId || o.id;
+      const key: string = keyCandidate || o.id || Math.random().toString();
+      if (!mergedMap.has(key)) mergedMap.set(key, o);
+    }
+    const merged = Array.from(mergedMap.values());
+    logger.debug("getAllOrdersExtended: Merged result", {
+      primary: primaryOrders.length,
+      legacy: legacyOrders.length,
+      merged: merged.length,
+    });
+    return merged;
+  } catch (error) {
+    logger.error("getAllOrdersExtended error", { error });
+    // Fallback to primary method
+    return getAllOrders(limitPrimary);
   }
 };
 
@@ -1643,5 +1767,113 @@ export const checkStock = async (
     logger.error("Error checking stock:", error);
     // On error, allow the order to proceed
     return { inStock: true, outOfStockItems: [] };
+  }
+};
+
+/**
+ * Permanently delete an order (admin only).
+ * Creates an audit copy in `deleted_orders` collection before removal.
+ * Optionally rejects any pending refund requests tied to the order.
+ */
+export const deleteOrder = async (
+  orderId: string,
+  options?: { rejectRefundRequests?: boolean }
+): Promise<{ success: boolean; refundRequestsRejected: number }> => {
+  if (!db) {
+    logger.error("deleteOrder: Firestore not initialized");
+    throw new Error("Database not configured");
+  }
+  const rejectRefunds = options?.rejectRefundRequests === true;
+  try {
+    const orderRef = doc(db, "orders", orderId);
+    const snap = await getDoc(orderRef);
+    if (!snap.exists()) {
+      logger.warn("deleteOrder: order not found", { orderId });
+      return { success: false, refundRequestsRejected: 0 };
+    }
+    const raw = snap.data();
+
+    // Prepare audit record
+    const actor = auth?.currentUser?.uid || "admin";
+    const auditData = {
+      originalOrderId: orderId,
+      deletedAt: Timestamp.now(),
+      deletedBy: actor,
+      orderSnapshot: raw,
+    };
+    await addDoc(collection(db, "deleted_orders"), auditData);
+
+    let refundRejectedCount = 0;
+    if (rejectRefunds) {
+      try {
+        const qRef = query(
+          collection(db, "refund_requests"),
+          where("orderId", "==", orderId)
+        );
+        const refundSnap = await getDocs(qRef);
+        for (const r of refundSnap.docs) {
+          const rData = r.data();
+          // Only touch pending requests
+          if (rData.status === "pending") {
+            await updateDoc(r.ref, {
+              status: "rejected",
+              adminNote: "Order deleted by admin",
+              updatedAt: Timestamp.now(),
+            });
+            refundRejectedCount++;
+          }
+        }
+      } catch (e) {
+        logger.error("deleteOrder: refund cascade failed", {
+          orderId,
+          error: e,
+        });
+      }
+    }
+
+    await deleteDoc(orderRef);
+    logger.info("deleteOrder: order deleted", { orderId, refundRejectedCount });
+    return { success: true, refundRequestsRejected: refundRejectedCount };
+  } catch (error) {
+    logger.error("deleteOrder error", { orderId, error });
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to delete order"
+    );
+  }
+};
+
+/**
+ * Verify a bank transfer payment for an order. Sets status to 'building' if currently pending.
+ */
+export const verifyBankTransfer = async (orderId: string): Promise<void> => {
+  if (!db) throw new Error("Database not configured");
+  try {
+    const ref = doc(db, "orders", orderId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error("Order not found");
+    const data = snap.data() as { paymentMethod?: string; status?: string };
+    if (data.paymentMethod !== "bank_transfer") {
+      throw new Error("Not a bank transfer order");
+    }
+    await updateDoc(ref, {
+      bankTransferVerified: true,
+      bankTransferVerifiedAt: Timestamp.now(),
+      // Auto-advance status if still pending / pending_payment
+      status:
+        data.status === "pending" || data.status === "pending_payment"
+          ? "building"
+          : data.status || "building",
+      updatedAt: Timestamp.now(),
+      progress:
+        data.status === "pending" || data.status === "pending_payment"
+          ? 5
+          : undefined,
+    });
+    logger.info("Bank transfer verified", { orderId });
+  } catch (error) {
+    logger.error("verifyBankTransfer error", { orderId, error });
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to verify bank transfer"
+    );
   }
 };

@@ -78,6 +78,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       shippingCost,
     } = req.body;
 
+    // DIAGNOSTIC: Server-side amount validation
+    if (cartItems && Array.isArray(cartItems)) {
+      const serverCalculatedSubtotal = cartItems.reduce(
+        (sum: number, item: any) => sum + item.price * item.quantity,
+        0
+      );
+      const serverShippingCost =
+        typeof shippingCost === "number" ? shippingCost : 0;
+      const serverCalculatedTotal =
+        serverCalculatedSubtotal + serverShippingCost;
+      const amountDiscrepancy = Math.abs(amount - serverCalculatedTotal);
+
+      console.log("🔍 STRIPE AMOUNT VALIDATION", {
+        clientAmount: amount.toFixed(2),
+        serverSubtotal: serverCalculatedSubtotal.toFixed(2),
+        serverShipping: serverShippingCost.toFixed(2),
+        serverTotal: serverCalculatedTotal.toFixed(2),
+        discrepancy: amountDiscrepancy.toFixed(2),
+        shippingMethod: shippingMethod || "free",
+      });
+
+      if (amountDiscrepancy > 0.02) {
+        console.error("⚠️ STRIPE AMOUNT MISMATCH!", {
+          expected: serverCalculatedTotal,
+          received: amount,
+          difference: amountDiscrepancy,
+        });
+      }
+    }
+
     // Validation
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: "Invalid amount" });

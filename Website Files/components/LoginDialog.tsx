@@ -55,6 +55,32 @@ export function LoginDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [showTechDetails, setShowTechDetails] = useState(false);
+
+  const mapCodeToSuggestion = (code: string | null): string | null => {
+    if (!code) return null;
+    switch (code) {
+      case "auth/invalid-email":
+        return "Email format looks invalid. Check for typos.";
+      case "auth/user-not-found":
+        return "No account exists for that email. Try Sign Up.";
+      case "auth/wrong-password":
+        return "Password incorrect. Use Forgot password if needed.";
+      case "auth/invalid-credential":
+        return "Email or password incorrect. Re-enter both carefully.";
+      case "auth/user-disabled":
+        return "Account disabled. Contact support.";
+      case "auth/too-many-requests":
+        return "Too many attempts. Wait 30–60 seconds before retrying.";
+      case "auth/network-request-failed":
+        return "Network error. Check connectivity / VPN / firewall.";
+      case "auth/operation-not-allowed":
+        return "Email/password auth not enabled in Firebase project.";
+      default:
+        return null;
+    }
+  };
 
   React.useEffect(() => {
     setCurrentTab(activeTab);
@@ -72,11 +98,24 @@ export function LoginDialog({
     setLoading(true);
     setError(null);
     setSuccess(null);
+    setErrorCode(null);
+    const normalizedEmail = email.trim().toLowerCase();
+    const pwd = password;
+    if (!normalizedEmail) {
+      setLoading(false);
+      setError("Please enter your email address.");
+      return;
+    }
+    if (!pwd) {
+      setLoading(false);
+      setError("Please enter your password.");
+      return;
+    }
 
     try {
-      const user = await loginUser(email, password);
+      const user = await loginUser(normalizedEmail, pwd);
       // Record success to reset attempts if not blocked
-      recordLoginAttempt("success", email).catch(() => {});
+      recordLoginAttempt("success", normalizedEmail).catch(() => {});
       logger.debug("Login successful", { uid: user.uid, email: user.email });
 
       // Fetch user profile from Firestore to get the role
@@ -116,12 +155,18 @@ export function LoginDialog({
           ? err.message
           : "Failed to login. Please check your credentials.";
       setError(errorMessage);
+      if (err && typeof err === "object" && "code" in err) {
+        setErrorCode((err as { code?: string }).code || null);
+      }
 
       // Track failed login attempt
-      console.log("[LoginDialog] Tracking failed login attempt...", { email });
+      console.log("[LoginDialog] Tracking failed login attempt...", {
+        email: normalizedEmail,
+        code: errorCode,
+      });
       try {
         // Record failure for IP-based lockout
-        recordLoginAttempt("failure", email).catch(() => {});
+        recordLoginAttempt("failure", normalizedEmail).catch(() => {});
         const sessionId =
           sessionStorage.getItem("vortex_session_id") ||
           getSessionId() ||
@@ -131,12 +176,13 @@ export function LoginDialog({
         // Also track as a security event so dashboards count it
         await trackSecurityEvent({
           type: "login_failed",
-          email,
+          email: normalizedEmail,
           userAgent: navigator.userAgent,
           timestamp: new Date(),
           details: {
             page: window.location.pathname,
             message: errorMessage,
+            code: errorCode,
           },
         });
 
@@ -144,8 +190,9 @@ export function LoginDialog({
           sessionId,
           eventType: "login_failed",
           eventData: {
-            email,
+            email: normalizedEmail,
             error: errorMessage,
+            code: errorCode,
             timestamp: new Date().toISOString(),
           },
           timestamp: new Date(),
@@ -172,9 +219,14 @@ export function LoginDialog({
     setLoading(true);
     setError(null);
     setSuccess(null);
+    setErrorCode(null);
 
     try {
-      const user = await registerUser(email, password, name);
+      const user = await registerUser(
+        email.trim().toLowerCase(),
+        password,
+        name.trim()
+      );
 
       // Fetch user profile from Firestore to get the role
       const userProfile = await getUserProfile(user.uid);
@@ -201,6 +253,9 @@ export function LoginDialog({
           ? err.message
           : "Failed to create account. Please try again.";
       setError(errorMessage);
+      if (err && typeof err === "object" && "code" in err) {
+        setErrorCode((err as { code?: string }).code || null);
+      }
     } finally {
       setLoading(false);
     }
@@ -265,7 +320,37 @@ export function LoginDialog({
             {error && (
               <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p className="font-medium">{error}</p>
+                    {errorCode && (
+                      <p className="text-xs text-red-300">Code: {errorCode}</p>
+                    )}
+                    {mapCodeToSuggestion(errorCode) && (
+                      <p className="text-xs text-red-200">
+                        Suggestion: {mapCodeToSuggestion(errorCode)}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowTechDetails((prev) => !prev)}
+                      className="text-xs underline text-white/70 hover:text-white"
+                    >
+                      {showTechDetails
+                        ? "Hide Technical Details"
+                        : "Show Technical Details"}
+                    </button>
+                    {showTechDetails && (
+                      <div className="text-[10px] leading-relaxed bg-black/40 p-2 rounded border border-white/10 space-y-1">
+                        <div>Raw email: {email}</div>
+                        <div>Normalized: {email.trim().toLowerCase()}</div>
+                        <div>Password length: {password.length}</div>
+                        <div>User agent: {navigator.userAgent}</div>
+                        <div>Path: {window.location.pathname}</div>
+                      </div>
+                    )}
+                  </div>
+                </AlertDescription>
               </Alert>
             )}
             {success && (
@@ -352,7 +437,28 @@ export function LoginDialog({
             {error && (
               <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p className="font-medium">{error}</p>
+                    {errorCode && (
+                      <p className="text-xs text-red-300">Code: {errorCode}</p>
+                    )}
+                    {mapCodeToSuggestion(errorCode) && (
+                      <p className="text-xs text-red-200">
+                        Suggestion: {mapCodeToSuggestion(errorCode)}
+                      </p>
+                    )}
+                    {showTechDetails && (
+                      <div className="text-[10px] leading-relaxed bg-black/40 p-2 rounded border border-white/10 space-y-1">
+                        <div>Raw email: {email}</div>
+                        <div>Normalized: {email.trim().toLowerCase()}</div>
+                        <div>Password length: {password.length}</div>
+                        <div>User agent: {navigator.userAgent}</div>
+                        <div>Path: {window.location.pathname}</div>
+                      </div>
+                    )}
+                  </div>
+                </AlertDescription>
               </Alert>
             )}
             {success && (

@@ -31,6 +31,10 @@ export interface OrderRecord {
   status: "pending" | "pending_payment" | "completed";
   paymentMethod: PaymentMethod;
   shippingAddress: Address;
+  shippingMethod?: string; // free | standard | express
+  shippingCost?: number; // shipping cost in major currency units
+  bankTransferVerified?: boolean; // Manual verification flag for bank transfers
+  bankTransferVerifiedAt?: unknown; // Firestore timestamp when verified
   createdAt?: unknown; // Firestore timestamp placeholder
   updatedAt?: unknown; // Firestore timestamp placeholder
   source: string; // stripe_payment_intent | stripe_checkout | paypal | bank_transfer
