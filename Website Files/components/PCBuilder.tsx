@@ -27,7 +27,35 @@ export interface PCBuilderComponent {
   cores?: number;
   threads?: number;
   tdp?: number;
+  // Extended CPU fields from Contentful
+  processorFamily?: string;
+  processorGeneration?: string;
+  processorOperatingModes?: string;
+  baseClock?: number;
+  boostClock?: number;
+  onBoardGraphicsCardModel?: string;
+  processorCache?: string;
+  integratedGraphics?: boolean;
+  coolerIncluded?: boolean;
+  efficientCores?: number;
+  performanceCores?: number;
+  processorBasePower?: string;
+  maximumTurboPower?: string;
+  // GPU specific fields
+  chipsetManufacturer?: string;
+  graphicsChipset?: string;
+  memorySize?: string;
   vram?: number;
+  memoryType?: string;
+  cudaCores?: number;
+  gpuBaseClock?: number;
+  gpuBoostClock?: number;
+  outputs?: string;
+  maxDisplaySupport?: number;
+  powerConnecters?: string[];
+  gpuCooling?: string;
+  psuRequirements?: string;
+  connectorsRequired?: string;
   power?: number;
   length?: number;
   wattage?: number;
@@ -36,8 +64,19 @@ export interface PCBuilderComponent {
   interface?: string;
   speed?: string | number;
   efficiency?: string;
+  // PSU specific fields
+  connectors?: string[];
+  psuCompatibility?: string;
+  pfc?: string;
+  acInput?: string;
+  fanType?: string;
+  fanBearing?: string;
+  maxCertification?: string;
+  mtbf?: number;
+  protection?: string[];
   radiatorSize?: string | number;
   coolerType?: string;
+  socketCompatibility?: string[];
   height?: number;
   tdpSupport?: number;
   maxGpuLength?: number | null;
@@ -55,16 +94,33 @@ export interface PCBuilderComponent {
   style?: string;
   pciSlots?: number;
   m2Slots?: number;
+  internalIOConnectors?: string[];
+  backPanelIOPorts?: string[];
   colour?: string;
   color?: string | null;
   fanSize?: number;
   rgbLighting?: boolean;
   modules?: number;
   latency?: number;
+  // RAM specific fields
+  voltage?: number;
+  compliance?: string;
+  pins?: number;
+  casLatency?: string;
+  intelXmpCertified?: string;
+  dataIntegrityCheck?: string;
+  heatsink?: boolean;
+  timings?: string;
   driveType?: string;
   readSpeed?: number;
   writeSpeed?: number;
   nand?: string | null;
+  // Storage specific fields
+  storageMtbf?: number;
+  totalBytesWritten?: string;
+  operatingTemperatures?: string;
+  storageTemperatures?: string;
+  shockResistance?: number;
   modular?: string | boolean;
   slots?: number;
   inStock?: boolean;
@@ -1039,16 +1095,6 @@ const ComponentDetailModal = ({
           });
         if (component.formFactor)
           specs.push({ label: "Form Factor", value: component.formFactor });
-        if (component.gpuClearance)
-          specs.push({
-            label: "GPU Clearance",
-            value: `${component.gpuClearance}mm`,
-          });
-        if (component.coolingSupport)
-          specs.push({
-            label: "Cooling Support",
-            value: component.coolingSupport,
-          });
         if (component.style)
           specs.push({ label: "Style", value: component.style });
         if (component.maxGpuLength)
@@ -1102,6 +1148,16 @@ const ComponentDetailModal = ({
           specs.push({ label: "PCIe Slots", value: component.pciSlots });
         if (component.m2Slots)
           specs.push({ label: "M.2 Slots", value: component.m2Slots });
+        if (component.internalIOConnectors)
+          specs.push({
+            label: "Internal I/O Connectors",
+            value: component.internalIOConnectors.join(", "),
+          });
+        if (component.backPanelIOPorts)
+          specs.push({
+            label: "Back Panel I/O Ports",
+            value: component.backPanelIOPorts.join(", "),
+          });
         break;
 
       case "cpu":
@@ -1113,6 +1169,62 @@ const ComponentDetailModal = ({
           specs.push({ label: "Threads", value: component.threads });
         if (component.tdp)
           specs.push({ label: "TDP", value: `${component.tdp}W` });
+        if (component.processorFamily)
+          specs.push({
+            label: "Processor Family",
+            value: component.processorFamily,
+          });
+        if (component.processorGeneration)
+          specs.push({
+            label: "Generation",
+            value: component.processorGeneration,
+          });
+        if (component.baseClock)
+          specs.push({
+            label: "Base Clock",
+            value: `${component.baseClock} GHz`,
+          });
+        if (component.boostClock)
+          specs.push({
+            label: "Boost Clock",
+            value: `${component.boostClock} GHz`,
+          });
+        if (component.processorOperatingModes)
+          specs.push({
+            label: "Operating Modes",
+            value: component.processorOperatingModes,
+          });
+        if (component.processorCache)
+          specs.push({ label: "Cache", value: component.processorCache });
+        if (component.performanceCores)
+          specs.push({ label: "P-Cores", value: component.performanceCores });
+        if (component.efficientCores)
+          specs.push({ label: "E-Cores", value: component.efficientCores });
+        if (component.integratedGraphics !== undefined)
+          specs.push({
+            label: "Integrated Graphics",
+            value: component.integratedGraphics ? "Yes" : "No",
+          });
+        if (component.onBoardGraphicsCardModel)
+          specs.push({
+            label: "iGPU Model",
+            value: component.onBoardGraphicsCardModel,
+          });
+        if (component.processorBasePower)
+          specs.push({
+            label: "Base Power",
+            value: component.processorBasePower,
+          });
+        if (component.maximumTurboPower)
+          specs.push({
+            label: "Max Turbo Power",
+            value: component.maximumTurboPower,
+          });
+        if (component.coolerIncluded !== undefined)
+          specs.push({
+            label: "Cooler Included",
+            value: component.coolerIncluded ? "Yes" : "No",
+          });
         if (component.generation)
           specs.push({ label: "Generation", value: component.generation });
         if (component.platform)
@@ -1120,8 +1232,60 @@ const ComponentDetailModal = ({
         break;
 
       case "gpu":
+        if (component.chipsetManufacturer)
+          specs.push({
+            label: "Chipset Manufacturer",
+            value: component.chipsetManufacturer,
+          });
+        if (component.graphicsChipset)
+          specs.push({
+            label: "Graphics Chipset",
+            value: component.graphicsChipset,
+          });
+        if (component.memorySize)
+          specs.push({ label: "Memory Size", value: component.memorySize });
         if (component.vram)
           specs.push({ label: "VRAM", value: `${component.vram}GB` });
+        if (component.memoryType)
+          specs.push({ label: "Memory Type", value: component.memoryType });
+        if (component.cudaCores)
+          specs.push({ label: "CUDA Cores", value: component.cudaCores });
+        if (component.gpuBaseClock)
+          specs.push({
+            label: "Base Clock",
+            value: `${component.gpuBaseClock} MHz`,
+          });
+        if (component.gpuBoostClock)
+          specs.push({
+            label: "Boost Clock",
+            value: `${component.gpuBoostClock} MHz`,
+          });
+        if (component.interface)
+          specs.push({ label: "Interface", value: component.interface });
+        if (component.outputs)
+          specs.push({ label: "Outputs", value: component.outputs });
+        if (component.maxDisplaySupport)
+          specs.push({
+            label: "Max Display Support",
+            value: component.maxDisplaySupport,
+          });
+        if (component.powerConnecters)
+          specs.push({
+            label: "Power Connectors",
+            value: component.powerConnecters.join(", "),
+          });
+        if (component.gpuCooling)
+          specs.push({ label: "Cooling", value: component.gpuCooling });
+        if (component.psuRequirements)
+          specs.push({
+            label: "PSU Requirements",
+            value: component.psuRequirements,
+          });
+        if (component.connectorsRequired)
+          specs.push({
+            label: "Connectors Required",
+            value: component.connectorsRequired,
+          });
         if (component.power)
           specs.push({
             label: "Power Consumption",
@@ -1133,8 +1297,6 @@ const ComponentDetailModal = ({
           specs.push({ label: "Height", value: `${component.height}mm` });
         if (component.slots)
           specs.push({ label: "Slots", value: component.slots });
-        if (component.platform)
-          specs.push({ label: "Platform", value: component.platform });
         if (component.performance)
           specs.push({
             label: "Performance Tier",
@@ -1153,6 +1315,31 @@ const ComponentDetailModal = ({
           specs.push({ label: "Modules", value: component.modules });
         if (component.latency)
           specs.push({ label: "Latency", value: `CL${component.latency}` });
+        if (component.voltage)
+          specs.push({ label: "Voltage", value: `${component.voltage}V` });
+        if (component.compliance)
+          specs.push({ label: "Compliance", value: component.compliance });
+        if (component.pins)
+          specs.push({ label: "Pins", value: `${component.pins}-pin` });
+        if (component.casLatency)
+          specs.push({ label: "CAS Latency", value: component.casLatency });
+        if (component.timings)
+          specs.push({ label: "Timings", value: component.timings });
+        if (component.intelXmpCertified)
+          specs.push({
+            label: "Intel XMP Certified",
+            value: component.intelXmpCertified,
+          });
+        if (component.dataIntegrityCheck)
+          specs.push({
+            label: "Data Integrity Check",
+            value: component.dataIntegrityCheck,
+          });
+        if (component.heatsink !== undefined)
+          specs.push({
+            label: "Heatsink",
+            value: component.heatsink ? "Yes" : "No",
+          });
         if (component.rgb !== undefined)
           specs.push({
             label: "RGB Lighting",
@@ -1163,6 +1350,8 @@ const ComponentDetailModal = ({
       case "storage":
         if (component.capacity)
           specs.push({ label: "Capacity", value: `${component.capacity}GB` });
+        if (component.type)
+          specs.push({ label: "Type", value: component.type });
         if (component.driveType)
           specs.push({ label: "Drive Type", value: component.driveType });
         if (component.interface)
@@ -1179,6 +1368,28 @@ const ComponentDetailModal = ({
           });
         if (component.nand)
           specs.push({ label: "NAND Type", value: component.nand });
+        if (component.storageMtbf)
+          specs.push({
+            label: "MTBF",
+            value: `${component.storageMtbf} hours`,
+          });
+        if (component.totalBytesWritten)
+          specs.push({ label: "TBW", value: component.totalBytesWritten });
+        if (component.operatingTemperatures)
+          specs.push({
+            label: "Operating Temperatures",
+            value: component.operatingTemperatures,
+          });
+        if (component.storageTemperatures)
+          specs.push({
+            label: "Storage Temperatures",
+            value: component.storageTemperatures,
+          });
+        if (component.shockResistance)
+          specs.push({
+            label: "Shock Resistance",
+            value: `${component.shockResistance}G`,
+          });
         break;
 
       case "psu":
@@ -1188,6 +1399,35 @@ const ComponentDetailModal = ({
           specs.push({ label: "Efficiency", value: component.efficiency });
         if (component.modular)
           specs.push({ label: "Modular", value: component.modular });
+        if (component.connectors)
+          specs.push({
+            label: "Connectors",
+            value: component.connectors.join(", "),
+          });
+        if (component.psuCompatibility)
+          specs.push({
+            label: "Compatibility",
+            value: component.psuCompatibility,
+          });
+        if (component.pfc) specs.push({ label: "PFC", value: component.pfc });
+        if (component.acInput)
+          specs.push({ label: "AC Input", value: component.acInput });
+        if (component.fanType)
+          specs.push({ label: "Fan Type", value: component.fanType });
+        if (component.fanBearing)
+          specs.push({ label: "Fan Bearing", value: component.fanBearing });
+        if (component.maxCertification)
+          specs.push({
+            label: "Max Certification",
+            value: component.maxCertification,
+          });
+        if (component.mtbf)
+          specs.push({ label: "MTBF", value: `${component.mtbf} hours` });
+        if (component.protection)
+          specs.push({
+            label: "Protection",
+            value: component.protection.join(", "),
+          });
         if (component.length)
           specs.push({ label: "Length", value: `${component.length}mm` });
         break;
@@ -1195,6 +1435,11 @@ const ComponentDetailModal = ({
       case "cooling":
         if (component.coolerType)
           specs.push({ label: "Type", value: component.coolerType });
+        if (component.socketCompatibility)
+          specs.push({
+            label: "Socket Compatibility",
+            value: component.socketCompatibility.join(", "),
+          });
         if (component.radiatorSize)
           specs.push({
             label: "Radiator Size",
@@ -1560,7 +1805,7 @@ const ComponentDetailModal = ({
                   </svg>
                   Key Features
                 </h3>
-                <ul className="space-y-2">
+                <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
                   {component.features.map((feature: string, index: number) => (
                     <li key={index} className="flex items-start gap-3">
                       <svg
@@ -2035,7 +2280,7 @@ const OptionalExtraDetailModal = ({
                   </svg>
                   Key Features
                 </h3>
-                <ul className="space-y-2">
+                <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
                   {extra.features.map((feature: string, index: number) => (
                     <li key={index} className="flex items-start gap-3">
                       <svg
