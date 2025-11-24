@@ -74,10 +74,14 @@ async function sendOrderEmails(orderData: {
               <span class="logo-vortex">VORTEX</span><span class="logo-pcs">PCs</span>.com
             </div>
             <h1 style="margin: 10px 0 0 0; font-size: 28px; font-weight: 600;">Thank You for Your Order!</h1>
-            <p style="margin: 10px 0 0 0; opacity: 0.9;">Order #${orderData.orderNumber}</p>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Order #${
+              orderData.orderNumber
+            }</p>
           </div>
           <div class="content">
-            <p style="font-size: 16px; color: #1e293b;">Hi <strong>${orderData.customerName}</strong>,</p>
+            <p style="font-size: 16px; color: #1e293b;">Hi <strong>${
+              orderData.customerName
+            }</strong>,</p>
             <p>Thank you for your order! We've received your payment and will begin processing your custom PC build shortly.</p>
             
             <div class="order-details">
@@ -87,7 +91,9 @@ async function sendOrderEmails(orderData: {
                   (item) => `
                 <div class="item-row">
                   <span class="item-name">${item.name} × ${item.quantity}</span>
-                  <span style="font-weight: 500;">£${(item.price * item.quantity).toFixed(2)}</span>
+                  <span style="font-weight: 500;">£${(
+                    item.price * item.quantity
+                  ).toFixed(2)}</span>
                 </div>
               `
                 )
@@ -332,7 +338,7 @@ async function sendOrderEmails(orderData: {
 
   // Send emails (customer email only if email address exists)
   const emailPromises = [];
-  
+
   if (orderData.customerEmail && orderData.customerEmail.trim()) {
     emailPromises.push(
       transporter.sendMail({
@@ -345,17 +351,19 @@ async function sendOrderEmails(orderData: {
   } else {
     console.warn("⚠️ Skipping customer email - no email address provided");
   }
-  
+
   // Always send business notification
   emailPromises.push(
     transporter.sendMail({
       from: `"Vortex PCs Orders" <${process.env.VITE_SMTP_USER}>`,
       to: businessEmail,
-      subject: `New Order: ${orderData.orderNumber} - £${orderData.totalAmount.toFixed(2)}`,
+      subject: `New Order: ${
+        orderData.orderNumber
+      } - £${orderData.totalAmount.toFixed(2)}`,
       html: businessEmailHtml,
     })
   );
-  
+
   await Promise.all(emailPromises);
 }
 
@@ -469,17 +477,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Send order confirmation email to customer
         console.log("📧 Attempting to send order emails...");
-        console.log("Session line items:", JSON.stringify(session.line_items?.data || [], null, 2));
-        
+        console.log(
+          "Session line items:",
+          JSON.stringify(session.line_items?.data || [], null, 2)
+        );
+
         // Extract items - PRIORITIZE metadata cart over line_items for accurate product names
-        let emailItems: Array<{ name: string; price: number; quantity: number }> = [];
-        
+        let emailItems: Array<{
+          name: string;
+          price: number;
+          quantity: number;
+        }> = [];
+
         // Try metadata cart FIRST (has actual product names)
         if (session.metadata?.cart) {
           try {
-            const decoded = Buffer.from(session.metadata.cart, "base64").toString("utf-8");
-            const parsed = JSON.parse(decoded) as Array<{ n: string; p: number; q: number }>;
-            emailItems = parsed.map(item => ({
+            const decoded = Buffer.from(
+              session.metadata.cart,
+              "base64"
+            ).toString("utf-8");
+            const parsed = JSON.parse(decoded) as Array<{
+              n: string;
+              p: number;
+              q: number;
+            }>;
+            emailItems = parsed.map((item) => ({
               name: item.n || "Item",
               price: item.p || 0,
               quantity: item.q || 1,
@@ -488,62 +510,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.warn("Failed to parse cart metadata for email", e);
           }
         }
-        
+
         // If still empty, create a generic item
         if (emailItems.length === 0) {
-          emailItems = [{
-            name: "Custom PC Build",
-            price: (session.amount_total || 0) / 100,
-            quantity: 1,
-          }];
+          emailItems = [
+            {
+              name: "Custom PC Build",
+              price: (session.amount_total || 0) / 100,
+              quantity: 1,
+            },
+          ];
         }
-        
-        console.log("Email items prepared:", JSON.stringify(emailItems, null, 2));
-        
-        const orderData = {
-            orderNumber: session.id,
-            customerName: session.customer_details?.name || "Valued Customer",
-            customerEmail: session.customer_details?.email || session.customer_email || "",
-            totalAmount: (session.amount_total || 0) / 100,
-            paymentStatus: "Paid",
-            orderDate: new Date().toISOString(),
-            items: emailItems,
-            shippingAddress: session.customer_details?.address ? {
-              line1: session.customer_details.address.line1 || "",
-              line2: session.customer_details.address.line2,
-              city: session.customer_details.address.city || "",
-              postal_code: session.customer_details.address.postal_code || "",
-              country: session.customer_details.address.country || "",
-            } : undefined,
-          };
 
-          // Validate customer email exists
-          if (!orderData.customerEmail) {
-            console.warn("⚠️ No customer email found in session. Sending business notification only.");
-            // Send only business notification if customer email is missing
-            const transporter = nodemailer.createTransport({
-              host: process.env.VITE_SMTP_HOST || "mail.spacemail.com",
-              port: parseInt(process.env.VITE_SMTP_PORT || "465"),
-              secure: (process.env.VITE_SMTP_SECURE || "true") === "true",
-              auth: {
-                user: process.env.VITE_SMTP_USER,
-                pass: process.env.VITE_SMTP_PASS,
-              },
-            });
-            // Send business email only - customer email will use existing template in sendOrderEmails
-          } else {
-            console.log("✅ Customer email found:", orderData.customerEmail);
-          }
-          
-          // Send emails using server-side function
+        console.log(
+          "Email items prepared:",
+          JSON.stringify(emailItems, null, 2)
+        );
+
+        const orderData = {
+          orderNumber: session.id,
+          customerName: session.customer_details?.name || "Valued Customer",
+          customerEmail:
+            session.customer_details?.email || session.customer_email || "",
+          totalAmount: (session.amount_total || 0) / 100,
+          paymentStatus: "Paid",
+          orderDate: new Date().toISOString(),
+          items: emailItems,
+          shippingAddress: session.customer_details?.address
+            ? {
+                line1: session.customer_details.address.line1 || "",
+                line2: session.customer_details.address.line2,
+                city: session.customer_details.address.city || "",
+                postal_code: session.customer_details.address.postal_code || "",
+                country: session.customer_details.address.country || "",
+              }
+            : undefined,
+        };
+
+        // Validate customer email exists
+        if (!orderData.customerEmail) {
+          console.warn(
+            "⚠️ No customer email found in session. Sending business notification only."
+          );
+          // Send only business notification if customer email is missing
+          const transporter = nodemailer.createTransport({
+            host: process.env.VITE_SMTP_HOST || "mail.spacemail.com",
+            port: parseInt(process.env.VITE_SMTP_PORT || "465"),
+            secure: (process.env.VITE_SMTP_SECURE || "true") === "true",
+            auth: {
+              user: process.env.VITE_SMTP_USER,
+              pass: process.env.VITE_SMTP_PASS,
+            },
+          });
+          // Send business email only - customer email will use existing template in sendOrderEmails
+        } else {
+          console.log("✅ Customer email found:", orderData.customerEmail);
+        }
+
+        // Send emails using server-side function (wrapped in try/catch)
+        try {
           console.log("📧 Calling sendOrderEmails with data:", {
             orderNumber: orderData.orderNumber,
             customerEmail: orderData.customerEmail,
             itemCount: orderData.items.length,
-            totalAmount: orderData.totalAmount
+            totalAmount: orderData.totalAmount,
           });
           await sendOrderEmails(orderData);
-          console.log("✅ Order emails sent successfully to:", orderData.customerEmail || "business only");
+          console.log(
+            "✅ Order emails sent successfully to:",
+            orderData.customerEmail || "business only"
+          );
         } catch (emailError) {
           console.error("❌ Failed to send order emails:", emailError);
           console.error(
@@ -648,13 +684,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           );
 
           const userId = (session.metadata?.userId as string) || "guest";
-          console.log("💾 Saving order with userId:", userId, "customerEmail:", session.customer_details?.email || session.customer_email);
-          
+          console.log(
+            "💾 Saving order with userId:",
+            userId,
+            "customerEmail:",
+            session.customer_details?.email || session.customer_email
+          );
+
           const orderPayload = {
             userId: userId,
             orderId: session.id,
             customerName: session.customer_details?.name || "Guest Customer",
-            customerEmail: session.customer_details?.email || session.customer_email || "",
+            customerEmail:
+              session.customer_details?.email || session.customer_email || "",
             items,
             total: (session.amount_total || 0) / 100,
             status: "pending",
@@ -665,7 +707,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ),
             address: {
               line1: session.customer_details?.address?.line1 || "",
-              line2: session.customer_details?.address?.line2 || "",
+              line2: session.customer_details?.address?.line2 || undefined,
               city: session.customer_details?.address?.city || "",
               postcode: session.customer_details?.address?.postal_code || "",
               country: session.customer_details?.address?.country || "GB",

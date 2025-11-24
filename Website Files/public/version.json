@@ -1,8 +1,8 @@
 {
-  "version": "1.47.011",
-  "timestamp": "2025-11-23T12:00:00Z",
-  "build": "order-normalization-and-typing-fixes",
-  "description": "Implemented centralized order normalization service and fixed TypeScript errors across MemberArea and BusinessDashboard components.",
+  "version": "1.47.012",
+  "timestamp": "2025-11-24T00:00:00Z",
+  "build": "stripe-webhook-stability-deploy",
+  "description": "Patched Stripe webhook (email send try/catch + address line2 typing), confirmed clean build, preparing deployment.",
   "components": {
     "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
     "HomePage": "contentful-cms-integration-v1",
@@ -60,13 +60,9 @@
     ]
   },
   "changes": [
-    "NORMALIZATION: Created centralized order normalization service to handle divergent order schemas (Stripe vs Bank Transfer).",
-    "NORMALIZATION: Extended NormalizedOrder with estimatedCompletion, deliveryDate, trackingNumber, courier, address, and buildUpdates fields.",
-    "MEMBER AREA: Replaced all legacy helper functions (getOrderDisplayId, getOrderDisplayTotal, getItemName) with normalized field access.",
-    "MEMBER AREA: Fixed date sorting to handle undefined orderDate values.",
-    "MEMBER AREA: Removed ActivityTimeline placeholder component.",
-    "BUSINESS DASHBOARD: Fixed Contentful TypeScript constraints with proper EntrySkeletonType interfaces.",
-    "APP: Fixed lazy import for MemberArea component.",
-    "BUILD: All TypeScript errors resolved, production build successful."
+    "WEBHOOK: Added robust try/catch around order email dispatch in webhook-backup.ts.",
+    "WEBHOOK: Normalized optional shipping address line2 to undefined to satisfy TS types.",
+    "BUILD: Verified successful production build post webhook fixes (no TS errors).",
+    "DEPLOY: Preparing version bump for Vercel deployment trigger."
   ]
 }
