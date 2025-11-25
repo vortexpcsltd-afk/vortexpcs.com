@@ -254,6 +254,14 @@ const formatVerifiedDate = (value: unknown): string => {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 };
 
+// Format status strings (e.g., "pending_payment" -> "Pending Payment")
+const formatStatus = (status: string) => {
+  return status
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
 // Simple CSV export helper for current tab data
 const exportCsv = (filename: string, rows: Array<Record<string, unknown>>) => {
   try {
@@ -2515,7 +2523,7 @@ export function AdminPanel() {
                                 order.status
                               )} border`}
                             >
-                              {order.status}
+                              {formatStatus(order.status)}
                             </Badge>
                             <div className="text-right">
                               <div className="font-bold text-green-400">
@@ -2756,7 +2764,7 @@ export function AdminPanel() {
                                   order.status
                                 )} border whitespace-nowrap`}
                               >
-                                {order.status}
+                                {formatStatus(order.status)}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-green-400 font-bold whitespace-nowrap">
@@ -2938,7 +2946,7 @@ export function AdminPanel() {
                                         : "bg-red-500/20 text-red-300 border-red-500/30"
                                     } border`}
                                   >
-                                    {request.status}
+                                    {formatStatus(request.status)}
                                   </Badge>
                                 </div>
                                 {order && (
@@ -4039,7 +4047,7 @@ export function AdminPanel() {
                                       : "bg-gray-500/20 text-gray-300 border-gray-500/30"
                                   } border`}
                                 >
-                                  {ticket.status}
+                                  {formatStatus(ticket.status)}
                                 </Badge>
                                 <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 border">
                                   {ticket.type}
@@ -4187,7 +4195,7 @@ export function AdminPanel() {
                               selectedOrder.status
                             )} border`}
                           >
-                            {selectedOrder.status}
+                            {formatStatus(selectedOrder.status)}
                           </Badge>
                         </div>
                         <div>
@@ -5265,7 +5273,7 @@ export function AdminPanel() {
                                         : "border-green-500/40 text-green-400 bg-green-500/10"
                                     }
                                   >
-                                    {ticket.status}
+                                    {formatStatus(ticket.status)}
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-gray-400 text-sm">
@@ -7178,7 +7186,7 @@ export function AdminPanel() {
                                   : "border-green-500/40 text-green-400 bg-green-500/10"
                               }
                             >
-                              {selectedTicket.status}
+                              {formatStatus(selectedTicket.status)}
                             </Badge>
                           </div>
                         </div>
