@@ -132,12 +132,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const db = admin.firestore();
+    // Ensure total includes shipping (use server-calculated total to prevent manipulation)
+    const finalTotal = serverCalculatedTotal;
+
     const orderData = {
       orderNumber,
       userId,
       customerEmail,
       customerName: customerName || "",
-      amount,
+      amount: finalTotal,
+      total: finalTotal, // Add explicit total field
       currency: currency.toUpperCase(),
       status: "pending_payment",
       paymentMethod: "bank_transfer",
@@ -196,7 +200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           <div style="margin: 24px 0; padding: 20px; background: #0b1220; border: 1px solid rgba(255,165,0,0.3); border-radius: 10px;">
             <p style="margin:0 0 12px; font-size:16px; font-weight:600; color:#ffa500;">⏳ Awaiting Payment</p>
             <p style="margin:0 0 16px; font-size:14px; color:#e5e7eb;">
-              Please transfer <strong style="color:#0ea5e9;">£${amount.toFixed(
+              Please transfer <strong style="color:#0ea5e9;">£${finalTotal.toFixed(
                 2
               )}</strong> to the following account:
             </p>
@@ -281,7 +285,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   Total:
                 </td>
                 <td style="padding: 18px 12px 16px; text-align: right; font-size: 20px; font-weight: 700; color: #0ea5e9; border-top: 2px solid rgba(14,165,233,0.3);">
-                  £${amount.toFixed(2)}
+                  £${finalTotal.toFixed(2)}
                 </td>
               </tr>
             </tbody>
@@ -324,7 +328,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             <div style="margin: 16px 0; padding: 16px; background: #0b1220; border: 1px solid rgba(255,165,0,0.3); border-radius: 8px;">
               <p style="margin: 0 0 8px; font-size: 14px; color: #ffa500;"><strong>Order:</strong> ${orderNumber}</p>
               <p style="margin: 0 0 8px; font-size: 14px; color: #e5e7eb;"><strong>Customer:</strong> ${customerName} (${customerEmail})</p>
-              <p style="margin: 0; font-size: 14px; color: #e5e7eb;"><strong>Amount:</strong> £${amount.toFixed(
+              <p style="margin: 0; font-size: 14px; color: #e5e7eb;"><strong>Amount:</strong> £${finalTotal.toFixed(
                 2
               )}</p>
             </div>
@@ -337,7 +341,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await transporter.sendMail({
           from: `"Vortex PCs Orders" <${smtpUser}>`,
           to: businessEmail,
-          subject: `New Bank Transfer Order: ${orderNumber} - £${amount.toFixed(
+          subject: `New Bank Transfer Order: ${orderNumber} - £${finalTotal.toFixed(
             2
           )}`,
           html: businessHtml,
