@@ -4290,9 +4290,100 @@ export function AdminPanel() {
                         </div>
                         <div>
                           <p className="text-sm text-gray-400">Total</p>
-                          <p className="text-green-400 font-bold text-lg">
-                            £{selectedOrder.total.toLocaleString()}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-green-400 font-bold text-lg">
+                              £{selectedOrder.total.toLocaleString()}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-xs text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
+                              onClick={async () => {
+                                const rawShipping = (
+                                  selectedOrder as unknown as {
+                                    shippingCost?: unknown;
+                                  }
+                                ).shippingCost;
+                                const shipping =
+                                  typeof rawShipping === "number"
+                                    ? rawShipping
+                                    : 0;
+                                const itemsTotal =
+                                  selectedOrder.items?.reduce(
+                                    (sum, item) =>
+                                      sum +
+                                      (item.price || 0) * (item.quantity || 1),
+                                    0
+                                  ) || 0;
+                                const correctTotal = itemsTotal + shipping;
+
+                                if (
+                                  Math.abs(selectedOrder.total - correctTotal) <
+                                  0.01
+                                ) {
+                                  alert("Total is already correct");
+                                  return;
+                                }
+
+                                if (
+                                  !confirm(
+                                    `Update order total from £${selectedOrder.total.toFixed(
+                                      2
+                                    )} to £${correctTotal.toFixed(
+                                      2
+                                    )}?\\n\\nItems: £${itemsTotal.toFixed(
+                                      2
+                                    )}\\nShipping: £${shipping.toFixed(
+                                      2
+                                    )}\\nNew Total: £${correctTotal.toFixed(2)}`
+                                  )
+                                ) {
+                                  return;
+                                }
+
+                                try {
+                                  if (!selectedOrder.id) {
+                                    alert("Order ID not found");
+                                    return;
+                                  }
+                                  await updateOrder(selectedOrder.id, {
+                                    total: correctTotal,
+                                    amount: correctTotal,
+                                  } as Partial<Order>);
+
+                                  const updatedOrder = {
+                                    ...selectedOrder,
+                                    total: correctTotal,
+                                  };
+                                  setSelectedOrder(updatedOrder as Order);
+
+                                  // Update in lists
+                                  setAllOrders((prev) =>
+                                    prev.map((o) =>
+                                      o.id === selectedOrder.id
+                                        ? { ...o, total: correctTotal }
+                                        : o
+                                    )
+                                  );
+                                  setRecentOrders((prev) =>
+                                    prev.map((o) =>
+                                      o.id === selectedOrder.id
+                                        ? { ...o, total: correctTotal }
+                                        : o
+                                    )
+                                  );
+
+                                  toast.success("Order total updated");
+                                } catch (err) {
+                                  console.error("Failed to update total", err);
+                                  alert("Failed to update total");
+                                }
+                              }}
+                              title="Fix total if shipping is missing"
+                            >
+                              Fix
+                            </Button>
+                          </div>
                           {(() => {
                             const rawShipping = (
                               selectedOrder as unknown as {
