@@ -900,8 +900,24 @@ export function AdminPanel() {
 
         // Load dashboard statistics
         const stats = await getDashboardStats();
-        setDashboardStats(stats);
-        logger.debug("Dashboard stats loaded", { stats });
+        // Sanitize numeric fields to avoid NaN display
+        const safeStats = { ...stats } as typeof stats;
+        const fixMetric = (obj: {
+          total: number;
+          change: string;
+          trend: string;
+        }) => {
+          if (!Number.isFinite(obj.total)) obj.total = 0;
+          if (typeof obj.change === "string" && /NaN/i.test(obj.change))
+            obj.change = "+0%";
+          if (obj.trend !== "up" && obj.trend !== "down") obj.trend = "up";
+        };
+        fixMetric(safeStats.orders);
+        fixMetric(safeStats.revenue);
+        fixMetric(safeStats.customers);
+        fixMetric(safeStats.builds);
+        setDashboardStats(safeStats);
+        logger.debug("Dashboard stats loaded", { safeStats });
 
         // Load & normalize all orders including legacy schema (extended fetch)
         let ordersRaw = await getAllOrdersExtended(1200, 600);
@@ -1520,10 +1536,11 @@ export function AdminPanel() {
           <p className="text-gray-400 text-sm">{title}</p>
           <div className="flex items-center space-x-2">
             <span className="text-2xl font-bold text-white">
-              {typeof value === "number" &&
-              title.toLowerCase().includes("revenue")
-                ? `£${value.toLocaleString()}`
-                : value.toLocaleString()}
+              {title.toLowerCase().includes("revenue")
+                ? `£${Number.isFinite(value) ? value.toLocaleString() : "0"}`
+                : Number.isFinite(value)
+                ? value.toLocaleString()
+                : "0"}
             </span>
             <Badge
               className={`${
@@ -2801,7 +2818,13 @@ export function AdminPanel() {
                                       className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold shadow-lg"
                                       onClick={async () => {
                                         try {
-                                          await verifyBankTransfer(order.id!);
+                                          if (!order.id) {
+                                            toast.error(
+                                              "Cannot verify payment: missing order ID"
+                                            );
+                                            return;
+                                          }
+                                          await verifyBankTransfer(order.id);
                                           toast.success(
                                             "Bank transfer verified - order moved to building"
                                           );
