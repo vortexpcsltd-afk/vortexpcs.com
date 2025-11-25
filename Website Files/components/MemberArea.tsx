@@ -9,6 +9,12 @@ import { Progress } from "./ui/progress";
 import { Switch } from "./ui/switch";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 import { toast } from "sonner";
 import {
   Package,
@@ -546,6 +552,14 @@ export default function MemberArea({ onNavigate }: MemberAreaProps) {
     }
   };
 
+  const formatStatus = (status: string) => {
+    // Convert status strings to readable format
+    return status
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   // Diagnostics: log selected order when changed for crash tracing
   useEffect(() => {
     if (selectedOrder) {
@@ -865,7 +879,7 @@ export default function MemberArea({ onNavigate }: MemberAreaProps) {
                                   o.status
                                 )} border text-xs flex-shrink-0`}
                               >
-                                {o.status}
+                                {formatStatus(o.status)}
                               </Badge>
                             </div>
                             <div className="flex items-center justify-between text-xs sm:text-sm mb-1">
@@ -1041,7 +1055,7 @@ export default function MemberArea({ onNavigate }: MemberAreaProps) {
                                 <div className="flex items-center space-x-1">
                                   {getStatusIcon(order.status)}
                                   <span className="capitalize">
-                                    {order.status}
+                                    {formatStatus(order.status)}
                                   </span>
                                 </div>
                               </Badge>
@@ -1049,61 +1063,145 @@ export default function MemberArea({ onNavigate }: MemberAreaProps) {
                             <p className="text-gray-400 font-mono text-sm">
                               Order # {order.displayId}
                             </p>
-                            <div className="mt-3 flex items-center gap-2 text-xs">
-                              {[
-                                "pending",
-                                "pending_payment",
-                                "building",
-                                "testing",
-                                "shipped",
-                                "delivered",
-                                "completed",
-                              ].map((step, idx) => {
-                                const reachedIndex = [
-                                  "pending",
-                                  "pending_payment",
-                                  "building",
-                                  "testing",
-                                  "shipped",
-                                  "delivered",
-                                  "completed",
-                                ].indexOf(order.status);
-                                const reached = reachedIndex >= idx;
-                                return (
-                                  <div key={step} className="flex items-center">
+                            <TooltipProvider>
+                              <div className="mt-3 flex items-center gap-2 text-xs">
+                                {[
+                                  {
+                                    step: "pending",
+                                    label: "Order Received",
+                                    desc: "Your order has been received and is awaiting confirmation",
+                                  },
+                                  {
+                                    step: "pending_payment",
+                                    label: "Payment Processing",
+                                    desc: "Payment is being verified and processed",
+                                  },
+                                  {
+                                    step: "building",
+                                    label: "Building",
+                                    desc: "Your PC is currently being assembled by our technicians",
+                                  },
+                                  {
+                                    step: "testing",
+                                    label: "Testing",
+                                    desc: "Quality assurance testing and stress testing in progress",
+                                  },
+                                  {
+                                    step: "shipped",
+                                    label: "Shipped",
+                                    desc: "Your PC has been dispatched and is on its way to you",
+                                  },
+                                  {
+                                    step: "delivered",
+                                    label: "Delivered",
+                                    desc: "Your PC has been delivered to your address",
+                                  },
+                                  {
+                                    step: "completed",
+                                    label: "Completed",
+                                    desc: "Order is complete - enjoy your new PC!",
+                                  },
+                                ].map((stepInfo, idx) => {
+                                  const reachedIndex = [
+                                    "pending",
+                                    "pending_payment",
+                                    "building",
+                                    "testing",
+                                    "shipped",
+                                    "delivered",
+                                    "completed",
+                                  ].indexOf(order.status);
+                                  const reached = reachedIndex >= idx;
+                                  const isCurrent = reachedIndex === idx;
+                                  return (
                                     <div
-                                      className={`w-6 h-6 rounded-full flex items-center justify-center border ${
-                                        reached
-                                          ? "bg-sky-600 border-sky-400 text-white"
-                                          : "bg-white/5 border-white/20 text-gray-400"
-                                      }`}
-                                      title={step}
+                                      key={stepInfo.step}
+                                      className="flex items-center"
                                     >
-                                      {reached ? (
-                                        <CheckCircle className="w-3 h-3" />
-                                      ) : (
-                                        <Clock className="w-3 h-3" />
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
+                                              isCurrent
+                                                ? "bg-sky-500 border-sky-300 text-white shadow-lg shadow-sky-500/50 scale-110"
+                                                : reached
+                                                ? "bg-sky-600 border-sky-400 text-white hover:scale-105"
+                                                : "bg-white/5 border-white/20 text-gray-400 hover:bg-white/10"
+                                            }`}
+                                          >
+                                            {reached ? (
+                                              <CheckCircle className="w-3 h-3" />
+                                            ) : (
+                                              <Clock className="w-3 h-3" />
+                                            )}
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                          side="bottom"
+                                          className="bg-slate-900 border-sky-500/30"
+                                        >
+                                          <div className="text-center">
+                                            <p className="font-semibold text-sky-400">
+                                              {stepInfo.label}
+                                            </p>
+                                            <p className="text-xs text-gray-300 mt-1">
+                                              {stepInfo.desc}
+                                            </p>
+                                            {isCurrent && (
+                                              <Badge className="mt-2 bg-sky-500/20 text-sky-400 border-sky-500/40 text-xs">
+                                                Current Step
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                      {idx < 6 && (
+                                        <div
+                                          className={`w-8 h-0.5 mx-1 transition-all ${
+                                            reached
+                                              ? "bg-sky-600"
+                                              : "bg-white/10"
+                                          }`}
+                                        ></div>
                                       )}
                                     </div>
-                                    {idx < 5 && (
-                                      <div
-                                        className={`w-8 h-0.5 mx-1 ${
-                                          reached ? "bg-sky-600" : "bg-white/10"
-                                        }`}
-                                      ></div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
+                                  );
+                                })}
+                              </div>
+                            </TooltipProvider>
                           </div>
                           <div className="text-right">
                             <div className="text-2xl font-bold text-green-400">
                               £{order.total.toLocaleString()}
                             </div>
+                            {(() => {
+                              const rawShipping = (
+                                order as unknown as { shippingCost?: unknown }
+                              ).shippingCost;
+                              const shipping =
+                                typeof rawShipping === "number"
+                                  ? rawShipping
+                                  : 0;
+                              if (shipping > 0) {
+                                return (
+                                  <div className="text-xs text-gray-500 mt-0.5">
+                                    incl. £{shipping.toFixed(2)} shipping
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                             <p className="text-gray-400 text-sm">
                               Ordered:{" "}
                               {order.orderDate?.toLocaleDateString?.() || "N/A"}
+                              {order.orderDate && (
+                                <span className="text-gray-500 ml-1">
+                                  {order.orderDate.toLocaleTimeString?.([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -1991,7 +2089,7 @@ export default function MemberArea({ onNavigate }: MemberAreaProps) {
                                 <span
                                   className={`px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide ${statusClass}`}
                                 >
-                                  {r.status}
+                                  {formatStatus(r.status)}
                                 </span>
                               </div>
                             </div>
@@ -2219,7 +2317,7 @@ export default function MemberArea({ onNavigate }: MemberAreaProps) {
                                     : "bg-gray-500/20 text-gray-300 border-gray-500/30"
                                 } border`}
                               >
-                                {ticket.status}
+                                {formatStatus(ticket.status)}
                               </Badge>
                             </div>
                             <p className="text-gray-300 text-sm mb-2">
@@ -2392,6 +2490,14 @@ export default function MemberArea({ onNavigate }: MemberAreaProps) {
                     {selectedOrder.orderDate instanceof Date
                       ? selectedOrder.orderDate.toLocaleDateString()
                       : "N/A"}
+                    {selectedOrder.orderDate instanceof Date && (
+                      <span className="text-gray-500 ml-2 text-sm">
+                        {selectedOrder.orderDate.toLocaleTimeString?.([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -2409,7 +2515,7 @@ export default function MemberArea({ onNavigate }: MemberAreaProps) {
                         : "bg-gray-500/20 border-gray-500/40 text-gray-400"
                     }`}
                   >
-                    {selectedOrder.status}
+                    {formatStatus(selectedOrder.status)}
                   </Badge>
                 </div>
                 <div>
@@ -2417,6 +2523,23 @@ export default function MemberArea({ onNavigate }: MemberAreaProps) {
                   <p className="text-green-400 font-bold text-xl">
                     £{selectedOrder.total.toLocaleString()}
                   </p>
+                  {(() => {
+                    const rawShipping = (
+                      selectedOrder as unknown as { shippingCost?: unknown }
+                    ).shippingCost;
+                    const shipping =
+                      typeof rawShipping === "number" ? rawShipping : 0;
+                    if (shipping > 0) {
+                      const itemsOnly = selectedOrder.total - shipping;
+                      return (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Items: £{itemsOnly.toFixed(2)} + Shipping: £
+                          {shipping.toFixed(2)}
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
               {selectedOrder.progress !== undefined && (

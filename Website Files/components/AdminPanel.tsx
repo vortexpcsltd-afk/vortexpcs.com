@@ -2579,6 +2579,23 @@ export function AdminPanel() {
                               <div className="font-bold text-green-400">
                                 £{order.total.toLocaleString()}
                               </div>
+                              {(() => {
+                                const rawShipping = (
+                                  order as unknown as { shippingCost?: unknown }
+                                ).shippingCost;
+                                const shipping =
+                                  typeof rawShipping === "number"
+                                    ? rawShipping
+                                    : 0;
+                                if (shipping > 0) {
+                                  return (
+                                    <div className="text-xs text-gray-500">
+                                      incl. £{shipping.toFixed(2)} shipping
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                               {(order.status === "building" ||
                                 order.status === "testing") && (
                                 <div className="text-sm text-gray-400">
@@ -2818,7 +2835,24 @@ export function AdminPanel() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-green-400 font-bold whitespace-nowrap">
-                              £{order.total.toLocaleString()}
+                              <div>£{order.total.toLocaleString()}</div>
+                              {(() => {
+                                const rawShipping = (
+                                  order as unknown as { shippingCost?: unknown }
+                                ).shippingCost;
+                                const shipping =
+                                  typeof rawShipping === "number"
+                                    ? rawShipping
+                                    : 0;
+                                if (shipping > 0) {
+                                  return (
+                                    <div className="text-xs text-gray-500">
+                                      incl. £{shipping.toFixed(2)} ship
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-2">
@@ -4259,6 +4293,25 @@ export function AdminPanel() {
                           <p className="text-green-400 font-bold text-lg">
                             £{selectedOrder.total.toLocaleString()}
                           </p>
+                          {(() => {
+                            const rawShipping = (
+                              selectedOrder as unknown as {
+                                shippingCost?: unknown;
+                              }
+                            ).shippingCost;
+                            const shipping =
+                              typeof rawShipping === "number" ? rawShipping : 0;
+                            if (shipping > 0) {
+                              const itemsOnly = selectedOrder.total - shipping;
+                              return (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Items: £{itemsOnly.toFixed(2)} + Shipping: £
+                                  {shipping.toFixed(2)}
+                                </p>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </div>
                       <div className="grid md:grid-cols-3 gap-4">
