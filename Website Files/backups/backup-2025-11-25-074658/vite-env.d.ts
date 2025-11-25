@@ -1,0 +1,27 @@
+/// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_FIREBASE_API_KEY: string;
+  readonly VITE_FIREBASE_AUTH_DOMAIN: string;
+  readonly VITE_FIREBASE_PROJECT_ID: string;
+  readonly VITE_FIREBASE_STORAGE_BUCKET: string;
+  readonly VITE_FIREBASE_MESSAGING_SENDER_ID: string;
+  readonly VITE_FIREBASE_APP_ID: string;
+  readonly VITE_STRIPE_PUBLISHABLE_KEY: string;
+  readonly VITE_STRIPE_BACKEND_URL: string;
+  readonly VITE_STRAPI_URL: string;
+  readonly VITE_STRAPI_API_TOKEN: string;
+  readonly VITE_SMTP_HOST: string;
+  readonly VITE_SMTP_PORT: string;
+  readonly VITE_SMTP_SECURE: string;
+  readonly VITE_SMTP_USER: string;
+  readonly VITE_SMTP_PASS: string;
+  readonly VITE_BUSINESS_EMAIL: string;
+  readonly VITE_SENTRY_DSN: string;
+  readonly VITE_SENTRY_DEBUG: string;
+  readonly VITE_APP_VERSION: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}

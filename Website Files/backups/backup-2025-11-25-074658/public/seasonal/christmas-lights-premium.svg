@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1440" height="80" viewBox="0 0 1440 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <!-- Cable gradient -->
+    <linearGradient id="wireGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#A7B0BA" stop-opacity="0.25"/>
+    </linearGradient>
+
+    <!-- Bulb gradients (glossy) -->
+    <radialGradient id="bulbRed" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#FFD1D6"/>
+      <stop offset="55%" stop-color="#F43F5E"/>
+      <stop offset="100%" stop-color="#7F1D1D"/>
+    </radialGradient>
+    <radialGradient id="bulbAmber" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#FFE8B0"/>
+      <stop offset="55%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#A16207"/>
+    </radialGradient>
+    <radialGradient id="bulbGreen" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#BCFEE0"/>
+      <stop offset="55%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#065F46"/>
+    </radialGradient>
+    <radialGradient id="bulbBlue" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#CFEAFF"/>
+      <stop offset="55%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0B5394"/>
+    </radialGradient>
+    <radialGradient id="bulbPink" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#FFD1F2"/>
+      <stop offset="55%" stop-color="#EC4899"/>
+      <stop offset="100%" stop-color="#881337"/>
+    </radialGradient>
+
+    <!-- Glow filters -->
+    <filter id="bulbGlow" x="-70%" y="-70%" width="240%" height="240%">
+      <!-- Robust glow: widely supported blur + merge -->
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Subtle twinkle animation via CSS in SVG -->
+    <style>
+      @keyframes twinkle { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+      .twinkle { animation: twinkle 1.6s ease-in-out infinite; }
+      @keyframes sway { 0% { transform: rotate(-0.8deg); } 50% { transform: rotate(0.8deg); } 100% { transform: rotate(-0.8deg); } }
+      #strand { transform-box: view-box; transform-origin: 50% 10%; animation: sway 6s ease-in-out infinite; }
+    </style>
+  </defs>
+
+  <!-- Entire strand wrapper; CSS rotates for cross-browser reliability -->
+  <g id="strand">
+
+    <!-- Sagging multi-segment wire -->
+    <path d="M0,8 Q120,36 240,8 T480,8 T720,8 T960,8 T1200,8 T1440,8" stroke="url(#wireGrad)" stroke-width="1.2" fill="none"/>
+
+    <!-- Bulbs (high-density for wide screens) -->
+    <g filter="url(#bulbGlow)">
+    <!-- Repeat a pattern across the width -->
+    <!-- group 1 -->
+    <g transform="translate(60,18)" class="twinkle">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbRed)"/>
+    </g>
+    <g transform="translate(140,10)" class="twinkle" style="animation-delay:120ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbAmber)"/>
+    </g>
+    <g transform="translate(220,18)" class="twinkle" style="animation-delay:240ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbGreen)"/>
+    </g>
+    <g transform="translate(300,10)" class="twinkle" style="animation-delay:360ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbBlue)"/>
+    </g>
+    <g transform="translate(380,18)" class="twinkle" style="animation-delay:480ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbPink)"/>
+    </g>
+
+    <!-- Repeat pattern further across -->
+    <g transform="translate(460,10)" class="twinkle" style="animation-delay:100ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbRed)"/>
+    </g>
+    <g transform="translate(540,18)" class="twinkle" style="animation-delay:220ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbAmber)"/>
+    </g>
+    <g transform="translate(620,10)" class="twinkle" style="animation-delay:340ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbGreen)"/>
+    </g>
+    <g transform="translate(700,18)" class="twinkle" style="animation-delay:460ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbBlue)"/>
+    </g>
+    <g transform="translate(780,10)" class="twinkle" style="animation-delay:580ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbPink)"/>
+    </g>
+
+    <!-- Final stretch -->
+    <g transform="translate(860,18)" class="twinkle" style="animation-delay:140ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbRed)"/>
+    </g>
+    <g transform="translate(940,10)" class="twinkle" style="animation-delay:260ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbAmber)"/>
+    </g>
+    <g transform="translate(1020,18)" class="twinkle" style="animation-delay:380ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbGreen)"/>
+    </g>
+    <g transform="translate(1100,10)" class="twinkle" style="animation-delay:500ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbBlue)"/>
+    </g>
+    <g transform="translate(1180,18)" class="twinkle" style="animation-delay:620ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbPink)"/>
+    </g>
+    <g transform="translate(1260,10)" class="twinkle" style="animation-delay:180ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbRed)"/>
+    </g>
+    <g transform="translate(1340,18)" class="twinkle" style="animation-delay:300ms">
+      <rect x="-2" y="-6" width="4" height="6" rx="1" fill="#94A3B8" opacity="0.65"/>
+      <ellipse cx="0" cy="8" rx="6" ry="9" fill="url(#bulbBlue)"/>
+    </g>
+  </g>
+</svg>

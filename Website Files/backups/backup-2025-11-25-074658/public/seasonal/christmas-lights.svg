@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1440" height="120" viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="wireGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#C8D0D9" stop-opacity="0.25"/>
+    </linearGradient>
+    <radialGradient id="bulbRed" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FF9AA5"/>
+      <stop offset="60%" stop-color="#FF4D5E"/>
+      <stop offset="100%" stop-color="#A3151F"/>
+    </radialGradient>
+    <radialGradient id="bulbAmber" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFE7A3"/>
+      <stop offset="60%" stop-color="#FFC241"/>
+      <stop offset="100%" stop-color="#A86A00"/>
+    </radialGradient>
+    <radialGradient id="bulbGreen" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#B7F8D0"/>
+      <stop offset="60%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#0E7A58"/>
+    </radialGradient>
+    <radialGradient id="bulbBlue" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#BEE8FF"/>
+      <stop offset="60%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0B5394"/>
+    </radialGradient>
+    <radialGradient id="bulbPink" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFD1F2"/>
+      <stop offset="60%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#8B1D5B"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Sagging wire path -->
+  <path d="M0,10 Q120,42 240,10 T480,10 T720,10 T960,10 T1200,10 T1440,10" stroke="url(#wireGrad)" stroke-width="1.2" fill="none"/>
+
+  <!-- Bulb group generator (manually placed for crisp control) -->
+  <!-- Positions align with wire crests/troughs -->
+  <g filter="url(#glow)">
+    <g transform="translate(80,22)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbRed)"/>
+    </g>
+    <g transform="translate(200,6)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbAmber)"/>
+    </g>
+    <g transform="translate(320,22)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbGreen)"/>
+    </g>
+    <g transform="translate(440,6)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbBlue)"/>
+    </g>
+    <g transform="translate(560,22)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbPink)"/>
+    </g>
+    <g transform="translate(680,6)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbRed)"/>
+    </g>
+    <g transform="translate(800,22)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbAmber)"/>
+    </g>
+    <g transform="translate(920,6)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbGreen)"/>
+    </g>
+    <g transform="translate(1040,22)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbBlue)"/>
+    </g>
+    <g transform="translate(1160,6)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbPink)"/>
+    </g>
+    <g transform="translate(1280,22)">
+      <ellipse cx="0" cy="0" rx="6.5" ry="9" fill="url(#bulbRed)"/>
+    </g>
+  </g>
+</svg>

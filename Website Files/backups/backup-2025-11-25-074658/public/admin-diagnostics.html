@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Diagnostics</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+        background: #0f172a;
+        color: #fff;
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      button {
+        background: linear-gradient(to right, #0ea5e9, #2563eb);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 5px;
+      }
+      button:hover {
+        opacity: 0.9;
+      }
+      .success {
+        color: #22c55e;
+      }
+      .error {
+        color: #ef4444;
+      }
+      .warning {
+        color: #f59e0b;
+      }
+      pre {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 15px;
+        border-radius: 6px;
+        overflow-x: auto;
+      }
+      #results {
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔧 Admin Panel Diagnostics</h1>
+
+    <div class="card">
+      <h2>Current Status</h2>
+      <div id="currentStatus">Loading...</div>
+    </div>
+
+    <div class="card">
+      <h2>Actions</h2>
+      <button onclick="checkAuth()">Check Auth Status</button>
+      <button onclick="checkUserProfile()">Check User Profile</button>
+      <button onclick="testOrdersAccess()">Test Orders Access</button>
+      <button onclick="fixAdminRole()">Fix Admin Role</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script type="module">
+      import { auth, db } from "./config/firebase.js";
+      import { onAuthStateChanged } from "firebase/auth";
+      import {
+        doc,
+        getDoc,
+        collection,
+        query,
+        orderBy,
+        limit,
+        getDocs,
+        updateDoc,
+      } from "firebase/firestore";
+
+      window.auth = auth;
+      window.db = db;
+
+      let currentUser = null;
+
+      onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        updateStatus();
+      });
+
+      function updateStatus() {
+        const statusEl = document.getElementById("currentStatus");
+        if (!currentUser) {
+          statusEl.innerHTML = '<div class="error">❌ Not logged in</div>';
+          return;
+        }
+
+        statusEl.innerHTML = `
+                <div class="success">✅ Logged in</div>
+                <p><strong>Email:</strong> ${currentUser.email}</p>
+                <p><strong>UID:</strong> ${currentUser.uid}</p>
+                <p><strong>Display Name:</strong> ${
+                  currentUser.displayName || "N/A"
+                }</p>
+            `;
+      }
+
+      window.checkAuth = async function () {
+        const resultsEl = document.getElementById("results");
+
+        if (!currentUser) {
+          resultsEl.innerHTML =
+            '<div class="card error">Please log in first</div>';
+          return;
+        }
+
+        const idToken = await currentUser.getIdToken();
+        const decodedToken = await currentUser.getIdTokenResult();
+
+        resultsEl.innerHTML = `
+                <div class="card">
+                    <h3>Authentication Details</h3>
+                    <pre>${JSON.stringify(
+                      {
+                        uid: currentUser.uid,
+                        email: currentUser.email,
+                        emailVerified: currentUser.emailVerified,
+                        customClaims: decodedToken.claims,
+                        hasAdminClaim: decodedToken.claims.admin === true,
+                      },
+                      null,
+                      2
+                    )}</pre>
+                </div>
+            `;
+      };
+
+      window.checkUserProfile = async function () {
+        const resultsEl = document.getElementById("results");
+
+        if (!currentUser) {
+          resultsEl.innerHTML =
+            '<div class="card error">Please log in first</div>';
+          return;
+        }
+
+        try {
+          const userRef = doc(db, "users", currentUser.uid);
+          const userDoc = await getDoc(userRef);
+
+          if (!userDoc.exists()) {
+            resultsEl.innerHTML = `
+                        <div class="card warning">
+                            <h3>⚠️ User Profile Not Found</h3>
+                            <p>No document exists at: users/${currentUser.uid}</p>
+                            <p>Click "Fix Admin Role" to create it.</p>
+                        </div>
+                    `;
+            return;
+          }
+
+          const data = userDoc.data();
+          const isAdmin = data.role?.toLowerCase() === "admin";
+
+          resultsEl.innerHTML = `
+                    <div class="card ${isAdmin ? "success" : "warning"}">
+                        <h3>${isAdmin ? "✅" : "⚠️"} User Profile</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                        ${
+                          !isAdmin
+                            ? '<p class="warning">Role is not set to "admin"</p>'
+                            : ""
+                        }
+                    </div>
+                `;
+        } catch (error) {
+          resultsEl.innerHTML = `
+                    <div class="card error">
+                        <h3>❌ Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+        }
+      };
+
+      window.testOrdersAccess = async function () {
+        const resultsEl = document.getElementById("results");
+
+        if (!currentUser) {
+          resultsEl.innerHTML =
+            '<div class="card error">Please log in first</div>';
+          return;
+        }
+
+        try {
+          const ordersRef = collection(db, "orders");
+          const q = query(ordersRef, orderBy("orderDate", "desc"), limit(10));
+          const snapshot = await getDocs(q);
+
+          resultsEl.innerHTML = `
+                    <div class="card success">
+                        <h3>✅ Orders Access Test</h3>
+                        <p>Successfully retrieved ${snapshot.size} orders</p>
+                        <pre>${JSON.stringify(
+                          snapshot.docs.map((doc) => ({
+                            id: doc.id,
+                            orderId: doc.data().orderId,
+                            customerEmail: doc.data().customerEmail,
+                            status: doc.data().status,
+                            total: doc.data().total,
+                          })),
+                          null,
+                          2
+                        )}</pre>
+                    </div>
+                `;
+        } catch (error) {
+          resultsEl.innerHTML = `
+                    <div class="card error">
+                        <h3>❌ Orders Access Failed</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p><strong>Code:</strong> ${error.code}</p>
+                        <p class="warning">This means your Firestore rules are blocking access. You need admin role.</p>
+                    </div>
+                `;
+        }
+      };
+
+      window.fixAdminRole = async function () {
+        const resultsEl = document.getElementById("results");
+
+        if (!currentUser) {
+          resultsEl.innerHTML =
+            '<div class="card error">Please log in first</div>';
+          return;
+        }
+
+        try {
+          const userRef = doc(db, "users", currentUser.uid);
+          const updates = {
+            role: "admin",
+            accountType: "admin",
+            email: currentUser.email,
+            updatedAt: new Date(),
+          };
+
+          // Check if document exists first
+          const userDoc = await getDoc(userRef);
+          if (!userDoc.exists()) {
+            // Can't use setDoc from client if rules don't allow
+            resultsEl.innerHTML = `
+                        <div class="card error">
+                            <h3>❌ Cannot Create Profile from Client</h3>
+                            <p>You need to create the user profile manually in Firebase Console:</p>
+                            <ol>
+                                <li>Go to Firestore Database</li>
+                                <li>Navigate to "users" collection</li>
+                                <li>Add document with ID: <code>${
+                                  currentUser.uid
+                                }</code></li>
+                                <li>Add these fields:</li>
+                            </ol>
+                            <pre>${JSON.stringify(
+                              {
+                                uid: currentUser.uid,
+                                email: currentUser.email,
+                                displayName:
+                                  currentUser.displayName ||
+                                  currentUser.email.split("@")[0],
+                                role: "admin",
+                                accountType: "admin",
+                                createdAt: new Date().toISOString(),
+                              },
+                              null,
+                              2
+                            )}</pre>
+                        </div>
+                    `;
+            return;
+          }
+
+          await updateDoc(userRef, updates);
+
+          resultsEl.innerHTML = `
+                    <div class="card success">
+                        <h3>✅ Admin Role Updated!</h3>
+                        <p>Please sign out and sign back in for changes to take effect.</p>
+                        <button onclick="location.reload()">Refresh Page</button>
+                    </div>
+                `;
+        } catch (error) {
+          resultsEl.innerHTML = `
+                    <div class="card error">
+                        <h3>❌ Update Failed</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p><strong>Code:</strong> ${error.code}</p>
+                        <p>You may need to update this manually in Firebase Console.</p>
+                    </div>
+                `;
+        }
+      };
+
+      updateStatus();
+    </script>
+  </body>
+</html>

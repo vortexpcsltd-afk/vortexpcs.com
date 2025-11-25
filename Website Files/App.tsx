@@ -977,34 +977,17 @@ export default function App() {
         <ServiceSchema />
 
         <div className="min-h-screen bg-black text-white overflow-x-hidden">
-          {/* Animated Background */}
-          <div className="fixed inset-0 z-0 pointer-events-none select-none">
+          {/* Background */}
+          <div className="fixed inset-0 z-0 pointer-events-none select-none overflow-hidden">
             {/* Base gradient */}
-            <div className="absolute inset-0 bg-gradient-to-br from-black via-slate-950 to-blue-950 will-change-opacity"></div>
-
-            {/* Animated gradient orbs */}
-            <div className="absolute top-0 -left-40 w-80 h-80 bg-sky-500/20 rounded-full blur-2xl md:blur-3xl animate-pulse"></div>
-            <div
-              className="absolute top-40 -right-40 w-96 h-96 bg-blue-600/20 rounded-full blur-2xl md:blur-3xl animate-pulse"
-              style={{ animationDelay: "1s" }}
-            ></div>
-            <div
-              className="absolute -bottom-40 left-1/3 w-96 h-96 bg-cyan-500/10 rounded-full blur-2xl md:blur-3xl animate-pulse"
-              style={{ animationDelay: "2s" }}
-            ></div>
+            <div className="absolute inset-0 bg-gradient-to-br from-black via-slate-950 to-blue-950"></div>
 
             {/* Grid pattern */}
             <div
-              className="absolute inset-0 opacity-10 will-change-opacity"
+              className="absolute inset-0 opacity-10"
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%230ea5e9' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
               }}
-            ></div>
-
-            {/* Main Content */}
-            <div
-              className="absolute inset-0 bg-gradient-to-b from-transparent via-sky-500/5 to-transparent opacity-30 animate-pulse will-change-opacity"
-              style={{ animationDuration: "3s" }}
             ></div>
           </div>
 

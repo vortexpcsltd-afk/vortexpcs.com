@@ -92,18 +92,7 @@ export function Footer({ onNavigate }: FooterProps) {
       <div className="absolute inset-0 bg-gradient-to-b from-black via-slate-950 to-black"></div>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/30 via-transparent to-transparent"></div>
 
-      {/* Animated gradient orbs */}
-      <div className="absolute -top-40 left-1/4 w-96 h-96 bg-sky-500/10 rounded-full blur-[100px] animate-pulse"></div>
-      <div
-        className="absolute top-60 right-1/4 w-80 h-80 bg-blue-600/10 rounded-full blur-[100px] animate-pulse"
-        style={{ animationDelay: "2s" }}
-      ></div>
-      <div
-        className="absolute bottom-40 left-1/3 w-72 h-72 bg-cyan-500/10 rounded-full blur-[100px] animate-pulse"
-        style={{ animationDelay: "4s" }}
-      ></div>
-
-      {/* Top border glow */}
+      {/* Top border */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/50 to-transparent"></div>
 
       <div className="relative z-10">

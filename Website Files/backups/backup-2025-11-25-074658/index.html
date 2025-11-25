@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/webp" href="/vortexpcsltd.webp" />
+    <link rel="apple-touch-icon" href="/vortexpcsltd.webp" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+    />
+
+    <!-- Security Headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- Removed preload for logo (was unused quickly); consider re-adding if used hero-first -->
+
+    <!-- Resource Hints: improve connection setup for third-parties -->
+    <link rel="preconnect" href="https://images.ctfassets.net" crossorigin />
+    <link rel="preconnect" href="https://cdn.contentful.com" crossorigin />
+    <link rel="preconnect" href="https://js.stripe.com" crossorigin />
+    <link rel="preconnect" href="https://www.paypal.com" crossorigin />
+    <link rel="preconnect" href="https://www.paypalobjects.com" crossorigin />
+    <link
+      rel="preconnect"
+      href="https://firestore.googleapis.com"
+      crossorigin
+    />
+
+    <!-- Meta tags are populated from Contentful at runtime. Leave blank to allow dynamic injection. -->
+    <meta name="description" content="" />
+    <meta name="keywords" content="" />
+    <meta name="author" content="" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Cache Control -->
+    <meta
+      http-equiv="Cache-Control"
+      content="no-cache, no-store, must-revalidate, max-age=0"
+    />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <title>Custom PCs Built to Order | Vortex PCs Ltd</title>
+    <!-- Vercel Analytics: only inject in production to avoid dev 404s and bundling warnings -->
+    <script type="module">
+      if (import.meta.env && import.meta.env.PROD) {
+        const s = document.createElement("script");
+        s.src = "/_vercel/insights/script.js";
+        s.defer = true;
+        document.head.appendChild(s);
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

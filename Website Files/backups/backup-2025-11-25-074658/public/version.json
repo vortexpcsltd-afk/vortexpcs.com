@@ -1,0 +1,68 @@
+{
+  "version": "1.47.012",
+  "timestamp": "2025-11-24T00:00:00Z",
+  "build": "stripe-webhook-stability-deploy",
+  "description": "Patched Stripe webhook (email send try/catch + address line2 typing), confirmed clean build, preparing deployment.",
+  "components": {
+    "PCFinder": "blue-glassmorphism-v5-mobile-optimized",
+    "HomePage": "contentful-cms-integration-v1",
+    "Footer": "glassmorphism-updated-v2-custom-logo",
+    "Navigation": "responsive-redesign-v1",
+    "MobileMenu": "dark-background-v1",
+    "DesktopAuth": "login-signup-buttons-v1",
+    "RepairService": "uk-service-v2",
+    "TermsPage": "separate-component-v2",
+    "PrivacyPage": "separate-component-v2",
+    "CookiePolicyPage": "separate-component-v2",
+    "PCBuilder": "modal-fixes-v1",
+    "ComponentDetailModal": "wider-modal-event-handling-v1",
+    "CMS": "contentful-v11-8-7"
+  },
+  "theme": {
+    "primary": "#0ea5e9",
+    "secondary": "#2563eb",
+    "accent": "#06b6d4",
+    "background": "#000000",
+    "cards": "glassmorphism-white/5-backdrop-blur-xl"
+  },
+  "assets": {
+    "logo": "https://www.vortexpcs.com/vortexpcs-logo.png",
+    "heroBackground": "https://vortexpcs.com/gaming-keyboard.jpeg",
+    "favicon": "https://www.vortexpcs.com/vortexpcs-logo.png"
+  },
+  "cms": {
+    "platform": "Contentful v11.8.7",
+    "database": "Contentful CDN",
+    "contentTypes": [
+      "Page Contents",
+      "Site Settings",
+      "Company Stats",
+      "PC Components",
+      "Optional Extras"
+    ],
+    "features": [
+      "Smart Caching",
+      "Auto Retry",
+      "Rich Text Support",
+      "CORS Configured",
+      "Production Environment Variables"
+    ]
+  },
+  "deployment": {
+    "platform": "GitHub Pages",
+    "domain": "vortexpcs.com",
+    "customDomain": true,
+    "https": true,
+    "cicd": "GitHub Actions",
+    "environmentVariables": [
+      "VITE_CONTENTFUL_SPACE_ID",
+      "VITE_CONTENTFUL_ACCESS_TOKEN"
+    ]
+  },
+  "changes": [
+    "WEBHOOK: Added robust try/catch around order email dispatch in webhook-backup.ts.",
+    "WEBHOOK: Normalized optional shipping address line2 to undefined to satisfy TS types.",
+    "BUILD: Verified successful production build post webhook fixes (no TS errors).",
+    "DEPLOY: Preparing version bump for Vercel deployment trigger."
+  ]
+}

@@ -398,6 +398,50 @@ html {
   }
 }
 
+@keyframes waterBeam {
+  0% {
+    transform: translate(-100%, -100%) rotate(45deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(100vw, 100vh) rotate(45deg);
+    opacity: 0;
+  }
+}
+
+@keyframes waterBeamSlow {
+  0% {
+    transform: translate(-120%, -120%) rotate(45deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.5;
+  }
+  85% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate(120vw, 120vh) rotate(45deg);
+    opacity: 0;
+  }
+}
+
+@keyframes waterWave {
+  0%,
+  100% {
+    transform: translateX(-50%) scaleY(1);
+  }
+  50% {
+    transform: translateX(-50%) scaleY(1.1);
+  }
+}
+
 @keyframes floatParticle {
   0%,
   100% {
