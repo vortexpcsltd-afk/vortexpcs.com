@@ -580,6 +580,39 @@ export function AdminPanel() {
       total: allOrders.length,
     };
   };
+  // Recompute revenue & build stats when orders change so dashboard reflects bank transfer verification immediately
+  useEffect(() => {
+    if (!allOrders.length) {
+      // If empty, zero out to avoid stale previous totals
+      setDashboardStats((prev) => ({
+        ...prev,
+        orders: { ...prev.orders, total: 0 },
+        revenue: { ...prev.revenue, total: 0 },
+        builds: { ...prev.builds, total: 0 },
+      }));
+      return;
+    }
+    const sumRevenue = allOrders.reduce((sum, o) => {
+      const raw = (o as unknown as { total?: unknown }).total;
+      let val = 0;
+      if (typeof raw === "number" && Number.isFinite(raw)) val = raw;
+      else if (typeof raw === "string") {
+        const cleaned = raw.replace(/[^0-9.-]/g, "");
+        const parsed = parseFloat(cleaned);
+        if (Number.isFinite(parsed)) val = parsed;
+      }
+      return sum + val;
+    }, 0);
+    const activeBuilds = allOrders.filter(
+      (o) => o.status === "building" || o.status === "testing"
+    ).length;
+    setDashboardStats((prev) => ({
+      ...prev,
+      orders: { ...prev.orders, total: allOrders.length },
+      revenue: { ...prev.revenue, total: sumRevenue },
+      builds: { ...prev.builds, total: activeBuilds },
+    }));
+  }, [allOrders]);
   const [inventoryPage, setInventoryPage] = useState(1);
   const [inventoryItemsPerPage, setInventoryItemsPerPage] = useState(25);
   const [analyticsData, setAnalyticsData] = useState({

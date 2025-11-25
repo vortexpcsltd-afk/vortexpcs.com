@@ -1058,8 +1058,20 @@ export const getDashboardStats = async () => {
     const usersSnapshot = await getDocs(collection(db, "users"));
     const totalCustomers = usersSnapshot.size;
 
-    // Calculate revenue
-    const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
+    // Calculate revenue - coerce possible string totals to numbers safely
+    const totalRevenue = orders.reduce((sum, order) => {
+      const raw = (order as unknown as { total?: unknown }).total;
+      let val = 0;
+      if (typeof raw === "number" && Number.isFinite(raw)) {
+        val = raw;
+      } else if (typeof raw === "string") {
+        // Strip currency symbols/commas
+        const cleaned = raw.replace(/[^0-9.-]/g, "");
+        const parsed = parseFloat(cleaned);
+        if (Number.isFinite(parsed)) val = parsed;
+      }
+      return sum + val;
+    }, 0);
 
     // Count active builds
     const activeBuilds = orders.filter(
@@ -1072,10 +1084,18 @@ export const getDashboardStats = async () => {
       (order) => order.orderDate && order.orderDate.getMonth() === currentMonth
     );
 
-    const currentMonthRevenue = currentMonthOrders.reduce(
-      (sum, order) => sum + order.total,
-      0
-    );
+    const currentMonthRevenue = currentMonthOrders.reduce((sum, order) => {
+      const raw = (order as unknown as { total?: unknown }).total;
+      let val = 0;
+      if (typeof raw === "number" && Number.isFinite(raw)) {
+        val = raw;
+      } else if (typeof raw === "string") {
+        const cleaned = raw.replace(/[^0-9.-]/g, "");
+        const parsed = parseFloat(cleaned);
+        if (Number.isFinite(parsed)) val = parsed;
+      }
+      return sum + val;
+    }, 0);
 
     return {
       orders: {
