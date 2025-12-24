@@ -20,6 +20,15 @@ out/
 .env.production
 
 # Security: Never commit production secrets
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*service-account*.json
+credentials.json
+secrets.json
+firebase-adminsdk-*.json
 
 # IDE and editor files
 .vscode/
