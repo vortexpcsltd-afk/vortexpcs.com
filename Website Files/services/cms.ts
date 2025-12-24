@@ -1821,8 +1821,13 @@ export const fetchLegalPage = async (
             version: getString(fields.version) ?? "",
           };
         }
-      } catch {
-        // legalPage type doesn't exist anymore or failed; fall through to static fallback
+      } catch (error) {
+        // legalPage type doesn't exist anymore or failed; log and fall through to static fallback
+        logger.warn("Failed to parse legal page content from CMS", {
+          error,
+          operation: "fetch_legal_page",
+          timestamp: new Date().toISOString(),
+        });
       }
       // No CMS content – use local static page implementation
       return null;
@@ -2617,8 +2622,14 @@ export const fetchPCComponents = async (params?: {
             )
           );
           allComponents = [...allComponents, ...components];
-        } catch {
-          logger.debug(`ℹ️ No ${category} content type found, skipping...`);
+        } catch (error) {
+          // Content type doesn't exist or failed to parse - log and continue
+          logger.warn(`No ${category} content type found or failed to parse`, {
+            error,
+            operation: "fetch_component_content",
+            category,
+            timestamp: new Date().toISOString(),
+          });
         }
       }
     }

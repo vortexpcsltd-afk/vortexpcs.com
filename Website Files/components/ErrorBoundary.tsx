@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 import { errorLogger } from "../services/errorLogger";
 import { logger } from "../services/logger";
+import {
+  reportErrorToSentry,
+  createErrorBoundaryContext,
+} from "../utils/errorHandler";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -52,9 +56,25 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // CRITICAL #7 FIX: Proper error logging with context instead of silent failures
+    // Create comprehensive error context
+    const errorContext = createErrorBoundaryContext("ErrorBoundary", error);
+
     // Log to logger service which handles both development and production
-    logger.error("ErrorBoundary caught an error", error, {
-      componentStack: errorInfo.componentStack,
+    logger.error("ErrorBoundary caught an error", {
+      error,
+      errorInfo,
+      context: errorContext,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Report to Sentry with full context (production monitoring)
+    const errorId = reportErrorToSentry(error, {
+      ...errorContext,
+      component: this.props.fallback ? "component_isolated" : "page",
+      additionalData: {
+        componentStack: errorInfo.componentStack,
+      },
     });
 
     this.setState({
@@ -64,13 +84,23 @@ export class ErrorBoundary extends Component<
 
     // Call custom error handler if provided
     if (this.props.onError) {
-      this.props.onError(error, errorInfo);
+      try {
+        this.props.onError(error, errorInfo);
+      } catch (handlerError) {
+        // Don't let error handler itself throw and cause infinite loops
+        logger.error("Error handler callback failed", {
+          error: handlerError,
+          originalError: error,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
 
     // Log to error tracking service
     errorLogger.log(error, {
       componentStack: errorInfo.componentStack || undefined,
       severity: this.props.isolate ? "medium" : "critical",
+      sentryEventId: errorId,
     });
   }
 

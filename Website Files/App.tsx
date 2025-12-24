@@ -267,8 +267,20 @@ export default function App() {
           logger.info(`App version: ${latestVersion}`);
         }
       } catch (e) {
-        // Best-effort only; ignore errors
-        logger.debug("Failed to check app version", { error: e });
+        // Log version check failures with full context for monitoring
+        logger.error("Failed to check app version", {
+          error: e,
+          operation: "version_check",
+          timestamp: new Date().toISOString(),
+          severity: "low",
+        });
+        // Report to Sentry for monitoring
+        import("@sentry/react").then(({ captureException }) => {
+          captureException(e, {
+            level: "warning",
+            tags: { operation: "version_check" },
+          });
+        });
       }
     })();
 
@@ -310,7 +322,13 @@ export default function App() {
       const dismissed = localStorage.getItem("vortex_coming_soon_dismissed");
       if (isTest && !dismissed) setShowComingSoon(true);
     } catch (e) {
-      logger.debug("ComingSoon env detection failed", { error: e });
+      // Log environment detection failures - don't fail silently
+      logger.error("ComingSoon env detection failed", {
+        error: e,
+        operation: "env_detection",
+        timestamp: new Date().toISOString(),
+        additionalData: { component: "ComingSoonDetection" },
+      });
     }
   }, []);
 
@@ -743,8 +761,14 @@ export default function App() {
           quantity: 1,
         });
       }
-    } catch {
-      // analytics best-effort only
+    } catch (error) {
+      // Log analytics error to track failures
+      logger.warn("Failed to track analytics event", {
+        error,
+        operation: "analytics_track",
+        timestamp: new Date().toISOString(),
+        severity: "low",
+      });
     }
   };
 
