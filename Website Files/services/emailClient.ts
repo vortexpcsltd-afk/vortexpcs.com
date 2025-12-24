@@ -1,9 +1,10 @@
 /**
  * Email Client Service
  * Client-side service for triggering bulk emails via admin API
+ * Includes CSRF protection on email sending requests
  */
 
-// CSRF client removed during rollback; use plain headers
+import { getCsrfToken } from "../utils/csrfToken";
 
 export type SendBulkEmailPayload = {
   subject: string;
@@ -35,12 +36,28 @@ export async function sendBulkEmail(
     /* ignore token retrieval failure; endpoint will reject if not authorized */
   }
 
+  // Add CSRF token to request headers
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (idToken) {
+    headers["Authorization"] = `Bearer ${idToken}`;
+  }
+
+  // Add CSRF token if available
+  try {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
+  } catch {
+    /* ignore CSRF token failure; endpoint will handle validation */
+  }
+
   const res = await fetch("/api/admin/email/send", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
+    headers,
     body: JSON.stringify(payload),
   });
 

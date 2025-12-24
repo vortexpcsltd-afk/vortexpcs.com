@@ -1,11 +1,13 @@
 /**
  * Client-side Error Reporter
  * Automatically logs errors to backend for admin monitoring
+ * Includes CSRF protection on error reporting requests
  */
 
 import { auth } from "../config/firebase";
 import { logger } from "./logger";
 import { isLocalhost } from "../utils/runtime";
+import { getCsrfToken } from "../utils/csrfToken";
 
 interface ErrorReport {
   message: string;
@@ -34,8 +36,15 @@ export async function reportError(error: ErrorReport): Promise<void> {
       headers.Authorization = `Bearer ${token}`;
     }
 
-    // TODO: Add CSRF token once csrf middleware is implemented
-    // See audit report for CSRF protection implementation
+    // Add CSRF token to headers
+    try {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+    } catch {
+      // Ignore CSRF token failure - error reporting should still work
+    }
 
     const resp = await fetch("/api/errors/report", {
       method: "POST",

@@ -2,12 +2,17 @@
  * Firebase Authentication Service
  * Handles user authentication, registration, and session management
  * Includes retry logic and error recovery for network failures
+ * Generates CSRF tokens on login for state-changing request protection
  */
 
 import type { User, UserCredential } from "firebase/auth";
 import { auth, googleProvider, db } from "../config/firebase";
 import { logger } from "./logger";
-// CSRF client was removed during rollback; use plain headers
+import {
+  generateCsrfToken,
+  storeCsrfToken,
+  clearCsrfToken,
+} from "../utils/csrfToken";
 
 /**
  * Retry configuration for network operations
@@ -312,6 +317,18 @@ export const loginUser = async (
       });
     }
 
+    // Generate and store CSRF token for authenticated session
+    try {
+      const csrfToken = generateCsrfToken();
+      storeCsrfToken(csrfToken);
+      logger.debug("CSRF token generated on login", { uid: user.uid });
+    } catch (csrfError) {
+      logger.warn("Failed to generate CSRF token on login", {
+        error: String(csrfError),
+      });
+      // Don't fail login if CSRF token generation fails
+    }
+
     return user;
   } catch (error: unknown) {
     logger.error("Login error:", error);
@@ -475,6 +492,16 @@ export const logoutUser = async (): Promise<void> => {
   }
 
   try {
+    // Clear CSRF token on logout
+    try {
+      clearCsrfToken();
+      logger.debug("CSRF token cleared on logout");
+    } catch (csrfError) {
+      logger.warn("Failed to clear CSRF token on logout", {
+        error: String(csrfError),
+      });
+    }
+
     const { signOut } = await import("firebase/auth");
     await signOut(auth);
   } catch (error: unknown) {

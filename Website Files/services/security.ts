@@ -1,5 +1,7 @@
 import { isLocalhost } from "../utils/runtime";
 import { logger } from "./logger";
+import { getCsrfToken } from "../utils/csrfToken";
+
 export async function checkIpBlocked(): Promise<{
   blocked: boolean;
   attempts: number;
@@ -37,10 +39,22 @@ export async function recordLoginAttempt(
   try {
     if (isLocalhost()) return;
 
-    // TODO: Add CSRF token once csrf middleware is implemented
+    // Add CSRF token to headers
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    try {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+    } catch {
+      // Ignore CSRF token failure
+    }
+
     await fetch("/api/security/record-login-attempt", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ outcome, email }),
     });
   } catch {
@@ -50,13 +64,23 @@ export async function recordLoginAttempt(
 
 export async function unblockIp(ip: string, idToken: string): Promise<boolean> {
   try {
-    // TODO: Add CSRF token once csrf middleware is implemented
+    // Add CSRF token to headers
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    };
+    try {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+    } catch {
+      // Ignore CSRF token failure
+    }
+
     const res = await fetch("/api/security/unblock-ip", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
+      headers,
       body: JSON.stringify({ ip }),
     });
     return res.ok;
@@ -71,13 +95,23 @@ export async function whitelistIp(
   reason?: string
 ): Promise<boolean> {
   try {
-    // TODO: Add CSRF token once csrf middleware is implemented
+    // Add CSRF token to headers
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    };
+    try {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+    } catch {
+      // Ignore CSRF token failure
+    }
+
     const res = await fetch("/api/security/whitelist-ip", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
+      headers,
       body: JSON.stringify({ ip, reason }),
     });
     return res.ok;

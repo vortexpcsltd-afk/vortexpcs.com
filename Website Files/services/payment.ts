@@ -4,6 +4,7 @@
  * Supports both authenticated and guest checkout flows
  * Includes retry logic and error recovery for network failures
  * Includes payment validation with Zod schemas
+ * Includes CSRF token protection for state-changing requests
  */
 
 import {
@@ -21,6 +22,7 @@ import {
   toPence,
   type CartItem,
 } from "../utils/paymentValidation";
+import { getCsrfToken } from "../utils/csrfToken";
 
 /**
  * Retry configuration for payment operations
@@ -174,19 +176,34 @@ export const createCheckoutSession = async (
       // Call backend API endpoint
       const apiUrl = `${stripeBackendUrl}/api/stripe/create-checkout-session`;
 
-      const response = await axios.post(apiUrl, {
-        items: validatedItems,
-        customerEmail,
-        customerName,
-        userId,
-        shippingAddress,
-        shippingMethod,
-        shippingCost,
-        metadata: {
-          ...sanitizedMetadata,
-          source: "vortex-pcs-website",
+      // Add CSRF token to headers
+      const headers: Record<string, string> = {};
+      try {
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+          headers["X-CSRF-Token"] = csrfToken;
+        }
+      } catch {
+        // Ignore CSRF token retrieval failure
+      }
+
+      const response = await axios.post(
+        apiUrl,
+        {
+          items: validatedItems,
+          customerEmail,
+          customerName,
+          userId,
+          shippingAddress,
+          shippingMethod,
+          shippingCost,
+          metadata: {
+            ...sanitizedMetadata,
+            source: "vortex-pcs-website",
+          },
         },
-      });
+        { headers }
+      );
 
       return response.data;
     } catch (error: unknown) {
@@ -326,13 +343,28 @@ export const createPaymentIntent = async (
       // Use local proxy endpoint that Vite will forward to backend
       const apiUrl = `/api/stripe/create-payment-intent`;
 
+      // Add CSRF token to headers
+      const headers: Record<string, string> = {};
+      try {
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+          headers["X-CSRF-Token"] = csrfToken;
+        }
+      } catch {
+        // Ignore CSRF token retrieval failure
+      }
+
       const response = await retryOperation(
         () =>
-          axios.post(apiUrl, {
-            amount: toPence(amount), // Convert to pence
-            currency: currency.toUpperCase(),
-            metadata: sanitizedMetadata,
-          }),
+          axios.post(
+            apiUrl,
+            {
+              amount: toPence(amount), // Convert to pence
+              currency: currency.toUpperCase(),
+              metadata: sanitizedMetadata,
+            },
+            { headers }
+          ),
         "Create payment intent"
       );
 

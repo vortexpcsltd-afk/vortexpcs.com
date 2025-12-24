@@ -1,4 +1,4 @@
-// CSRF client removed during rollback; use plain headers
+// CSRF token automatically added via addCsrfTokenToHeaders
 
 export type TicketReplyPayload = {
   ticketId: string;
@@ -28,12 +28,31 @@ export async function replyToTicket(payload: TicketReplyPayload): Promise<{
     /* ignore token retrieval failure; endpoint will reject if not authorized */
   }
 
+  // Add CSRF token to request headers
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (idToken) {
+    headers["Authorization"] = `Bearer ${idToken}`;
+  }
+
+  // Add CSRF token if available
+  try {
+    const { getCsrfToken, addCsrfTokenToHeaders } = await import(
+      "../utils/csrfToken"
+    );
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      addCsrfTokenToHeaders(headers);
+    }
+  } catch {
+    /* ignore CSRF token failure; endpoint will handle validation */
+  }
+
   const res = await fetch("/api/admin/support/reply", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
+    headers,
     body: JSON.stringify(payload),
   });
 

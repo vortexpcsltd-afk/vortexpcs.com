@@ -1,10 +1,12 @@
 /**
  * Review Service
  * Client-side functions for managing product reviews
+ * Includes CSRF protection on state-changing requests
  */
 
 import { auth } from "../config/firebase";
 import { logger } from "./logger";
+import { getCsrfToken } from "../utils/csrfToken";
 import type {
   Review,
   ReviewSummary,
@@ -25,12 +27,23 @@ export const submitReview = async (
 
     const token = await auth.currentUser.getIdToken();
 
+    // Add CSRF token to headers
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    try {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+    } catch {
+      // Ignore CSRF token failure
+    }
+
     const response = await fetch("/api/reviews/submit", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify(reviewData),
     });
 
@@ -112,12 +125,23 @@ export const voteReviewHelpful = async (
 
     const token = await auth.currentUser.getIdToken();
 
+    // Add CSRF token to headers
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    try {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+    } catch {
+      // Ignore CSRF token failure
+    }
+
     const response = await fetch("/api/reviews/helpful", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify({ reviewId, helpful }),
     });
 
@@ -148,12 +172,23 @@ export const moderateReview = async (
 
     const token = await auth.currentUser.getIdToken();
 
+    // Add CSRF token to headers
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    try {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+    } catch {
+      // Ignore CSRF token failure
+    }
+
     const response = await fetch("/api/reviews/moderate", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify({ reviewId, action, moderatorNote }),
     });
 
