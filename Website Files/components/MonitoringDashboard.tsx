@@ -223,22 +223,23 @@ export function MonitoringDashboard() {
       });
     }
 
-    // 5. Check Email Service (via environment)
+    // 5. Check Email Service (via API endpoint)
     try {
-      const emailConfigured =
-        import.meta.env.VITE_SMTP_HOST || import.meta.env.VITE_SMTP_USER;
-      if (emailConfigured) {
+      // Frontend cannot check SMTP env vars (backend only)
+      // Use API health check instead
+      const response = await fetch("/api/email/verify-config");
+      if (response.ok) {
         checks.push({
           name: "Email Service",
           status: "healthy",
-          message: "SMTP configured",
+          message: "API responding",
           icon: Mail,
         });
       } else {
         checks.push({
           name: "Email Service",
           status: "error",
-          message: "Not configured",
+          message: "API check failed",
           icon: Mail,
         });
       }

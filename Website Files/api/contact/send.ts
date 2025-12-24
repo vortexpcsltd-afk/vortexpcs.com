@@ -28,23 +28,19 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     "message",
   ]);
 
-  // Support both build-time (VITE_) and server-side (no prefix) env vars
-  const smtpHost = process.env.VITE_SMTP_HOST || process.env.SMTP_HOST;
-  const smtpPortRaw =
-    process.env.VITE_SMTP_PORT || process.env.SMTP_PORT || "465";
+  // Backend uses server-side env vars (no VITE_ prefix)
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPortRaw = process.env.SMTP_PORT || "465";
   const smtpPort = parseInt(smtpPortRaw, 10);
   // Auto derive secure if not explicitly set: true when port 465 else false
-  const smtpSecureRaw = process.env.VITE_SMTP_SECURE || process.env.SMTP_SECURE;
+  const smtpSecureRaw = process.env.SMTP_SECURE;
   const smtpSecure =
     typeof smtpSecureRaw === "string"
       ? smtpSecureRaw === "true"
       : smtpPort === 465;
-  const smtpUser = process.env.VITE_SMTP_USER || process.env.SMTP_USER;
-  const smtpPass = process.env.VITE_SMTP_PASS || process.env.SMTP_PASS;
-  const businessEmail =
-    process.env.VITE_BUSINESS_EMAIL ||
-    process.env.BUSINESS_EMAIL ||
-    "info@vortexpcs.com";
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const businessEmail = process.env.BUSINESS_EMAIL || "info@vortexpcs.com";
 
   // Build base URL for assets (logo)
   const baseUrl = (

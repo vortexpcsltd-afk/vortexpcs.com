@@ -49,7 +49,6 @@ import {
   lastAddressProvider,
   lastAddressError,
 } from "../services/address";
-import { GETADDRESS_IO_API_KEY } from "../config/address";
 import {
   Elements,
   CardElement,
@@ -765,11 +764,7 @@ function BookingForm(props: BookingFormProps) {
                   import.meta.env.VITE_DEBUG_ADDRESS === "1") && (
                   <div className="space-y-0.5">
                     <p className="text-xs text-gray-500">
-                      Provider:{" "}
-                      {lastAddressProvider ||
-                        (GETADDRESS_IO_API_KEY
-                          ? "getaddress.io (client?)"
-                          : "postcodes.io (fallback)")}
+                      Provider: {lastAddressProvider || "backend proxy"}
                     </p>
                     {lastAddressError && (
                       <p className="text-[11px] text-gray-500/80">

@@ -43,11 +43,10 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     }
 
     // Get SMTP config from environment variables
-    const smtpHost = process.env.SMTP_HOST || process.env.VITE_SMTP_HOST;
-    const smtpUser = process.env.SMTP_USER || process.env.VITE_SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS || process.env.VITE_SMTP_PASS;
-    const smtpPortStr =
-      process.env.SMTP_PORT || process.env.VITE_SMTP_PORT || "465";
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const smtpPortStr = process.env.SMTP_PORT || "465";
     const smtpPort = parseInt(smtpPortStr, 10);
     const secure = smtpPort === 465;
 

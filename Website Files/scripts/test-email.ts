@@ -11,18 +11,18 @@ import nodemailer from "nodemailer";
 const getEnv = (key: string) => process.env[key];
 
 const emailConfig = {
-  host: getEnv("VITE_SMTP_HOST") || "smtp.gmail.com",
-  port: parseInt(getEnv("VITE_SMTP_PORT") || "587"),
-  secure: (getEnv("VITE_SMTP_SECURE") || "false") === "true",
+  host: getEnv("SMTP_HOST") || "smtp.gmail.com",
+  port: parseInt(getEnv("SMTP_PORT") || "587"),
+  secure: (getEnv("SMTP_SECURE") || "false") === "true",
   auth: {
-    user: getEnv("VITE_SMTP_USER"),
-    pass: getEnv("VITE_SMTP_PASS"),
+    user: getEnv("SMTP_USER"),
+    pass: getEnv("SMTP_PASS"),
   },
 };
 
 const businessInfo = {
   name: "Vortex PCs Ltd",
-  email: getEnv("VITE_BUSINESS_EMAIL") || "info@vortexpcs.com",
+  email: getEnv("BUSINESS_EMAIL") || "info@vortexpcs.com",
   phone: "01603 975440",
 };
 
@@ -41,8 +41,8 @@ async function testEmail() {
   if (!emailConfig.auth.user || !emailConfig.auth.pass) {
     console.log("\n❌ Email credentials not configured!");
     console.log("\n💡 Setup Instructions:");
-    console.log("1. Set VITE_SMTP_USER to your email address");
-    console.log("2. Set VITE_SMTP_PASS to your app-specific password");
+    console.log("1. Set SMTP_USER to your email address");
+    console.log("2. Set SMTP_PASS to your app-specific password");
     console.log("3. For Gmail, generate app password at:");
     console.log("   https://myaccount.google.com/apppasswords");
     process.exit(1);

@@ -172,17 +172,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Send pending payment emails (customer + admin)
     try {
-      const smtpHost = process.env.VITE_SMTP_HOST || process.env.SMTP_HOST;
-      const smtpUser = process.env.VITE_SMTP_USER || process.env.SMTP_USER;
-      const smtpPass = process.env.VITE_SMTP_PASS || process.env.SMTP_PASS;
-      const smtpPortStr =
-        process.env.VITE_SMTP_PORT || process.env.SMTP_PORT || "465";
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+      const smtpPortStr = process.env.SMTP_PORT || "465";
       const smtpPort = parseInt(smtpPortStr, 10);
       const secure = smtpPort === 465;
-      const businessEmail =
-        process.env.VITE_BUSINESS_EMAIL ||
-        process.env.BUSINESS_EMAIL ||
-        "info@vortexpcs.com";
+      const businessEmail = process.env.BUSINESS_EMAIL || "info@vortexpcs.com";
 
       if (!smtpHost || !smtpUser || !smtpPass) {
         console.error("❌ SMTP not configured - skipping email send");

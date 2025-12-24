@@ -9,12 +9,6 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_APP_ID: string;
   readonly VITE_STRIPE_PUBLISHABLE_KEY: string;
   readonly VITE_STRIPE_BACKEND_URL: string;
-  readonly VITE_SMTP_HOST: string;
-  readonly VITE_SMTP_PORT: string;
-  readonly VITE_SMTP_SECURE: string;
-  readonly VITE_SMTP_USER: string;
-  readonly VITE_SMTP_PASS: string;
-  readonly VITE_BUSINESS_EMAIL: string;
   readonly VITE_SENTRY_DSN: string;
   readonly VITE_SENTRY_DEBUG: string;
   readonly VITE_APP_VERSION: string;

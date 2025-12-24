@@ -78,10 +78,10 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
   console.log("  Total Amount:", orderData.totalAmount);
 
   // Validate SMTP configuration
-  const smtpHost = process.env.VITE_SMTP_HOST;
-  const smtpUser = process.env.VITE_SMTP_USER;
-  const smtpPass = process.env.VITE_SMTP_PASS;
-  const smtpPort = process.env.VITE_SMTP_PORT || "465";
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpPort = process.env.SMTP_PORT || "465";
   const businessEmail = process.env.VITE_BUSINESS_EMAIL || "info@vortexpcs.com";
 
   if (!smtpHost || !smtpUser || !smtpPass) {

@@ -54,23 +54,19 @@ const readEnv = (key: string): string | undefined =>
   safeMetaEnv[key] ?? process.env[key];
 
 const getEmailConfig = () => ({
-  host: readEnv("VITE_SMTP_HOST") || readEnv("SMTP_HOST") || "smtp.gmail.com",
-  port: parseInt(readEnv("VITE_SMTP_PORT") || readEnv("SMTP_PORT") || "587"),
-  secure:
-    (readEnv("VITE_SMTP_SECURE") || readEnv("SMTP_SECURE") || "false") ===
-    "true", // true for 465, false otherwise
+  host: readEnv("SMTP_HOST") || "smtp.gmail.com",
+  port: parseInt(readEnv("SMTP_PORT") || "587"),
+  secure: (readEnv("SMTP_SECURE") || "false") === "true", // true for 465, false otherwise
   auth: {
-    user: readEnv("VITE_SMTP_USER") || readEnv("SMTP_USER"), // SMTP username
-    pass: readEnv("VITE_SMTP_PASS") || readEnv("SMTP_PASS"), // SMTP password or app password
+    user: readEnv("SMTP_USER"), // SMTP username
+    pass: readEnv("SMTP_PASS"), // SMTP password or app password
   },
 });
 
 // Business contact information function (called at runtime)
 const getBusinessInfo = () => ({
   name: "Vortex PCs Ltd",
-  email:
-    (readEnv("VITE_BUSINESS_EMAIL") || readEnv("BUSINESS_EMAIL")) ??
-    "info@vortexpcs.com",
+  email: readEnv("BUSINESS_EMAIL") ?? "info@vortexpcs.com",
   phone: "01603 975440",
   address: "123 Tech Street, London, UK",
   website: "https://www.vortexpcs.com",
@@ -85,7 +81,7 @@ const getTransporter = () => {
     // Check if email is configured
     if (!emailConfig.auth.user || !emailConfig.auth.pass) {
       logger.warn(
-        "Email service not configured. Set VITE_SMTP_USER and VITE_SMTP_PASS environment variables."
+        "Email service not configured. Set SMTP_USER and SMTP_PASS environment variables."
       );
       return null;
     }

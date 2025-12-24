@@ -91,17 +91,13 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
   console.log("📧 Total Amount: £", orderData.totalAmount);
 
   // Try multiple environment variable naming conventions
-  const businessEmail =
-    process.env.VITE_BUSINESS_EMAIL ||
-    process.env.BUSINESS_EMAIL ||
-    "info@vortexpcs.com";
+  const businessEmail = process.env.BUSINESS_EMAIL || "info@vortexpcs.com";
 
-  const smtpHost = process.env.VITE_SMTP_HOST || process.env.SMTP_HOST;
-  const smtpUser = process.env.VITE_SMTP_USER || process.env.SMTP_USER;
-  const smtpPass = process.env.VITE_SMTP_PASS || process.env.SMTP_PASS;
-  const smtpPortStr =
-    process.env.VITE_SMTP_PORT || process.env.SMTP_PORT || "465";
-  const smtpSecureStr = process.env.VITE_SMTP_SECURE || process.env.SMTP_SECURE;
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpPortStr = process.env.SMTP_PORT || "465";
+  const smtpSecureStr = process.env.SMTP_SECURE;
   const smtpPort = parseInt(smtpPortStr, 10);
   const secure =
     typeof smtpSecureStr === "string"
@@ -110,24 +106,12 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
 
   console.log("📧 Environment Variables Check:");
   console.log(
-    "   SMTP Host (VITE_SMTP_HOST):",
-    process.env.VITE_SMTP_HOST ? "✓ Set" : "✗ Not Set"
-  );
-  console.log(
     "   SMTP Host (SMTP_HOST):",
     process.env.SMTP_HOST ? "✓ Set" : "✗ Not Set"
   );
   console.log(
-    "   SMTP User (VITE_SMTP_USER):",
-    process.env.VITE_SMTP_USER ? "✓ Set" : "✗ Not Set"
-  );
-  console.log(
     "   SMTP User (SMTP_USER):",
     process.env.SMTP_USER ? "✓ Set" : "✗ Not Set"
-  );
-  console.log(
-    "   SMTP Pass (VITE_SMTP_PASS):",
-    process.env.VITE_SMTP_PASS ? "✓ Set" : "✗ Not Set"
   );
   console.log(
     "   SMTP Pass (SMTP_PASS):",

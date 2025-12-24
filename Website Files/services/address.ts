@@ -1,8 +1,8 @@
 // Address lookup service with provider fallbacks
-// Primary: getaddress.io (requires VITE_GETADDRESS_IO_API_KEY)
+// ⚠️ SECURITY: All address lookups use secure backend proxy
+// Primary: Backend proxy (/api/address/find) → getaddress.io API
 // Fallback: api.postcodes.io (synthesised addresses for coverage only)
 
-import { GETADDRESS_IO_API_KEY } from "../config/address";
 import { logger } from "./logger";
 
 // Export a simple indicator so the UI can tell what provider actually served the data
@@ -14,64 +14,7 @@ export async function lookupAddresses(postcode: string): Promise<string[]> {
   if (!trimmed) return [];
   lastAddressError = "";
 
-  // TEMPORARY PRIORITY: try client getaddress.io FIRST if key exists
-  // Goal: deliver real addresses immediately while backend routing propagates
-  if (GETADDRESS_IO_API_KEY) {
-    if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
-      logger.debug("📫 Trying getaddress.io (client) first");
-    const url = `https://api.getaddress.io/find/${encodeURIComponent(
-      trimmed
-    )}?api-key=${encodeURIComponent(GETADDRESS_IO_API_KEY)}&expand=true`;
-    try {
-      const res = await fetch(url);
-      if (res.ok) {
-        const data: {
-          postcode?: string;
-          addresses?: Array<{
-            line_1?: string;
-            line_2?: string;
-            line_3?: string;
-            town_or_city?: string;
-            townOrCity?: string;
-            county?: string;
-          }>;
-        } = await res.json();
-        const addresses: string[] = (data.addresses || []).map((a) => {
-          const parts = [
-            a.line_1,
-            a.line_2,
-            a.line_3,
-            a.town_or_city || a.townOrCity,
-            a.county,
-            data.postcode || trimmed.toUpperCase(),
-          ].filter(Boolean);
-          return parts.join(", ").replace(/,\s*,/g, ", ").replace(/,\s*$/, "");
-        });
-        if (addresses.length > 0) {
-          lastAddressProvider = "getaddress.io (client)";
-          return addresses;
-        }
-      } else if (
-        import.meta.env.DEV ||
-        import.meta.env.VITE_DEBUG_ADDRESS === "1"
-      ) {
-        const text = await res.text().catch(() => "");
-        logger.warn(`getaddress.io responded ${res.status}: ${text}`);
-        lastAddressError = `client ${res.status} ${
-          text?.slice(0, 120) || ""
-        }`.trim();
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_ADDRESS === "1")
-        logger.warn("getaddress.io (client) failed, will try backend.", {
-          error: msg,
-        });
-      lastAddressError = `client error ${msg}`;
-    }
-    // If client fails or returns empty, continue to backend attempts below
-  }
-
+  // 🔒 SECURITY: Only use backend proxy - NEVER expose API keys client-side
   // 1) Try backend proxy first (works locally if vercel dev is running, and in production)
   const backendUrl =
     import.meta.env.VITE_BACKEND_BASE_URL ||

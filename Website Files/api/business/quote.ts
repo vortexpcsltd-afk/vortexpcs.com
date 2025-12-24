@@ -51,11 +51,11 @@ export default withSecureMethod(
       }
 
       // SMTP config
-      const smtpHost = process.env.VITE_SMTP_HOST;
-      const smtpPort = parseInt(process.env.VITE_SMTP_PORT || "465", 10);
-      const smtpSecure = (process.env.VITE_SMTP_SECURE || "true") === "true";
-      const smtpUser = process.env.VITE_SMTP_USER;
-      const smtpPass = process.env.VITE_SMTP_PASS;
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = parseInt(process.env.SMTP_PORT || "465", 10);
+      const smtpSecure = (process.env.SMTP_SECURE || "true") === "true";
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
       const businessEmail =
         process.env.VITE_BUSINESS_EMAIL || "info@vortexpcs.com";
 
@@ -72,7 +72,7 @@ export default withSecureMethod(
         return res.status(503).json({
           success: false,
           message:
-            "Email service not configured. Please set VITE_SMTP_HOST/USER/PASS.",
+            "Email service not configured. Please set SMTP_HOST/USER/PASS.",
         });
       }
 

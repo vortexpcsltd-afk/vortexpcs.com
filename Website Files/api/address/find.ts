@@ -9,7 +9,7 @@ import {
 import { captureException, addBreadcrumb } from "../services/sentry";
 
 // Serverless proxy to getaddress.io so we don't expose keys to the client
-// Reads GETADDRESS_IO_API_KEY (preferred) or VITE_GETADDRESS_IO_API_KEY from server env
+// 🔒 SECURITY: Reads GETADDRESS_IO_API_KEY from server env ONLY (no VITE_ prefix)
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const logger = createLogger(req);
@@ -77,9 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const key =
-      process.env.GETADDRESS_IO_API_KEY ||
-      process.env.VITE_GETADDRESS_IO_API_KEY;
+    const key = process.env.GETADDRESS_IO_API_KEY; // Server-only env var
 
     if (!key) {
       logger.warn("No getaddress.io API key configured");
