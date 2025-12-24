@@ -59,6 +59,29 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // Set CORS headers to allow requests from both www and non-www domains
+  const origin = req.headers.origin || "";
+  const allowedOrigins = [
+    "https://vortexpcs.com",
+    "https://www.vortexpcs.com",
+    "http://localhost:3000",
+    "http://localhost:5173",
+  ];
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  // Handle preflight OPTIONS request
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
   // Only allow POST requests
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });

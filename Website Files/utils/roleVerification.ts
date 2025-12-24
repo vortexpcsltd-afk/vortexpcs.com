@@ -36,7 +36,11 @@ export async function verifyUserRole(
       };
     }
 
-    const response = await fetch("/api/admin/verify-role", {
+    // Always use relative path for same-origin API calls to avoid CORS issues
+    // The /api routes are handled by Vercel on the same domain
+    const endpoint = "/api/admin/verify-role";
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
