@@ -33,10 +33,25 @@ import {
   Trash2,
   Printer,
 } from "lucide-react";
-import { useState, useEffect, memo, type ComponentType } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  type ComponentType,
+} from "react";
 import React from "react";
 import { ComponentErrorBoundary } from "./ErrorBoundary";
+import { CustomerProfile } from "./CustomerProfile";
 import { ProductionSheet } from "./ProductionSheet";
+import { InventoryManager } from "./InventoryManager";
+import { CampaignManager } from "./CampaignManager";
+import { DiscountCodeGenerator } from "./DiscountCodeGenerator";
+import { PromotionalBanners } from "./PromotionalBanners";
+import CompetitorTracking from "./CompetitorTracking";
+import { SearchAnalytics } from "./SearchAnalytics";
+import { RecommendationsTab } from "./RecommendationsTab";
+import { MFASetup } from "./MFASetup";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -61,18 +76,8 @@ import {
 } from "./ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-  PaginationEllipsis,
-} from "./ui/pagination";
-import {
   getAllOrders,
   getAllOrdersExtended,
-  getAllUsers,
   getDashboardStats,
   getAnalytics,
   updateBuildProgress,
@@ -87,12 +92,6 @@ import {
   type RefundRequest,
 } from "../services/database";
 import type { Order } from "../services/database";
-import {
-  fetchPCComponents,
-  fetchPCOptionalExtras,
-  type PCComponent,
-  type PCOptionalExtra,
-} from "../services/cms";
 import { useAuth } from "../contexts/AuthContext";
 import { updateUserProfile, resetPassword } from "../services/auth";
 import RichTextEditor from "./ui/RichTextEditor";
@@ -102,24 +101,9 @@ import { sendBulkEmail } from "../services/emailClient";
 import { MonitoringDashboard } from "./MonitoringDashboard";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { PerformanceDashboard } from "./admin/PerformanceDashboard";
+import { ReportBuilder } from "./ReportBuilder";
 import { toast } from "sonner";
 import { logger } from "../services/logger";
-
-// Helper function to get status color
-const getStatusColor = (status: string): string => {
-  switch (status) {
-    case "in-stock":
-      return "bg-green-500/20 border-green-500/40 text-green-400";
-    case "low-stock":
-      return "bg-yellow-500/20 border-yellow-500/40 text-yellow-400";
-    case "out-of-stock":
-      return "bg-red-500/20 border-red-500/40 text-red-400";
-    case "coming-soon":
-      return "bg-blue-500/20 border-blue-500/40 text-blue-400";
-    default:
-      return "bg-gray-500/20 border-gray-500/40 text-gray-400";
-  }
-};
 
 // Deduplicate orders by paymentId or orderId (prefers first occurrence)
 const dedupeOrders = (orders: Order[]): Order[] => {
@@ -305,156 +289,8 @@ const exportCsv = (filename: string, rows: Array<Record<string, unknown>>) => {
   }
 };
 
-// Helper function to get inventory status
-const getInventoryStatus = (product: PCComponent | PCOptionalExtra): string => {
-  const stockLevel = product.stockLevel ?? 0;
-  if (stockLevel === 0) return "out-of-stock";
-  if (stockLevel <= 5) return "low-stock";
-  return "in-stock";
-};
-
-// Memoized InventoryTableRow component to reduce re-renders
-interface InventoryTableRowProps {
-  product: PCComponent | PCOptionalExtra;
-  onEditInContentful: (product: PCComponent | PCOptionalExtra) => void;
-  onInventoryInfo: () => void;
-}
-
-const InventoryTableRow = memo(
-  ({
-    product,
-    onEditInContentful,
-    onInventoryInfo,
-  }: InventoryTableRowProps) => {
-    const status = getInventoryStatus(product);
-    const stockQty = product.stockLevel ?? "N/A";
-
-    return (
-      <TableRow key={product.id} className="border-white/10">
-        <TableCell className="text-white font-medium">
-          <div className="flex items-center space-x-3 min-w-[200px]">
-            {product.images && product.images[0] && (
-              <img
-                src={product.images[0]}
-                alt={product.name}
-                className="w-10 h-10 rounded object-cover flex-shrink-0"
-              />
-            )}
-            <span className="truncate">{product.name}</span>
-          </div>
-        </TableCell>
-        <TableCell className="text-white whitespace-nowrap">
-          <Badge className="bg-blue-500/20 border-blue-500/40 text-blue-400">
-            {product.category.charAt(0).toUpperCase() +
-              product.category.slice(1)}
-          </Badge>
-        </TableCell>
-        <TableCell className="text-gray-300 whitespace-nowrap">
-          {product.brand || "N/A"}
-        </TableCell>
-        <TableCell className="text-green-400 font-bold whitespace-nowrap">
-          £{product.price.toLocaleString()}
-        </TableCell>
-        <TableCell className="text-white font-semibold">
-          {typeof stockQty === "number" ? (
-            <span
-              className={
-                stockQty === 0
-                  ? "text-red-400"
-                  : stockQty <= 5
-                  ? "text-yellow-400"
-                  : "text-green-400"
-              }
-            >
-              {stockQty}
-            </span>
-          ) : (
-            <span className="text-gray-500">{stockQty}</span>
-          )}
-        </TableCell>
-        <TableCell className="text-gray-300 whitespace-nowrap">
-          {product.supplierName || <span className="text-gray-500">N/A</span>}
-        </TableCell>
-        <TableCell className="text-orange-400 font-semibold whitespace-nowrap">
-          {product.costPrice ? (
-            `£${product.costPrice.toLocaleString()}`
-          ) : (
-            <span className="text-gray-500">N/A</span>
-          )}
-        </TableCell>
-        <TableCell className="text-green-400 font-bold whitespace-nowrap">
-          {product.costPrice ? (
-            `£${(product.price - product.costPrice).toLocaleString()}`
-          ) : (
-            <span className="text-gray-500">N/A</span>
-          )}
-        </TableCell>
-        <TableCell className="font-semibold whitespace-nowrap">
-          {product.costPrice ? (
-            <span
-              className={
-                ((product.price - product.costPrice) / product.price) * 100 >=
-                20
-                  ? "text-green-400"
-                  : ((product.price - product.costPrice) / product.price) *
-                      100 >=
-                    10
-                  ? "text-yellow-400"
-                  : "text-red-400"
-              }
-            >
-              {(
-                ((product.price - product.costPrice) / product.price) *
-                100
-              ).toFixed(1)}
-              %
-            </span>
-          ) : (
-            <span className="text-gray-500">N/A</span>
-          )}
-        </TableCell>
-        <TableCell>
-          <Badge className={`${getStatusColor(status)} border`}>
-            {status.replace("-", " ")}
-          </Badge>
-        </TableCell>
-        <TableCell>
-          <div className="flex space-x-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onEditInContentful(product)}
-              className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10"
-              title="Edit in Contentful CMS"
-            >
-              <ExternalLink className="w-4 h-4 mr-1" />
-              Edit
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onInventoryInfo}
-              className="border-white/20 text-white hover:bg-white/10"
-              title="Learn about inventory management"
-            >
-              <AlertTriangle className="w-4 h-4" />
-            </Button>
-          </div>
-        </TableCell>
-      </TableRow>
-    );
-  },
-  (prev, next) =>
-    // Only re-render if product data changed
-    prev.product.id === next.product.id &&
-    prev.product.price === next.product.price &&
-    prev.product.stockLevel === next.product.stockLevel &&
-    prev.product.name === next.product.name &&
-    prev.product.costPrice === next.product.costPrice
-);
-
 export function AdminPanel() {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, loading: authLoading } = useAuth();
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -501,9 +337,33 @@ export function AdminPanel() {
     };
   }, [showPaymentSettingsModal]);
   const [loading, setLoading] = useState(true);
-  const [inventoryLoading, setInventoryLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("dashboard");
+  useEffect(() => {
+    const syncFromHash = () => {
+      const hash = window.location.hash.replace(/^#/, "");
+      const valid = new Set([
+        "dashboard",
+        "orders",
+        "inventory",
+        "customers",
+        "support",
+        "analytics",
+        "recommendations",
+        "reports",
+        "monitoring",
+        "performance",
+        "security",
+        "content",
+        "email",
+      ]);
+      if (valid.has(hash)) setActiveTab(hash);
+    };
+    // Initialize from current hash
+    syncFromHash();
+    // React on future hash changes
+    window.addEventListener("hashchange", syncFromHash);
+    return () => window.removeEventListener("hashchange", syncFromHash);
+  }, []);
   // Create Business Account modal state
   const [showCreateBusiness, setShowCreateBusiness] = useState(false);
   const [cbCompanyName, setCbCompanyName] = useState("");
@@ -530,13 +390,14 @@ export function AdminPanel() {
 
   // Real data states
   const [dashboardStats, setDashboardStats] = useState({
-    orders: { total: 0, change: "+0%", trend: "up" as const },
-    revenue: { total: 0, change: "+0%", trend: "up" as const },
-    customers: { total: 0, change: "+0%", trend: "up" as const },
-    builds: { total: 0, change: "+0%", trend: "up" as const },
+    orders: { total: 0, change: "+0%", trend: "up" as "up" | "down" },
+    revenue: { total: 0, change: "+0%", trend: "up" as "up" | "down" },
+    customers: { total: 0, change: "+0%", trend: "up" as "up" | "down" },
+    builds: { total: 0, change: "+0%", trend: "up" as "up" | "down" },
   });
   const [totalProducts, setTotalProducts] = useState(0);
   const [monthlyVisitors, setMonthlyVisitors] = useState(0);
+  const [monthlyPageViews, setMonthlyPageViews] = useState(0);
   const [newCustomersThisMonth, setNewCustomersThisMonth] = useState(0);
   const [newMembersThisMonth, setNewMembersThisMonth] = useState(0);
   const [newBusinessesThisMonth, setNewBusinessesThisMonth] = useState(0);
@@ -544,6 +405,12 @@ export function AdminPanel() {
   const [newMembersThisYear, setNewMembersThisYear] = useState(0);
   const [newBusinessesThisYear, setNewBusinessesThisYear] = useState(0);
   const [currentMonth, setCurrentMonth] = useState("");
+  const [pwaStats, setPwaStats] = useState({
+    installs: 0,
+    dismissals: 0,
+    promptShown: 0,
+    installRate: 0,
+  });
   const [securityIssues, setSecurityIssues] = useState<
     Array<{ id: string; type: string; timestamp: Date; description: string }>
   >([]);
@@ -551,7 +418,7 @@ export function AdminPanel() {
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [lastOrdersRefresh, setLastOrdersRefresh] = useState<Date | null>(null); // displayed in Orders header
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState<boolean>(false); // toggles 60s polling
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState<boolean>(false); // toggles 60s polling - DISABLED by default to reduce API usage
   const [ordersRefreshing, setOrdersRefreshing] = useState(false);
   type CustomerRow = {
     id: string;
@@ -565,9 +432,7 @@ export function AdminPanel() {
     companyName?: string;
   };
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
-  const [inventory, setInventory] = useState<(PCComponent | PCOptionalExtra)[]>(
-    []
-  );
+  const customersLoadedRef = useRef(false);
   // Helper: legacy vs primary counts (legacy flagged during normalization)
   const getOrderCounts = () => {
     let legacy = 0;
@@ -613,8 +478,6 @@ export function AdminPanel() {
       builds: { ...prev.builds, total: activeBuilds },
     }));
   }, [allOrders]);
-  const [inventoryPage, setInventoryPage] = useState(1);
-  const [inventoryItemsPerPage, setInventoryItemsPerPage] = useState(25);
   const [analyticsData, setAnalyticsData] = useState({
     totalPageViews: 0,
     totalVisitors: 0,
@@ -730,13 +593,37 @@ export function AdminPanel() {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (!user) return;
+      // Skip if auth is still loading or no user
+      if (authLoading || !user) {
+        logger.debug("Skipping IP blocks load - auth loading or no user");
+        return;
+      }
       setLoadingBlockedIps(true);
       try {
-        const tokenSource = user as unknown as HasToken;
-        const idToken = tokenSource.getIdToken
-          ? await tokenSource.getIdToken()
-          : "";
+        // Get the ID token from Firebase auth instead of user object
+        let idToken = "";
+        try {
+          const { auth } = await import("../config/firebase");
+          const currentUser = auth?.currentUser;
+          if (currentUser && typeof currentUser.getIdToken === "function") {
+            idToken = await currentUser.getIdToken();
+          } else {
+            logger.warn("Firebase auth not available or no current user");
+          }
+        } catch (tokenError) {
+          logger.error("Failed to get ID token:", tokenError);
+        }
+
+        if (!idToken) {
+          logger.warn("No ID token available for IP blocks request");
+          if (!cancelled) {
+            // Don't show error toast - IP blocks are optional
+            logger.debug("Skipping IP blocks load - no auth token");
+            setLoadingBlockedIps(false);
+          }
+          return;
+        }
+
         const { listIpBlocks } = await import("../services/security");
         const resp = await listIpBlocks(idToken, {
           includeUnblocked: showUnblocked,
@@ -761,8 +648,11 @@ export function AdminPanel() {
         setIpBlocksCount(resp.count);
         setIpBlocksHasNext(resp.hasNext);
         setIpBlocksHasPrev(resp.hasPrev);
-      } catch {
-        if (!cancelled) toast.error("Failed to load IP blocks");
+      } catch (error) {
+        if (!cancelled) {
+          logger.error("Error loading IP blocks:", error);
+          toast.error("Failed to load IP blocks");
+        }
       } finally {
         if (!cancelled) setLoadingBlockedIps(false);
       }
@@ -771,7 +661,14 @@ export function AdminPanel() {
     return () => {
       cancelled = true;
     };
-  }, [user, showUnblocked, ipBlocksPage, ipBlocksLimit, ipBlocksSearch]);
+  }, [
+    authLoading,
+    user,
+    showUnblocked,
+    ipBlocksPage,
+    ipBlocksLimit,
+    ipBlocksSearch,
+  ]);
 
   // Customer details/editor modal state
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -789,6 +686,9 @@ export function AdminPanel() {
     (CustomerRow & { accountNumber?: string | null }) | null
   >(null);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [crmProfileCustomerId, setCrmProfileCustomerId] = useState<
+    string | null
+  >(null);
 
   // Handle attachment uploads (sequential to keep it simple)
   const handleTicketAttachmentUpload = async (
@@ -896,36 +796,129 @@ export function AdminPanel() {
     }
   };
 
-  // Load inventory function - extracted for reusability
-  const loadInventory = async () => {
+  // Extracted customer loading function
+  const loadCustomers = useCallback(async () => {
+    setLoading(true);
     try {
-      setInventoryLoading(true);
-      logger.debug("Admin Panel - Loading inventory from Contentful");
+      logger.debug("Loading customers");
+      const orders = normalizeOrders(await getAllOrders(1000));
+      logger.debug("Orders fetched", { count: orders.length });
 
-      // Fetch all components and optional extras from Contentful
-      const [components, optionalExtras] = await Promise.all([
-        fetchPCComponents(),
-        fetchPCOptionalExtras(),
-      ]);
+      // Get auth token
+      let authToken = "";
+      try {
+        const { auth } = await import("../config/firebase");
+        const currentUser = auth?.currentUser;
+        if (currentUser && typeof currentUser.getIdToken === "function") {
+          authToken = await currentUser.getIdToken(true);
+        }
+      } catch (tokenError) {
+        logger.debug("Could not get auth token for customer refresh", {
+          error: tokenError,
+        });
+      }
 
-      // Combine both arrays
-      const allProducts = [...components, ...optionalExtras];
-      setInventory(allProducts);
-      setTotalProducts(allProducts.length);
-      logger.debug("Admin Panel - Inventory loaded", {
-        components: components.length,
-        optionalExtras: optionalExtras.length,
-        total: allProducts.length,
+      // Fetch users from API
+      const usersResponse = await fetch("/api/admin/users/list", {
+        headers: authToken
+          ? {
+              Authorization: `Bearer ${authToken}`,
+            }
+          : {},
+      });
+
+      if (!usersResponse.ok) {
+        let detail = "";
+        try {
+          detail = await usersResponse.text();
+        } catch (readErr) {
+          logger.debug("Failed to read error response body", {
+            error: readErr,
+          });
+        }
+        throw new Error(
+          `Failed to fetch users (${usersResponse.status}): ${
+            detail || "Unknown error"
+          }`
+        );
+      }
+
+      const usersData = await usersResponse.json();
+      const users = usersData.data || [];
+
+      logger.debug("Users fetched", { count: users.length });
+
+      if (!users || users.length === 0) {
+        logger.warn("No users returned from API");
+        setCustomers([]);
+        return;
+      }
+
+      const customersWithStats: CustomerRow[] = users
+        .filter(
+          (
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            user: any
+          ): user is RawUserRecord & { id: string } => !!user.id
+        )
+        .map((user: RawUserRecord & { id: string }) => {
+          const userOrders = orders.filter((order) => order.userId === user.id);
+          const totalSpent = userOrders.reduce(
+            (sum, order) => sum + order.total,
+            0
+          );
+
+          logger.debug("User summary", {
+            email: user.email,
+            id: user.id,
+            orders: userOrders.length,
+            spent: totalSpent,
+            createdAt: user.createdAt,
+          });
+
+          return {
+            id: user.id,
+            name: user.displayName || user.email?.split("@")[0] || "Unknown",
+            email: user.email || "",
+            orders: userOrders.length,
+            spent: totalSpent,
+            joined: (user.createdAt as Date) || null,
+            role: (user?.role ? String(user.role) : "user").toLowerCase(),
+            accountType: (user?.accountType as string) || "general",
+            companyName: (user?.companyName as string) || undefined,
+          };
+        });
+
+      setCustomers(customersWithStats);
+      logger.debug("Customers loaded", {
+        count: customersWithStats.length,
+        customers: customersWithStats,
       });
     } catch (error) {
-      logger.error("Admin Panel - Error loading inventory", { error });
+      logger.error("Error loading customers", { error });
+      alert(
+        `Failed to load customers: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     } finally {
-      setInventoryLoading(false);
+      setLoading(false);
     }
-  };
+  }, []);
 
   // Load admin data on component mount
   useEffect(() => {
+    // Skip if auth is still loading or no user present
+    if (authLoading) {
+      logger.debug("Auth still loading, deferring admin data load");
+      return;
+    }
+
+    if (!user) {
+      logger.debug("No user present, skipping admin data load");
+      return;
+    }
+
     const loadAdminData = async () => {
       try {
         setLoading(true);
@@ -1001,8 +994,69 @@ export function AdminPanel() {
           count: sorted.length,
         });
 
-        // Load all users
-        const users = await getAllUsers();
+        // Load all users from API (uses Firebase Admin SDK server-side)
+        let users: RawUserRecord[] = [];
+        try {
+          let authToken = "";
+          try {
+            const { auth } = await import("../config/firebase");
+            const currentUser = auth?.currentUser;
+            if (currentUser && typeof currentUser.getIdToken === "function") {
+              // Force refresh to ensure latest custom claims are included
+              authToken = await currentUser.getIdToken(true);
+            }
+          } catch (tokenError) {
+            logger.debug("Could not get auth token for users list", {
+              error: tokenError,
+            });
+          }
+
+          const usersResponse = await fetch("/api/admin/users/list", {
+            headers: authToken
+              ? {
+                  Authorization: `Bearer ${authToken}`,
+                }
+              : {},
+          });
+
+          if (usersResponse.ok) {
+            const usersData = await usersResponse.json();
+            users = usersData.data || [];
+            logger.debug("Users loaded from API", { count: users.length });
+            // If empty but we appear to be admin, retry once with a forced token refresh
+            if (users.length === 0 && isAdmin) {
+              try {
+                const currentUser = (await import("../config/firebase")).auth
+                  ?.currentUser;
+                const freshToken = await currentUser?.getIdToken?.(true);
+                const retryResp = await fetch("/api/admin/users/list", {
+                  headers: freshToken
+                    ? { Authorization: `Bearer ${freshToken}` }
+                    : {},
+                });
+                if (retryResp.ok) {
+                  const retryData = await retryResp.json();
+                  users = retryData.data || [];
+                  logger.debug("Users loaded after token refresh", {
+                    count: users.length,
+                  });
+                }
+              } catch (retryErr) {
+                logger.debug("Retry after token refresh failed", {
+                  error: retryErr,
+                });
+              }
+            }
+          } else {
+            logger.warn("Users API request failed", {
+              status: usersResponse.status,
+            });
+            users = [];
+          }
+        } catch (usersError) {
+          logger.debug("Failed to load users from API", { error: usersError });
+          users = [];
+        }
         logger.debug("Raw users from database", { users });
 
         // Calculate customer stats from users and orders
@@ -1043,7 +1097,7 @@ export function AdminPanel() {
         const now = new Date();
         const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
-        const monthName = now.toLocaleDateString("en-US", { month: "long" });
+        const monthName = now.toLocaleDateString("en-GB", { month: "long" });
         setCurrentMonth(monthName);
 
         const newCustomers = customersWithStats.filter((customer) => {
@@ -1089,6 +1143,78 @@ export function AdminPanel() {
           newMembers,
           newBusinesses,
         });
+
+        // Load inventory count from Contentful
+        try {
+          // Import at runtime to get fresh environment variables
+          const { isContentfulEnabled } = await import("../config/contentful");
+          logger.debug("🔌 Contentful enabled check", {
+            enabled: isContentfulEnabled,
+          });
+
+          if (!isContentfulEnabled) {
+            logger.warn(
+              "⚠️ Contentful not enabled at runtime. Falling back to 0 products."
+            );
+            setTotalProducts(0);
+            logger.debug(
+              "Admin Panel - Contentful disabled, setting products to 0"
+            );
+          } else {
+            const { fetchPCComponents, fetchPCOptionalExtras } = await import(
+              "../services/cms"
+            );
+
+            let components = [];
+            let extras = [];
+
+            try {
+              logger.debug("🔄 Fetching PC components for dashboard...");
+              components = await fetchPCComponents();
+              logger.debug("✅ PC components fetched", {
+                count: components.length,
+              });
+              logger.debug("Admin Panel - PC components fetched", {
+                count: components.length,
+              });
+            } catch (compError) {
+              logger.error("❌ Error fetching PC components:", compError);
+              logger.warn("Admin Panel - Error fetching PC components", {
+                error: compError,
+              });
+            }
+
+            try {
+              logger.debug("🔄 Fetching optional extras for dashboard...");
+              extras = await fetchPCOptionalExtras();
+              logger.debug("✅ Optional extras fetched", {
+                count: extras.length,
+              });
+              logger.debug("Admin Panel - Optional extras fetched", {
+                count: extras.length,
+              });
+            } catch (extrasError) {
+              logger.error("❌ Error fetching optional extras:", extrasError);
+              logger.warn("Admin Panel - Error fetching optional extras", {
+                error: extrasError,
+              });
+            }
+
+            const totalCount = components.length + extras.length;
+            logger.debug("📊 Total products for dashboard", {
+              total: totalCount,
+            });
+            setTotalProducts(totalCount);
+            logger.debug("Admin Panel - Inventory loaded", {
+              components: components.length,
+              extras: extras.length,
+              total: totalCount,
+            });
+          }
+        } catch (error) {
+          logger.error("Admin Panel - Error loading inventory", { error });
+          setTotalProducts(0);
+        }
       } catch (error) {
         logger.error("Admin Panel - Error loading data", { error });
       } finally {
@@ -1102,24 +1228,198 @@ export function AdminPanel() {
         const analytics = await getAnalytics(30); // Last 30 days
         setAnalyticsData(analytics);
 
-        // Calculate monthly visitors (page views this month)
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
-        let monthlyCount = 0;
-
-        Object.entries(analytics.viewsByDay).forEach(([date, count]) => {
-          const d = new Date(date);
-          if (
-            d.getMonth() === currentMonth &&
-            d.getFullYear() === currentYear
-          ) {
-            monthlyCount += count;
+        // Fetch monthly visitors from the proper API endpoint
+        try {
+          logger.debug("📊 [AdminPanel] Loading monthly visitor stats...");
+          let authToken = "";
+          try {
+            const { auth } = await import("../config/firebase");
+            const currentUser = auth?.currentUser;
+            if (currentUser && typeof currentUser.getIdToken === "function") {
+              authToken = await currentUser.getIdToken(true); // Force refresh
+              logger.debug(
+                "🔑 [AdminPanel] Auth token obtained for visitor stats"
+              );
+            } else {
+              logger.warn("⚠️ [AdminPanel] No current user for auth token");
+            }
+          } catch (tokenError) {
+            logger.error("❌ [AdminPanel] Error getting auth token", {
+              error: tokenError,
+            });
           }
-        });
 
-        setMonthlyVisitors(monthlyCount);
-        logger.debug("Analytics loaded", { analytics, monthlyCount });
+          try {
+            // Calculate days in current month for accurate period
+            const now = new Date();
+            const daysInMonth = new Date(
+              now.getFullYear(),
+              now.getMonth() + 1,
+              0
+            ).getDate();
+
+            const visitorsResponse = await fetch(
+              `/api/admin/analytics/visitors?period=${daysInMonth}`,
+              {
+                headers: authToken
+                  ? {
+                      Authorization: `Bearer ${authToken}`,
+                    }
+                  : {},
+              }
+            );
+
+            logger.debug("📊 [AdminPanel] Visitors API response status", {
+              status: visitorsResponse.status,
+              ok: visitorsResponse.ok,
+            });
+
+            if (visitorsResponse.ok) {
+              const visitorsData = await visitorsResponse.json();
+              logger.debug("📊 [AdminPanel] Visitors API response data", {
+                visitorsData,
+              });
+
+              const monthlyVisitors = visitorsData.data?.summary?.monthly || 0;
+              const monthlyPageViews =
+                visitorsData.data?.summary?.totalPageViews || 0;
+
+              setMonthlyVisitors(monthlyVisitors);
+              setMonthlyPageViews(monthlyPageViews);
+
+              logger.success("✅ [AdminPanel] Monthly visitors loaded", {
+                visitors: monthlyVisitors,
+                pageViews: monthlyPageViews,
+                period: daysInMonth,
+              });
+            } else {
+              const errorText = await visitorsResponse.text();
+              logger.error("❌ [AdminPanel] Visitors API failed", {
+                status: visitorsResponse.status,
+                error: errorText,
+              });
+              setMonthlyVisitors(0);
+              setMonthlyPageViews(0);
+            }
+          } catch (visitorError) {
+            logger.error("❌ [AdminPanel] Failed to load visitor stats", {
+              error: visitorError,
+            });
+            setMonthlyVisitors(0);
+            setMonthlyPageViews(0);
+          }
+        } catch (outerError) {
+          logger.error("❌ [AdminPanel] Outer error in visitor stats", {
+            error: outerError,
+          });
+          setMonthlyVisitors(0);
+          setMonthlyPageViews(0);
+        }
+
+        // Keep old logic commented out for reference
+        // const now = new Date();
+        // const currentMonth = now.getMonth();
+        // const currentYear = now.getFullYear();
+        // let monthlyCount = 0;
+        // Object.entries(analytics.viewsByDay).forEach(([date, count]) => {
+        //   ... old complex parsing logic ...
+        // });
+        logger.debug("Analytics loaded", { analytics });
+
+        // Fetch PWA installation statistics
+        try {
+          logger.debug("📲 [AdminPanel] Loading PWA installation stats...");
+          let authToken = "";
+          try {
+            const { auth } = await import("../config/firebase");
+            const currentUser = auth?.currentUser;
+            if (currentUser && typeof currentUser.getIdToken === "function") {
+              authToken = await currentUser.getIdToken(true); // Force refresh
+              logger.debug("🔑 [AdminPanel] Auth token obtained for PWA stats");
+            } else {
+              logger.warn("⚠️ [AdminPanel] No current user for PWA stats");
+            }
+          } catch (tokenError) {
+            logger.error("❌ [AdminPanel] Error getting auth token for PWA", {
+              error: tokenError,
+            });
+          }
+
+          try {
+            const pwaResponse = await fetch("/api/analytics/pwa-stats", {
+              headers: authToken
+                ? {
+                    Authorization: `Bearer ${authToken}`,
+                  }
+                : {},
+            });
+
+            logger.debug("📲 [AdminPanel] PWA API response status", {
+              status: pwaResponse.status,
+              ok: pwaResponse.ok,
+            });
+
+            if (pwaResponse.ok) {
+              const pwaData = await pwaResponse.json();
+              logger.debug("📲 [AdminPanel] PWA API response data", {
+                pwaData,
+              });
+
+              const installs = pwaData.data?.installs || pwaData.installs || 0;
+              const dismissals =
+                pwaData.data?.dismissals || pwaData.dismissals || 0;
+              const promptShown = installs + dismissals;
+              const installRate =
+                promptShown > 0 ? (installs / promptShown) * 100 : 0;
+
+              setPwaStats({
+                installs,
+                dismissals,
+                promptShown,
+                installRate: Math.round(installRate),
+              });
+
+              logger.success("✅ [AdminPanel] PWA stats loaded", {
+                installs,
+                dismissals,
+                promptShown,
+                installRate: Math.round(installRate),
+              });
+            } else {
+              const errorText = await pwaResponse.text();
+              logger.error("❌ [AdminPanel] PWA API failed", {
+                status: pwaResponse.status,
+                error: errorText,
+              });
+              setPwaStats({
+                installs: 0,
+                dismissals: 0,
+                promptShown: 0,
+                installRate: 0,
+              });
+            }
+          } catch (pwaError) {
+            logger.error("❌ [AdminPanel] Failed to load PWA stats", {
+              error: pwaError,
+            });
+            setPwaStats({
+              installs: 0,
+              dismissals: 0,
+              promptShown: 0,
+              installRate: 0,
+            });
+          }
+        } catch (outerError) {
+          logger.error("❌ [AdminPanel] Outer error in PWA stats", {
+            error: outerError,
+          });
+          setPwaStats({
+            installs: 0,
+            dismissals: 0,
+            promptShown: 0,
+            installRate: 0,
+          });
+        }
       } catch (error) {
         logger.error("Admin Panel - Error loading analytics", { error });
       }
@@ -1189,7 +1489,6 @@ export function AdminPanel() {
         /* ignore cache errors */
       }
       loadAdminData();
-      loadInventory();
       loadAnalytics();
       loadTicketsAndRefunds();
 
@@ -1251,7 +1550,21 @@ export function AdminPanel() {
       logger.warn("Non-admin user: skipping admin data loads.");
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, authLoading, user]);
+
+  // Load customers when tab becomes active
+  useEffect(() => {
+    if (
+      activeTab === "customers" &&
+      !customersLoadedRef.current &&
+      isAdmin &&
+      !authLoading &&
+      user
+    ) {
+      customersLoadedRef.current = true;
+      loadCustomers();
+    }
+  }, [activeTab, isAdmin, authLoading, user, loadCustomers]);
 
   // Auto refresh polling
   useEffect(() => {
@@ -1302,64 +1615,6 @@ export function AdminPanel() {
     }, 60000); // 60s
     return () => clearInterval(interval);
   }, [autoRefreshEnabled, isAdmin]);
-
-  // Get filtered inventory based on selected category
-  const getFilteredInventory = () => {
-    if (selectedCategory === "all") {
-      return inventory;
-    }
-    return inventory.filter((item) => item.category === selectedCategory);
-  };
-
-  // Get paginated inventory
-  const getPaginatedInventory = () => {
-    const filtered = getFilteredInventory();
-    const startIndex = (inventoryPage - 1) * inventoryItemsPerPage;
-    const endIndex = startIndex + inventoryItemsPerPage;
-    return filtered.slice(startIndex, endIndex);
-  };
-
-  // Calculate total pages for inventory
-  const getTotalInventoryPages = () => {
-    const filtered = getFilteredInventory();
-    return Math.ceil(filtered.length / inventoryItemsPerPage);
-  };
-
-  // Reset to page 1 when category changes
-  useEffect(() => {
-    setInventoryPage(1);
-  }, [selectedCategory]);
-
-  // Get unique categories from inventory
-  const getCategories = () => {
-    const categories = new Set(inventory.map((item) => item.category));
-    return Array.from(categories).sort();
-  };
-
-  // Handle editing inventory in Contentful
-  const handleEditInContentful = (product: PCComponent | PCOptionalExtra) => {
-    // Open Contentful web app to edit the product
-    const contentfulSpaceId = import.meta.env.VITE_CONTENTFUL_SPACE_ID;
-    if (contentfulSpaceId) {
-      const contentfulUrl = `https://app.contentful.com/spaces/${contentfulSpaceId}/entries/${product.id}`;
-      window.open(contentfulUrl, "_blank");
-    } else {
-      alert(
-        "Contentful is not configured. Please set up your environment variables."
-      );
-    }
-  };
-
-  // Show info about inventory management
-  const handleInventoryInfo = () => {
-    alert(
-      "Inventory Management Info:\n\n" +
-        "• Products are managed in Contentful CMS\n" +
-        '• Click "Edit in Contentful" to modify products\n' +
-        "• Changes sync automatically within minutes\n" +
-        "• To add new products, use Contentful's interface"
-    );
-  };
 
   // Handle opening build progress modal
   const handleOpenBuildProgress = (order: Order) => {
@@ -1450,6 +1705,35 @@ export function AdminPanel() {
     }
   };
 
+  // Delete selected security alert
+  const handleDeleteSecurityAlert = async () => {
+    if (!selectedSecurityAlert) {
+      toast.error("No alert selected");
+      return;
+    }
+
+    try {
+      const { db } = await import("../config/firebase");
+      if (!db) {
+        toast.error("Database unavailable");
+        return;
+      }
+
+      const { doc, deleteDoc } = await import("firebase/firestore");
+
+      await deleteDoc(doc(db, "security_events", selectedSecurityAlert.id));
+
+      // Remove from local state
+      setSecurityIssues((prev) =>
+        prev.filter((issue) => issue.id !== selectedSecurityAlert.id)
+      );
+      toast.success("Security alert deleted");
+      setShowSecurityAlertModal(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete alert");
+    }
+  };
+
   // Report selected security alert via email
   const handleReportSecurityAlert = async () => {
     if (!selectedSecurityAlert) {
@@ -1515,9 +1799,26 @@ export function AdminPanel() {
       toast.success("Security alert reported via email");
       setShowSecurityAlertModal(false);
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Failed to send alert email"
-      );
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.error("Security alert report failed:", e);
+
+      // Provide more helpful error messages
+      if (
+        errorMsg.includes("503") ||
+        errorMsg.includes("SERVICE_UNAVAILABLE")
+      ) {
+        toast.error(
+          "Email service not configured. Please check SMTP settings."
+        );
+      } else if (errorMsg.includes("401") || errorMsg.includes("403")) {
+        toast.error("Authentication failed. Please re-login and try again.");
+      } else if (errorMsg.includes("500") || errorMsg.includes("502")) {
+        toast.error(
+          "Email delivery failed. Please try again or contact support."
+        );
+      } else {
+        toast.error(errorMsg || "Failed to send alert email");
+      }
     } finally {
       setSecurityAlertReportLoading(false);
     }
@@ -1616,7 +1917,7 @@ export function AdminPanel() {
     <ComponentErrorBoundary componentName="AdminPanel">
       <div className="min-h-screen py-12 sm:py-16 md:py-20">
         <div className="container mx-auto px-3 sm:px-4 md:px-6">
-          <div className="max-w-[1380px] mx-auto">
+          <div className="max-w-[1480px] mx-auto">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
               <div className="flex items-center space-x-3 sm:space-x-4">
@@ -1702,155 +2003,111 @@ export function AdminPanel() {
                 <Button
                   variant="premium"
                   size="default"
-                  onClick={() => {
-                    try {
-                      if (activeTab === "customers") {
-                        exportCsv(
-                          "customers.csv",
-                          customers.map((c) => ({
-                            id: c.id,
-                            name: c.name,
-                            email: c.email,
-                            orders: c.orders,
-                            spent: c.spent,
-                            joined: c.joined
-                              ? new Date(c.joined).toISOString()
-                              : "",
-                            accountType: c.accountType || "",
-                            companyName: c.companyName || "",
-                            role: c.role,
-                          }))
-                        );
-                      } else if (activeTab === "orders") {
-                        exportCsv(
-                          "orders.csv",
-                          allOrders.map((o) => ({
-                            orderId: o.orderId,
-                            customerName: o.customerName,
-                            customerEmail: o.customerEmail,
-                            product:
-                              o.items?.[0]?.productName || "Custom Build",
-                            status: o.status,
-                            total: o.total,
-                            progress: o.progress,
-                          }))
-                        );
-                      } else if (activeTab === "support") {
-                        exportCsv(
-                          "support-tickets.csv",
-                          supportTickets.map((t) => ({
-                            id: t.id,
-                            subject: t.subject,
-                            email: t.email,
-                            type: t.type,
-                            priority: t.priority,
-                            status: t.status,
-                            createdAt: t.createdAt
-                              ? new Date(
-                                  t.createdAt as unknown as string
-                                ).toISOString()
-                              : "",
-                          }))
-                        );
-                      } else {
-                        exportCsv("dashboard-summary.csv", [
-                          {
-                            totalOrders: dashboardStats.orders.total,
-                            totalRevenue: dashboardStats.revenue.total,
-                            totalCustomers: dashboardStats.customers.total,
-                            totalBuilds: dashboardStats.builds.total,
-                          },
-                        ]);
-                      }
-                    } catch (e) {
-                      toast.error(
-                        e instanceof Error
-                          ? e.message
-                          : "Failed to export report"
-                      );
-                    }
-                  }}
+                  onClick={() => setActiveTab("search")}
                 >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Report
+                  <Search className="w-4 h-4 mr-2" />
+                  Search Analytics
                 </Button>
               </div>
             </div>
 
             <Tabs
               value={activeTab}
-              onValueChange={setActiveTab}
+              onValueChange={(val) => {
+                setActiveTab(val);
+                // keep hash in sync with selected tab for deep-linking
+                const hash = `#${val}`;
+                if (window.location.hash !== hash) window.location.hash = hash;
+              }}
               className="space-y-4 sm:space-y-6"
             >
-              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 pb-2 sm:pb-0">
-                <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-11 bg-white/5 border-white/10">
-                  <TabsTrigger
-                    value="dashboard"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Dashboard
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="orders"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Orders
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="inventory"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Inventory
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="customers"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Customers
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="support"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Support
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="analytics"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Analytics
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="monitoring"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Monitoring
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="performance"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Performance
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="security"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Security
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="content"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Content
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="email"
-                    className="data-[state=active]:bg-white/10 text-white text-xs sm:text-sm whitespace-nowrap px-3 sm:px-4"
-                  >
-                    Emails
-                  </TabsTrigger>
-                </TabsList>
+              {/* Scrollable horizontal tabs on mobile, wrapped on desktop */}
+              <div className="relative">
+                {/* Scroll hint shadow on mobile */}
+                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/80 to-transparent pointer-events-none z-10 md:hidden" />
+
+                <div className="overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20 -mx-3 sm:mx-0 px-3 sm:px-0">
+                  <TabsList className="inline-flex md:flex md:flex-wrap w-full md:w-auto items-center md:content-center md:justify-center gap-1.5 sm:gap-2 bg-black/60 backdrop-blur-xl border-b border-white/10 px-2 sm:px-3 md:px-6 lg:px-8 py-3 md:py-12 min-w-max md:min-w-0">
+                    <TabsTrigger
+                      value="dashboard"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Dashboard
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="orders"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Orders
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="inventory"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Inventory
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="customers"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Customers
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="support"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Support
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="analytics"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Analytics
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="recommendations"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Recommendations
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="reports"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Reports
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="monitoring"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Monitoring
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="performance"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Performance
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="security"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Security
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="content"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Content
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="email"
+                      className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-6 rounded-md border border-white/10 bg-white/5 text-[11px] sm:text-xs md:text-sm text-white hover:border-sky-500/30 data-[state=active]:border-sky-500/40 data-[state=active]:bg-sky-500/10 whitespace-nowrap"
+                    >
+                      Marketing
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
               </div>
 
               {/* Dashboard Tab */}
@@ -1864,7 +2121,8 @@ export function AdminPanel() {
                       Security Controls
                     </h3>
                     <p className="text-gray-400 mt-1">
-                      Manage blocked IP addresses from repeated failed logins.
+                      Manage security settings, multi-factor authentication, and
+                      IP access.
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -1875,10 +2133,28 @@ export function AdminPanel() {
                         if (!user) return;
                         setLoadingBlockedIps(true);
                         try {
-                          const tokenSource = user as unknown as HasToken;
-                          const idToken = tokenSource.getIdToken
-                            ? await tokenSource.getIdToken()
-                            : "";
+                          let idToken = "";
+                          try {
+                            const { auth } = await import("../config/firebase");
+                            const currentUser = auth?.currentUser;
+                            if (
+                              currentUser &&
+                              typeof currentUser.getIdToken === "function"
+                            ) {
+                              idToken = await currentUser.getIdToken();
+                            }
+                          } catch (tokenError) {
+                            logger.error("Failed to get ID token:", tokenError);
+                          }
+
+                          if (!idToken) {
+                            logger.debug(
+                              "Skipping IP blocks load - no auth token"
+                            );
+                            setLoadingBlockedIps(false);
+                            return;
+                          }
+
                           const { listIpBlocks } = await import(
                             "../services/security"
                           );
@@ -1927,22 +2203,40 @@ export function AdminPanel() {
                     </Button>
                   </div>
                 </div>
+
+                {/* MFA Setup Card */}
                 <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
-                  <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
-                    <h4 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Ban className="w-5 h-5 text-red-400" />
-                      Blocked IPs ({blockedIps.filter((i) => i.blocked).length})
+                  <h4 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
+                    <ShieldCheck className="w-5 h-5 text-sky-400" />
+                    Multi-Factor Authentication
+                  </h4>
+                  <p className="text-gray-400 mb-4">
+                    Add an extra layer of security to your admin account with
+                    MFA. Use an authenticator app or SMS to verify your
+                    identity.
+                  </p>
+                  <MFASetup />
+                </Card>
+
+                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
+                  <div className="flex flex-col gap-3 mb-4">
+                    <h4 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                      <Ban className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 flex-shrink-0" />
+                      <span className="truncate">
+                        Blocked IPs (
+                        {blockedIps.filter((i) => i.blocked).length})
+                      </span>
                     </h4>
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full">
                       <input
                         type="text"
                         placeholder="Search IP or email…"
-                        className="bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-sky-500/50"
+                        className="bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-sky-500/50 w-full sm:flex-1"
                         value={ipBlocksSearchInput}
                         onChange={(e) => setIpBlocksSearchInput(e.target.value)}
                       />
                       <select
-                        className="bg-black/40 border border-white/15 rounded px-2 py-2 text-sm text-white focus:outline-none focus:border-sky-500/50"
+                        className="bg-black/40 border border-white/15 rounded px-2 py-2 text-sm text-white focus:outline-none focus:border-sky-500/50 w-full sm:w-auto"
                         value={ipBlocksLimit}
                         onChange={(e) => {
                           setIpBlocksLimit(Number(e.target.value));
@@ -1962,10 +2256,33 @@ export function AdminPanel() {
                           if (!user) return;
                           setLoadingBlockedIps(true);
                           try {
-                            const tokenSource = user as unknown as HasToken;
-                            const idToken = tokenSource.getIdToken
-                              ? await tokenSource.getIdToken()
-                              : "";
+                            let idToken = "";
+                            try {
+                              const { auth } = await import(
+                                "../config/firebase"
+                              );
+                              const currentUser = auth?.currentUser;
+                              if (
+                                currentUser &&
+                                typeof currentUser.getIdToken === "function"
+                              ) {
+                                idToken = await currentUser.getIdToken();
+                              }
+                            } catch (tokenError) {
+                              logger.error(
+                                "Failed to get ID token:",
+                                tokenError
+                              );
+                            }
+
+                            if (!idToken) {
+                              logger.debug(
+                                "Skipping IP blocks load - no auth token"
+                              );
+                              setLoadingBlockedIps(false);
+                              return;
+                            }
+
                             const { listIpBlocks } = await import(
                               "../services/security"
                             );
@@ -2081,11 +2398,34 @@ export function AdminPanel() {
                                       onClick={async () => {
                                         if (!user) return;
                                         try {
-                                          const tokenSource =
-                                            user as unknown as HasToken;
-                                          const idToken = tokenSource.getIdToken
-                                            ? await tokenSource.getIdToken()
-                                            : "";
+                                          let idToken = "";
+                                          try {
+                                            const { auth } = await import(
+                                              "../config/firebase"
+                                            );
+                                            const currentUser =
+                                              auth?.currentUser;
+                                            if (
+                                              currentUser &&
+                                              typeof currentUser.getIdToken ===
+                                                "function"
+                                            ) {
+                                              idToken =
+                                                await currentUser.getIdToken();
+                                            }
+                                          } catch (tokenError) {
+                                            logger.error(
+                                              "Failed to get ID token:",
+                                              tokenError
+                                            );
+                                          }
+
+                                          if (!idToken) {
+                                            toast.error(
+                                              "Unable to unblock - authentication required"
+                                            );
+                                            return;
+                                          }
 
                                           const { unblockIp, listIpBlocks } =
                                             await import(
@@ -2230,7 +2570,7 @@ export function AdminPanel() {
                 </div>
 
                 {/* Additional Stats Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                   <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -2238,7 +2578,7 @@ export function AdminPanel() {
                           Total Products
                         </p>
                         <p className="text-3xl font-bold text-white mb-1">
-                          {totalProducts}
+                          {totalProducts > 0 ? totalProducts : "N/A"}
                         </p>
                         <p className="text-xs text-gray-400">
                           Listed in inventory
@@ -2251,22 +2591,83 @@ export function AdminPanel() {
                   </Card>
 
                   <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <p className="text-sm text-gray-400 mb-1">
+                        <p className="text-sm text-gray-400 mb-2">
                           Monthly Visitors
                         </p>
-                        <p className="text-3xl font-bold text-white mb-1">
-                          {monthlyVisitors.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          Page views this month
-                        </p>
+                        <div className="flex items-baseline gap-3">
+                          <div>
+                            <p className="text-3xl font-bold text-white">
+                              {monthlyVisitors.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-sky-400 mt-0.5">
+                              Visitors
+                            </p>
+                          </div>
+                          <div className="h-12 w-px bg-white/10"></div>
+                          <div>
+                            <p className="text-3xl font-bold text-white">
+                              {monthlyPageViews.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-sky-400 mt-0.5">
+                              Page Views
+                            </p>
+                          </div>
+                        </div>
                       </div>
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 flex items-center justify-center flex-shrink-0">
                         <TrendingUp className="w-6 h-6 text-white" />
                       </div>
                     </div>
+                    <p className="text-xs text-gray-400">
+                      Current month statistics
+                    </p>
+                  </Card>
+
+                  {/* PWA Install Statistics */}
+                  <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-400 mb-1">
+                          PWA Installs
+                        </p>
+                        <p className="text-3xl font-bold text-white mb-1">
+                          {pwaStats.installs}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {pwaStats.installRate}% install rate •{" "}
+                          {pwaStats.dismissals} dismissed
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+                        <Download className="w-6 h-6 text-white" />
+                      </div>
+                    </div>
+                    {pwaStats.promptShown > 0 && (
+                      <div className="mt-4 pt-4 border-t border-white/10">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-400">Accepted</span>
+                            <span className="text-green-400 font-medium">
+                              {pwaStats.installs}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-400">Dismissed</span>
+                            <span className="text-orange-400 font-medium">
+                              {pwaStats.dismissals}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-400">Total Shown</span>
+                            <span className="text-gray-300 font-medium">
+                              {pwaStats.promptShown}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </Card>
 
                   <Card
@@ -2294,7 +2695,7 @@ export function AdminPanel() {
                           {lastAdminLogin
                             ? `Since ${new Date(
                                 lastAdminLogin
-                              ).toLocaleDateString()}`
+                              ).toLocaleDateString("en-GB")}`
                             : "Since last login"}
                         </p>
                       </div>
@@ -2326,7 +2727,9 @@ export function AdminPanel() {
                                   {issue.description}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                  {new Date(issue.timestamp).toLocaleString()}
+                                  {new Date(issue.timestamp).toLocaleString(
+                                    "en-GB"
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -2421,7 +2824,7 @@ export function AdminPanel() {
                 {(refundRequests.length > 0 ||
                   supportTickets.filter((t) => t.status === "open").length >
                     0) && (
-                  <div className="grid md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     {refundRequests.length > 0 && (
                       <Card className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/30 backdrop-blur-xl p-6">
                         <div className="flex items-start space-x-4">
@@ -2519,13 +2922,13 @@ export function AdminPanel() {
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4">
                       {recentOrders.map((order) => (
                         <div
                           key={order.id}
-                          className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10"
+                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-white/5 rounded-lg border border-white/10 gap-3 sm:gap-0"
                         >
-                          <div className="flex items-center space-x-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 flex-1 min-w-0">
                             <div>
                               <div className="font-medium text-white">
                                 {order.customerName}
@@ -2567,15 +2970,15 @@ export function AdminPanel() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-4">
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-4 justify-between sm:justify-start">
                             <Badge
                               className={`${getStatusColor(
                                 order.status
-                              )} border`}
+                              )} border text-xs`}
                             >
                               {formatStatus(order.status)}
                             </Badge>
-                            <div className="text-right">
+                            <div className="text-right sm:text-left">
                               <div className="font-bold text-green-400">
                                 £{order.total.toLocaleString()}
                               </div>
@@ -2625,19 +3028,19 @@ export function AdminPanel() {
 
               {/* Orders Tab */}
               <TabsContent value="orders" className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-white">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">
                     Order Management
                   </h3>
-                  <div className="flex space-x-3">
-                    <div className="flex items-center space-x-2 w-full sm:w-auto">
-                      <Search className="w-4 h-4 text-gray-400" />
+                  <div className="flex flex-col sm:flex-row gap-2 sm:space-x-3 sm:gap-0 w-full sm:w-auto">
+                    <div className="flex items-center space-x-2 w-full sm:w-auto order-1 sm:order-none">
+                      <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       <Input
                         placeholder="Search orders..."
-                        className="bg-white/5 border-white/10 text-white w-full sm:w-64"
+                        className="bg-white/5 border-white/10 text-white w-full sm:w-64 text-sm h-9"
                       />
                     </div>
-                    <div className="hidden md:flex items-center gap-2 mr-2">
+                    <div className="flex items-center gap-2 order-2 sm:order-none overflow-x-auto pb-1 sm:pb-0">
                       {(() => {
                         const c = getOrderCounts();
                         return (
@@ -2752,8 +3155,12 @@ export function AdminPanel() {
                 </div>
 
                 <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <Table>
+                  {/* Mobile scroll hint */}
+                  <div className="lg:hidden px-4 py-2 bg-sky-500/10 border-b border-sky-500/20 text-xs text-sky-300 text-center">
+                    ← Scroll horizontally to view all columns →
+                  </div>
+                  <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+                    <Table className="min-w-[900px]">
                       <TableHeader>
                         <TableRow className="border-white/10">
                           <TableHead className="text-white">
@@ -2855,18 +3262,18 @@ export function AdminPanel() {
                               })()}
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-wrap gap-2">
+                              <div className="flex flex-wrap gap-1.5 sm:gap-2 min-w-[200px]">
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="border-white/20 text-white hover:bg-white/10"
+                                  className="border-white/20 text-white hover:bg-white/10 px-2 sm:px-3"
                                   title="View Details"
                                   onClick={() => {
                                     setSelectedOrder(order);
                                     setShowOrderModal(true);
                                   }}
                                 >
-                                  <Eye className="w-4 h-4" />
+                                  <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                 </Button>
                                 <Button
                                   size="sm"
@@ -3110,270 +3517,11 @@ export function AdminPanel() {
 
               {/* Inventory Tab */}
               <TabsContent value="inventory" className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-2xl font-bold text-white">
-                      Inventory Management
-                    </h3>
-                    <p className="text-gray-400 mt-1">
-                      {getFilteredInventory().length} items{" "}
-                      {selectedCategory !== "all" && `in ${selectedCategory}`} •{" "}
-                      {inventory.length} total across {getCategories().length}{" "}
-                      categories
-                    </p>
-                  </div>
-                  <div className="flex space-x-3">
-                    <Select
-                      value={selectedCategory}
-                      onValueChange={setSelectedCategory}
-                    >
-                      <SelectTrigger className="bg-white/5 border-white/10 text-white w-48">
-                        <SelectValue placeholder="Filter by category" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-white/10">
-                        <SelectItem value="all">All Categories</SelectItem>
-                        {getCategories().map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={() => {
-                        setInventoryLoading(true);
-                        loadInventory();
-                      }}
-                      variant="outline"
-                      className="border-white/20 text-white hover:bg-white/10"
-                      title="Refresh inventory"
-                      disabled={inventoryLoading}
-                    >
-                      <RefreshCw
-                        className={`w-4 h-4 ${
-                          inventoryLoading ? "animate-spin" : ""
-                        }`}
-                      />
-                    </Button>
-                    <Button
-                      onClick={handleInventoryInfo}
-                      variant="outline"
-                      className="border-white/20 text-white hover:bg-white/10"
-                      title="How to manage inventory"
-                    >
-                      <AlertTriangle className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        const contentfulSpaceId = import.meta.env
-                          .VITE_CONTENTFUL_SPACE_ID;
-                        if (contentfulSpaceId) {
-                          window.open(
-                            `https://app.contentful.com/spaces/${contentfulSpaceId}/entries`,
-                            "_blank"
-                          );
-                        } else {
-                          alert("Contentful is not configured.");
-                        }
-                      }}
-                      className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add in Contentful
-                    </Button>
-                  </div>
-                </div>
-
-                {inventoryLoading ? (
-                  <div className="text-center py-12">
-                    <Loader2 className="w-12 h-12 text-sky-400 animate-spin mx-auto mb-4" />
-                    <p className="text-gray-400">Loading inventory...</p>
-                  </div>
-                ) : getFilteredInventory().length === 0 ? (
-                  <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-12">
-                    <div className="text-center">
-                      <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                      <h3 className="text-xl font-bold text-white mb-2">
-                        No Inventory Items
-                      </h3>
-                      <p className="text-gray-400 mb-6">
-                        {selectedCategory === "all"
-                          ? "Connect Contentful CMS to populate inventory"
-                          : `No items in ${selectedCategory} category`}
-                      </p>
-                      {selectedCategory !== "all" && (
-                        <Button
-                          onClick={() => setSelectedCategory("all")}
-                          variant="outline"
-                          className="border-white/20 text-white hover:bg-white/10"
-                        >
-                          View All Categories
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                ) : (
-                  <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-white/10">
-                            <TableHead className="text-white">
-                              Product
-                            </TableHead>
-                            <TableHead className="text-white">
-                              Category
-                            </TableHead>
-                            <TableHead className="text-white">Brand</TableHead>
-                            <TableHead className="text-white">Price</TableHead>
-                            <TableHead className="text-white">
-                              Stock Qty
-                            </TableHead>
-                            <TableHead className="text-white">
-                              Supplier
-                            </TableHead>
-                            <TableHead className="text-white">
-                              Cost Price
-                            </TableHead>
-                            <TableHead className="text-white">Profit</TableHead>
-                            <TableHead className="text-white">Margin</TableHead>
-                            <TableHead className="text-white">Status</TableHead>
-                            <TableHead className="text-white">
-                              Actions
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {getPaginatedInventory().map((product) => (
-                            <InventoryTableRow
-                              key={product.id}
-                              product={product}
-                              onEditInContentful={handleEditInContentful}
-                              onInventoryInfo={handleInventoryInfo}
-                            />
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                    {/* Always show pagination footer */}
-                    <div className="border-t border-white/10 px-6 py-4">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-gray-400">
-                          Showing{" "}
-                          {(inventoryPage - 1) * inventoryItemsPerPage + 1} to{" "}
-                          {Math.min(
-                            inventoryPage * inventoryItemsPerPage,
-                            getFilteredInventory().length
-                          )}{" "}
-                          of {getFilteredInventory().length} items
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-400 whitespace-nowrap">
-                              Items per page:
-                            </span>
-                            <Select
-                              value={inventoryItemsPerPage.toString()}
-                              onValueChange={(value) => {
-                                setInventoryItemsPerPage(Number(value));
-                                setInventoryPage(1);
-                              }}
-                            >
-                              <SelectTrigger className="bg-white/5 border-white/10 text-white w-20">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="bg-slate-800 border-white/10">
-                                <SelectItem value="10">10</SelectItem>
-                                <SelectItem value="25">25</SelectItem>
-                                <SelectItem value="50">50</SelectItem>
-                                <SelectItem value="100">100</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <Pagination>
-                            <PaginationContent>
-                              <PaginationItem>
-                                <PaginationPrevious
-                                  onClick={() =>
-                                    setInventoryPage(
-                                      Math.max(1, inventoryPage - 1)
-                                    )
-                                  }
-                                  className={
-                                    inventoryPage === 1
-                                      ? "pointer-events-none opacity-50"
-                                      : "cursor-pointer"
-                                  }
-                                />
-                              </PaginationItem>
-                              {Array.from(
-                                { length: getTotalInventoryPages() },
-                                (_, i) => i + 1
-                              )
-                                .filter((pageNum) => {
-                                  // Show first, last, current, and pages around current
-                                  if (
-                                    pageNum === 1 ||
-                                    pageNum === getTotalInventoryPages()
-                                  )
-                                    return true;
-                                  if (Math.abs(pageNum - inventoryPage) <= 1)
-                                    return true;
-                                  return false;
-                                })
-                                .map((pageNum, idx, arr) => {
-                                  // Add ellipsis if there's a gap
-                                  const prevPageNum = arr[idx - 1];
-                                  const showEllipsis =
-                                    prevPageNum && pageNum - prevPageNum > 1;
-                                  return (
-                                    <React.Fragment key={pageNum}>
-                                      {showEllipsis && (
-                                        <PaginationItem>
-                                          <PaginationEllipsis />
-                                        </PaginationItem>
-                                      )}
-                                      <PaginationItem>
-                                        <PaginationLink
-                                          onClick={() =>
-                                            setInventoryPage(pageNum)
-                                          }
-                                          isActive={inventoryPage === pageNum}
-                                          className="cursor-pointer"
-                                        >
-                                          {pageNum}
-                                        </PaginationLink>
-                                      </PaginationItem>
-                                    </React.Fragment>
-                                  );
-                                })}
-                              <PaginationItem>
-                                <PaginationNext
-                                  onClick={() =>
-                                    setInventoryPage(
-                                      Math.min(
-                                        getTotalInventoryPages(),
-                                        inventoryPage + 1
-                                      )
-                                    )
-                                  }
-                                  className={
-                                    inventoryPage === getTotalInventoryPages()
-                                      ? "pointer-events-none opacity-50"
-                                      : "cursor-pointer"
-                                  }
-                                />
-                              </PaginationItem>
-                            </PaginationContent>
-                          </Pagination>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                )}
+                <ComponentErrorBoundary componentName="InventoryManager">
+                  <InventoryManager />
+                </ComponentErrorBoundary>
               </TabsContent>
 
-              {/* Audit Tab */}
               {/* Customers Tab */}
               <TabsContent value="customers" className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -3393,150 +3541,11 @@ export function AdminPanel() {
                       placeholder="Search customers..."
                       className="bg-white/5 border-white/10 text-white w-64"
                     />
-                    {isAdmin && (
-                      <Button
-                        onClick={async () => {
-                          try {
-                            const users = await getAllUsers();
-                            let updated = 0;
-                            for (const u of users) {
-                              const userId = u.id;
-                              if (
-                                userId &&
-                                u.role &&
-                                u.role !== String(u.role).toLowerCase()
-                              ) {
-                                await updateUserProfile(userId, {
-                                  role: String(u.role).toLowerCase(),
-                                });
-                                updated++;
-                              }
-                            }
-                            alert(
-                              `Normalized ${updated} role value(s) to lowercase`
-                            );
-                            // Trigger a refresh to reflect role changes (normalize orders too)
-                            const orders = normalizeOrders(
-                              await getAllOrders(1000)
-                            );
-                            const refreshed: CustomerRow[] = users
-                              .filter(
-                                (
-                                  user
-                                ): user is RawUserRecord & { id: string } =>
-                                  !!user.id
-                              )
-                              .map((user) => {
-                                const userOrders = orders.filter(
-                                  (order) => order.userId === user.id
-                                );
-                                const totalSpent = userOrders.reduce(
-                                  (sum, order) => sum + order.total,
-                                  0
-                                );
-                                return {
-                                  id: user.id,
-                                  name:
-                                    user.displayName ||
-                                    user.email?.split("@")[0] ||
-                                    "Unknown",
-                                  email: user.email || "",
-                                  orders: userOrders.length,
-                                  spent: totalSpent,
-                                  joined: (user.createdAt as Date) || null,
-                                  role: user.role
-                                    ? String(user.role).toLowerCase()
-                                    : "user",
-                                };
-                              });
-                            setCustomers(refreshed);
-                          } catch (e) {
-                            logger.error("Role normalization failed", {
-                              error: e,
-                            });
-                            alert(
-                              "Role normalization failed. Check console for details."
-                            );
-                          }
-                        }}
-                        variant="outline"
-                        className="border-white/20 text-white hover:bg-white/10"
-                        title="Normalize roles to lowercase"
-                      >
-                        Normalize Roles
-                      </Button>
-                    )}
                     <Button
-                      onClick={async () => {
-                        setLoading(true);
-                        try {
-                          logger.debug("Refreshing customers");
-                          const orders = normalizeOrders(
-                            await getAllOrders(1000)
-                          );
-                          logger.debug("Orders fetched", {
-                            count: orders.length,
-                          });
-
-                          const users = await getAllUsers();
-                          logger.debug("Users fetched", {
-                            count: users.length,
-                            users,
-                          });
-
-                          const customersWithStats: CustomerRow[] = users
-                            .filter(
-                              (user): user is RawUserRecord & { id: string } =>
-                                !!user.id
-                            )
-                            .map((user) => {
-                              const userOrders = orders.filter(
-                                (order) => order.userId === user.id
-                              );
-                              const totalSpent = userOrders.reduce(
-                                (sum, order) => sum + order.total,
-                                0
-                              );
-
-                              logger.debug("User summary", {
-                                email: user.email,
-                                id: user.id,
-                                orders: userOrders.length,
-                                spent: totalSpent,
-                                createdAt: user.createdAt,
-                              });
-
-                              return {
-                                id: user.id,
-                                name:
-                                  user.displayName ||
-                                  user.email?.split("@")[0] ||
-                                  "Unknown",
-                                email: user.email || "",
-                                orders: userOrders.length,
-                                spent: totalSpent,
-                                joined: (user.createdAt as Date) || null,
-                                role: (user?.role
-                                  ? String(user.role)
-                                  : "user"
-                                ).toLowerCase(),
-                                accountType:
-                                  (user?.accountType as string) || "general",
-                                companyName:
-                                  (user?.companyName as string) || undefined,
-                              };
-                            });
-
-                          setCustomers(customersWithStats);
-                          logger.debug("Customers refreshed", {
-                            count: customersWithStats.length,
-                            customers: customersWithStats,
-                          });
-                        } catch (error) {
-                          logger.error("Error refreshing customers", { error });
-                        } finally {
-                          setLoading(false);
-                        }
+                      onClick={() => {
+                        // eslint-disable-next-line no-console
+                        console.log("🔄 Manual refresh button clicked!");
+                        loadCustomers();
                       }}
                       variant="outline"
                       className="border-white/20 text-white hover:bg-white/10"
@@ -3624,37 +3633,17 @@ export function AdminPanel() {
                           console for Firebase logs. Users must register through
                           the site to appear here.
                         </p>
-                        <Button
-                          onClick={async () => {
-                            logger.debug("Testing Firebase connection");
-                            const users = await getAllUsers();
-                            logger.debug("getAllUsers() returned", { users });
-                            logger.debug("Number of users", {
-                              count: users.length,
-                            });
-                            if (users.length > 0) {
-                              logger.debug("First user", { user: users[0] });
-                              alert(
-                                `Found ${users.length} user(s) in Firebase! Check console for details. Click the refresh button above to load them.`
-                              );
-                            } else {
-                              alert(
-                                "No users found in Firebase. Check console logs."
-                              );
-                            }
-                          }}
-                          className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
-                        >
-                          <Search className="w-4 h-4 mr-2" />
-                          Test Firebase Connection
-                        </Button>
                       </div>
                     </div>
                   </Card>
                 ) : (
                   <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <Table>
+                    {/* Mobile scroll hint */}
+                    <div className="lg:hidden px-4 py-2 bg-sky-500/10 border-b border-sky-500/20 text-xs text-sky-300 text-center">
+                      ← Scroll horizontally to view all columns →
+                    </div>
+                    <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+                      <Table className="min-w-[900px]">
                         <TableHeader>
                           <TableRow className="border-white/10">
                             <TableHead className="text-white">
@@ -3696,7 +3685,7 @@ export function AdminPanel() {
                                 !isNaN(new Date(customer.joined).getTime())
                                   ? new Date(
                                       customer.joined
-                                    ).toLocaleDateString()
+                                    ).toLocaleDateString("en-GB")
                                   : "N/A"}
                               </TableCell>
                               <TableCell>
@@ -3790,6 +3779,17 @@ export function AdminPanel() {
                                     }}
                                   >
                                     <Mail className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-sky-500/30 text-sky-300 hover:bg-sky-500/10"
+                                    title="Open CRM Profile"
+                                    onClick={() =>
+                                      setCrmProfileCustomerId(customer.id)
+                                    }
+                                  >
+                                    <TrendingUp className="w-4 h-4" />
                                   </Button>
                                   {isAdmin && customer.role !== "admin" && (
                                     <Button
@@ -4155,7 +4155,9 @@ export function AdminPanel() {
                                 Submitted:{" "}
                                 {ticket.createdAt &&
                                 !isNaN(new Date(ticket.createdAt).getTime())
-                                  ? new Date(ticket.createdAt).toLocaleString()
+                                  ? new Date(ticket.createdAt).toLocaleString(
+                                      "en-GB"
+                                    )
                                   : "Recently"}
                               </div>
                             </div>
@@ -4254,7 +4256,7 @@ export function AdminPanel() {
                   if (!open) setSelectedOrder(null);
                 }}
               >
-                <DialogContent className="bg-slate-900/95 border-white/10 text-white max-w-2xl">
+                <DialogContent className="bg-slate-900/95 border-white/10 text-white w-[95vw] sm:w-[90vw] max-w-2xl max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Order Details</DialogTitle>
                   </DialogHeader>
@@ -4447,7 +4449,7 @@ export function AdminPanel() {
                                     v as { toDate: () => Date }
                                   ).toDate();
                                   return !isNaN(d.getTime())
-                                    ? d.toLocaleDateString()
+                                    ? d.toLocaleDateString("en-GB")
                                     : "N/A";
                                 }
                                 const d =
@@ -4457,7 +4459,7 @@ export function AdminPanel() {
                                     ? new Date(v as string)
                                     : null;
                                 return d && !isNaN(d.getTime())
-                                  ? d.toLocaleDateString()
+                                  ? d.toLocaleDateString("en-GB")
                                   : "N/A";
                               } catch {
                                 return "N/A";
@@ -4740,6 +4742,14 @@ export function AdminPanel() {
                 </DialogContent>
               </Dialog>
 
+              {/* CRM Customer Profile Overlay */}
+              {crmProfileCustomerId && (
+                <CustomerProfile
+                  customerId={crmProfileCustomerId}
+                  onClose={() => setCrmProfileCustomerId(null)}
+                />
+              )}
+
               {/* Production Sheet Modal */}
               <Dialog
                 open={showProductionSheet}
@@ -4748,7 +4758,7 @@ export function AdminPanel() {
                   if (!open) setShowProductionSheet(false);
                 }}
               >
-                <DialogContent className="bg-white text-black max-w-[900px] max-h-[90vh] overflow-y-auto">
+                <DialogContent className="bg-white text-black w-[95vw] sm:w-[90vw] max-w-[900px] max-h-[90vh] overflow-y-auto">
                   {selectedOrder && <ProductionSheet order={selectedOrder} />}
                 </DialogContent>
               </Dialog>
@@ -4757,7 +4767,7 @@ export function AdminPanel() {
                 open={showCreateBusiness}
                 onOpenChange={setShowCreateBusiness}
               >
-                <DialogContent className="bg-slate-900/95 border-white/10 text-white max-w-xl">
+                <DialogContent className="bg-slate-900/95 border-white/10 text-white w-[95vw] sm:w-[90vw] max-w-xl">
                   <DialogHeader>
                     <DialogTitle>Create Business Customer</DialogTitle>
                   </DialogHeader>
@@ -5011,7 +5021,7 @@ export function AdminPanel() {
                   }
                 }}
               >
-                <DialogContent className="bg-slate-900/95 border-white/10 text-white max-w-lg">
+                <DialogContent className="bg-slate-900/95 border-white/10 text-white w-[95vw] sm:w-[90vw] max-w-lg">
                   <DialogHeader>
                     <DialogTitle>
                       {customerModalMode === "edit"
@@ -5067,7 +5077,7 @@ export function AdminPanel() {
                               )
                                 ? new Date(
                                     selectedCustomer.joined
-                                  ).toLocaleDateString()
+                                  ).toLocaleDateString("en-GB")
                                 : "N/A"
                             }
                             readOnly
@@ -5481,7 +5491,7 @@ export function AdminPanel() {
                                   !isNaN(new Date(ticket.createdAt).getTime())
                                     ? new Date(
                                         ticket.createdAt
-                                      ).toLocaleDateString()
+                                      ).toLocaleDateString("en-GB")
                                     : "Recently"}
                                 </TableCell>
                                 <TableCell>
@@ -5660,6 +5670,16 @@ export function AdminPanel() {
                 <AnalyticsDashboard />
               </TabsContent>
 
+              {/* Recommendations Tab */}
+              <TabsContent value="recommendations" className="space-y-6">
+                <RecommendationsTab />
+              </TabsContent>
+
+              {/* Reports Tab */}
+              <TabsContent value="reports" className="space-y-6">
+                <ReportBuilder />
+              </TabsContent>
+
               {/* Content Management Tab */}
               <TabsContent value="content" className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -5692,9 +5712,7 @@ export function AdminPanel() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-gray-400 text-sm">Products</p>
-                        <p className="text-2xl font-bold text-white">
-                          {inventory.length}
-                        </p>
+                        <p className="text-2xl font-bold text-white">N/A</p>
                       </div>
                       <Package className="w-8 h-8 text-sky-400" />
                     </div>
@@ -5703,9 +5721,7 @@ export function AdminPanel() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-gray-400 text-sm">Categories</p>
-                        <p className="text-2xl font-bold text-white">
-                          {getCategories().length}
-                        </p>
+                        <p className="text-2xl font-bold text-white">N/A</p>
                       </div>
                       <Filter className="w-8 h-8 text-green-400" />
                     </div>
@@ -5723,13 +5739,7 @@ export function AdminPanel() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-gray-400 text-sm">Media</p>
-                        <p className="text-2xl font-bold text-white">
-                          {
-                            inventory.filter(
-                              (i) => i.images && i.images.length > 0
-                            ).length
-                          }
-                        </p>
+                        <p className="text-2xl font-bold text-white">N/A</p>
                       </div>
                       <Image className="w-8 h-8 text-orange-400" />
                     </div>
@@ -6095,26 +6105,89 @@ export function AdminPanel() {
               </TabsContent>
               {/* Bulk Email / Marketing Tab */}
               <TabsContent value="email" className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-2xl font-bold text-white">
-                      Send Email
-                    </h3>
-                    <p className="text-gray-400 mt-1 max-w-xl">
-                      Compose and send a branded email to all registered
-                      customers or a specific list. Images you upload are hosted
-                      and inserted automatically.
-                    </p>
-                  </div>
-                </div>
                 {!isAdmin && (
                   <Card className="bg-gradient-to-r from-amber-500/10 to-red-500/10 border-amber-500/30 backdrop-blur-xl p-4">
                     <div className="text-sm text-amber-300">
-                      Admin access required to send bulk emails.
+                      Admin access required to send bulk emails and manage
+                      marketing.
                     </div>
                   </Card>
                 )}
-                {isAdmin && <EmailComposer customers={customers} />}
+                {isAdmin && (
+                  <Tabs defaultValue="email" className="space-y-6">
+                    <TabsList className="grid w-full grid-cols-5 bg-white/5 border-white/10">
+                      <TabsTrigger
+                        value="email"
+                        className="data-[state=active]:bg-white/10 text-white"
+                      >
+                        Bulk Email
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="campaigns"
+                        className="data-[state=active]:bg-white/10 text-white"
+                      >
+                        Campaigns
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="discounts"
+                        className="data-[state=active]:bg-white/10 text-white"
+                      >
+                        Discount Codes
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="banners"
+                        className="data-[state=active]:bg-white/10 text-white"
+                      >
+                        Banners
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="competitors"
+                        className="data-[state=active]:bg-white/10 text-white"
+                      >
+                        Competitors
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="email">
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-2xl font-bold text-white">
+                              Send Email
+                            </h3>
+                            <p className="text-gray-400 mt-1 max-w-xl">
+                              Compose and send a branded email to all registered
+                              customers or a specific list. Images you upload
+                              are hosted and inserted automatically.
+                            </p>
+                          </div>
+                        </div>
+                        <EmailComposer customers={customers} />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="campaigns">
+                      <CampaignManager />
+                    </TabsContent>
+
+                    <TabsContent value="discounts">
+                      <DiscountCodeGenerator />
+                    </TabsContent>
+
+                    <TabsContent value="banners">
+                      <PromotionalBanners />
+                    </TabsContent>
+
+                    <TabsContent value="competitors">
+                      <CompetitorTracking />
+                    </TabsContent>
+                  </Tabs>
+                )}
+              </TabsContent>
+
+              {/* Search Analytics Tab */}
+              <TabsContent value="search" className="space-y-6">
+                <SearchAnalytics />
               </TabsContent>
             </Tabs>
 
@@ -6125,7 +6198,7 @@ export function AdminPanel() {
                   open={showUnblockModal}
                   onOpenChange={setShowUnblockModal}
                 >
-                  <DialogContent className="bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-sky-500/30 backdrop-blur-2xl max-w-md">
+                  <DialogContent className="bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-sky-500/30 backdrop-blur-2xl w-[95vw] sm:w-[90vw] max-w-md">
                     <DialogHeader>
                       <DialogTitle className="text-white">
                         Unblock IP Address
@@ -6214,7 +6287,7 @@ export function AdminPanel() {
                   open={showWhitelistModal}
                   onOpenChange={setShowWhitelistModal}
                 >
-                  <DialogContent className="bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-green-500/30 backdrop-blur-2xl max-w-md">
+                  <DialogContent className="bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-green-500/30 backdrop-blur-2xl w-[95vw] sm:w-[90vw] max-w-md">
                     <DialogHeader>
                       <DialogTitle className="text-white">
                         Whitelist IP Address
@@ -7196,7 +7269,7 @@ export function AdminPanel() {
                             !isNaN(new Date(selectedOrder.orderDate).getTime())
                               ? new Date(
                                   selectedOrder.orderDate
-                                ).toLocaleDateString()
+                                ).toLocaleDateString("en-GB")
                               : "N/A"}
                           </span>
                         </div>
@@ -7466,11 +7539,11 @@ export function AdminPanel() {
                                     </Badge>
                                     <span className="text-xs text-gray-400">
                                       {msg.timestamp instanceof Date
-                                        ? msg.timestamp.toLocaleString()
+                                        ? msg.timestamp.toLocaleString("en-GB")
                                         : msg.timestamp?.toDate?.()
                                         ? msg.timestamp
                                             .toDate()
-                                            .toLocaleString()
+                                            .toLocaleString("en-GB")
                                         : "Recently"}
                                     </span>
                                   </div>
@@ -7615,7 +7688,7 @@ export function AdminPanel() {
               open={showSecurityAlertModal}
               onOpenChange={setShowSecurityAlertModal}
             >
-              <DialogContent className="bg-slate-900 border-red-500/30 text-white max-w-2xl">
+              <DialogContent className="bg-slate-900 border-red-500/30 text-white w-[95vw] sm:w-[90vw] max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-xl">
                     <ShieldAlert className="w-6 h-6 text-red-400" />
@@ -7824,6 +7897,14 @@ export function AdminPanel() {
                         ) : (
                           "Report to Security Team"
                         )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+                        onClick={handleDeleteSecurityAlert}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
                       </Button>
                       <Button
                         variant="outline"

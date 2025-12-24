@@ -21,9 +21,19 @@ service cloud.firestore {
       );
     }
 
+    // Treat users with custom claims as admins as well
+    // Supports either boolean claim `admin: true` or role claim `role: 'admin'`
+    function hasAdminClaim() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin'
+      );
+    }
+
     function isAdmin() {
       return isAuthenticated() && (
         isWhitelistedAdminEmail() ||
+        hasAdminClaim() ||
         request.auth.token.email == 'admin@vortexpcs.com' ||
         request.auth.token.email == 'info@vortexpcs.com'
       );
@@ -163,26 +173,7 @@ service cloud.firestore {
       // Do NOT check referrer, userAgent, device, location equality since objects fail equality checks
       allow update: if
         // Ensure core session ID doesn't change
-        request.resource.data.sessionId == resource.data.sessionId &&
-        // Only allow these fields in updates
-        request.resource.data.keys().hasOnly([
-          "sessionId",
-          "userId", 
-          "startTime",
-          "lastActivity",
-          "pageViews",
-          "pages",
-          "referrer",
-          "userAgent",
-          "location",
-          "device",
-          "isActive"
-        ]) &&
-        // Type validation for changeable fields
-        request.resource.data.lastActivity is timestamp &&
-        request.resource.data.pageViews is number &&
-        request.resource.data.pages is list &&
-        request.resource.data.isActive is bool;
+        request.resource.data.sessionId == resource.data.sessionId;
 
       // Only admins can read sessions
       allow read: if isAdmin();
@@ -211,20 +202,122 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow update, delete: if false;
     }
+
+    // Search tracking: searchQueries (public write; admin read)
+    match /searchQueries/{docId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Search tracking: searchRefinements (public write; admin read)
+    match /searchRefinements/{docId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Search tracking: zeroResultSearches (public write; admin read)
+    match /zeroResultSearches/{docId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Performance monitoring: metrics (public write; admin read)
+    match /performance_metrics/{docId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Performance monitoring: page load metrics (public write; admin read)
+    match /page_load_metrics/{docId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Performance monitoring: API metrics (public write; admin read)
+    match /api_metrics/{docId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Admin banners (public read so visitors can see active banners, admin write)
+    match /admin_banners/{bannerId} {
+      // Anyone can read banners (client filters on active flag)
+      allow read: if true;
+      // Only authenticated admins can create/update/delete
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // Competitors (internal only)
+    match /admin_competitors/{competitorId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    // Competitor price observations (internal only)
+    match /admin_competitor_prices/{priceId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    // Admin settings / migration flags
+    match /admin_settings/{settingId} {
+      // Admin read/write; allow read of specific public settings if needed
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
     
     // Product reviews (if implemented)
     match /reviews/{reviewId} {
-      // Anyone can read reviews
-      allow read: if true;
+      // Anyone can read approved reviews
+      allow read: if resource.data.status == 'approved' || isAdmin();
       
       // Authenticated users can create reviews
       allow create: if isAuthenticated();
       
-      // Users can update their own reviews
-      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      // Users can update their own reviews, admins can update any
+      allow update: if (isAuthenticated() && request.auth.uid == resource.data.userId) || isAdmin();
       
       // Users can delete their own reviews, admins can delete any
       allow delete: if (isAuthenticated() && request.auth.uid == resource.data.userId) || isAdmin();
+    }
+    
+    // Review summaries
+    match /reviewSummaries/{productId} {
+      // Anyone can read review summaries
+      allow read: if true;
+      
+      // Only system/admin can write summaries
+      allow write: if isAdmin();
+    }
+    
+    // Review votes (helpful/not helpful)
+    match /reviewVotes/{voteId} {
+      // Users can read their own votes
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      
+      // Users can create/update their own votes
+      allow create, update: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      
+      // Users can delete their own votes
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+    
+    // Active visitors tracking (real-time analytics)
+    match /active_visitors/{sessionId} {
+      // Anyone can write their own visitor activity (for tracking)
+      allow create, update: if true;
+      
+      // Users can delete their own session when they leave
+      allow delete: if true;
+      
+      // Only admins can read visitor data
+      allow read: if isAdmin();
     }
     
     // Deny all other access by default

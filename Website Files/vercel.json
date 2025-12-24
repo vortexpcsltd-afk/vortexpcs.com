@@ -6,21 +6,35 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|manifest\\.json|robots\\.txt|favicon\\.ico|sitemap\\.xml|version\\.json|sw\\.js|vortexpcs-logo\\.png|_vercel/).*)",
+      "source": "/((?!api/|assets/|icons/|manifest\\.json|robots\\.txt|favicon\\.ico|sitemap\\.xml|version\\.json|sw\\.js|vortexpcs-logo\\.png|_vercel/).*)",
       "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/email/process-queue",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/admin/cleanup-rate-limits",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/admin/reports/send-scheduled",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/admin/backup-nightly",
+      "schedule": "30 1 * * *"
     }
   ],
   "headers": [
     {
-      "source": "/manifest.json",
+      "source": "/assets/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
         }
       ]
     },
@@ -29,7 +43,17 @@
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=600" },
         { "key": "Content-Type", "value": "application/manifest+json" },
-        { "key": "Access-Control-Allow-Origin", "value": "*" }
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/api/admin/analytics/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, max-age=300"
+        }
       ]
     },
     {
@@ -67,7 +91,7 @@
         },
         {
           "key": "X-Frame-Options",
-          "value": "SAMEORIGIN"
+          "value": "DENY"
         },
         {
           "key": "X-Content-Type-Options",
@@ -83,7 +107,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; img-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline'; font-src 'self' https: data:; connect-src 'self' https:; frame-src 'self' https://js.stripe.com https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'"
+          "value": "default-src 'self'; img-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://www.paypal.com https://www.paypalobjects.com https://www.recaptcha.net https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https: data:; connect-src 'self' https: wss: blob:; frame-src 'self' https://js.stripe.com https://m.stripe.com https://m.stripe.network https://checkout.stripe.com https://hooks.stripe.com https://www.paypal.com https://www.sandbox.paypal.com https://www.recaptcha.net https://recaptcha.net; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests"
         }
       ]
     },

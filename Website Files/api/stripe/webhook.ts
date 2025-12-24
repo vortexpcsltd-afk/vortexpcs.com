@@ -4,6 +4,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { StripeError } from "../../types/api";
 import admin from "firebase-admin";
 import { buildBrandedEmailHtml } from "../../services/emailTemplate.js";
+import { generateOrderNumber } from "../utils/orderNumber.js";
 
 // =============================================
 // VERSION MARKER (for deployment verification)
@@ -663,23 +664,27 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
 // =====================================================
 
 /**
- * Generate a readable order ID
- * Format: VPC-YYYYMMDD-XXXX (e.g., VPC-20251118-A3F9)
+ * Generate a readable order ID - now uses generateOrderNumber utility
+ * This function is kept for backward compatibility but delegates to the new utility
  */
-function generateOrderId(): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  // Generate random 4-character alphanumeric code
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Excludes confusing chars like O,0,I,1
-  let code = "";
-  for (let i = 0; i < 4; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+async function generateOrderId(userId: string = "guest"): Promise<string> {
+  try {
+    const db = admin.apps.length > 0 ? admin.firestore() : undefined;
+    return await generateOrderNumber(userId, db);
+  } catch (error) {
+    console.error("Failed to generate order number, using fallback:", error);
+    // Fallback to simple format if generation fails
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `VXG-${year}${month}${day}-${code}`;
   }
-
-  return `VPC-${year}${month}${day}-${code}`;
 }
 
 function extractOrderItems(session: Stripe.Checkout.Session): OrderItem[] {
@@ -880,20 +885,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         console.log("✅ Payment Intent retrieved:", paymentIntent.id);
 
-        // Generate readable order ID
-        const orderId = generateOrderId();
-        console.log("📋 Generated Order ID:", orderId);
-
         // Extract order data from metadata
         const metadata = paymentIntent.metadata || {};
         const userId = metadata.userId || "guest";
+
+        // Generate readable order ID based on customer type
+        const orderId = await generateOrderId(userId);
+        console.log("📋 Generated Order ID:", orderId);
+
         const customerEmail = metadata.customerEmail || "";
 
         // Extract customer name from multiple possible sources
+        // Note: Stripe SDK types don't include expanded charges.data[] by default
+        const expandedPaymentIntent = paymentIntent as Stripe.PaymentIntent & {
+          charges?: {
+            data?: Array<{
+              billing_details?: { name?: string };
+              shipping?: { name?: string };
+            }>;
+          };
+        };
         const customerName =
           metadata.customerName || // First check metadata (passed from checkout form)
-          paymentIntent.charges?.data[0]?.billing_details?.name ||
-          paymentIntent.charges?.data[0]?.shipping?.name ||
+          expandedPaymentIntent.charges?.data?.[0]?.billing_details?.name ||
+          expandedPaymentIntent.charges?.data?.[0]?.shipping?.name ||
           customerEmail?.split("@")[0] || // Email prefix as fallback
           "Valued Customer";
         const totalAmount = paymentIntent.amount / 100;
@@ -1233,9 +1248,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           session.customer_details?.email || session.customer_email || "";
 
         // Extract customer name from multiple possible sources
+        // Note: Stripe SDK types don't include expanded shipping by default
+        const expandedSession = session as Stripe.Checkout.Session & {
+          shipping?: { name?: string };
+        };
         const customerName =
           session.customer_details?.name || // Embedded checkout name field
-          session.shipping?.name || // Shipping name (often same as billing)
+          expandedSession.shipping?.name || // Shipping name (often same as billing)
           session.customer_details?.email?.split("@")[0] || // Email prefix as fallback
           "Valued Customer"; // Last resort fallback
 
@@ -1281,7 +1300,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             shippingAddress: session.customer_details?.address
               ? {
                   line1: session.customer_details.address.line1 || "",
-                  line2: session.customer_details.address.line2,
+                  line2: session.customer_details.address.line2 || undefined,
                   city: session.customer_details.address.city || "",
                   postal_code:
                     session.customer_details.address.postal_code || "",

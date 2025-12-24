@@ -27,7 +27,74 @@ if (import.meta.env.DEV) {
   logger.debug("🔧 Contentful client:", {
     status: contentfulClient ? "✅ Created" : "❌ Not created",
   });
+
+  // Provide helpful debugging info if Contentful is not enabled
+  if (!isContentfulEnabled) {
+    const spaceId = import.meta.env.VITE_CONTENTFUL_SPACE_ID;
+    const token = import.meta.env.VITE_CONTENTFUL_ACCESS_TOKEN;
+    logger.debug("⚠️ Contentful is disabled. To enable in dev mode:", {
+      "Space ID configured": !!spaceId,
+      "Access Token configured": !!token,
+      See: "CONTENTFUL_DEV_SETUP.md for instructions",
+    });
+  }
 }
+
+// Simple in-memory cache for CMS data to prevent redundant API calls
+// Cache expires after 5 minutes
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes (increased to reduce API usage)
+const cmsCache = new Map<string, CacheEntry<unknown>>();
+
+function getCached<T>(key: string): T | null {
+  const entry = cmsCache.get(key) as CacheEntry<T> | undefined;
+  if (!entry) return null;
+
+  const age = Date.now() - entry.timestamp;
+  if (age > CACHE_TTL) {
+    cmsCache.delete(key);
+    return null;
+  }
+
+  return entry.data;
+}
+
+function setCache<T>(key: string, data: T): void {
+  cmsCache.set(key, { data, timestamp: Date.now() });
+}
+
+function clearCache(): void {
+  cmsCache.clear();
+}
+
+/**
+ * Clear cache entries matching a pattern (for webhook invalidation)
+ * @param pattern - String pattern to match cache keys (e.g., 'pcComponents_')
+ * @returns Number of cache entries cleared
+ */
+function clearCacheByPattern(pattern: string): number {
+  const keysToDelete: string[] = [];
+
+  cmsCache.forEach((_, key) => {
+    if (key.startsWith(pattern)) {
+      keysToDelete.push(key);
+    }
+  });
+
+  keysToDelete.forEach((key) => cmsCache.delete(key));
+
+  logger.debug(
+    `🗑️ Cleared ${keysToDelete.length} cache entries matching "${pattern}"`
+  );
+  return keysToDelete.length;
+}
+
+// Export cache utilities for manual control if needed
+export { clearCache, clearCacheByPattern };
 
 // Re-export all interfaces from original cms.ts
 export interface Product {
@@ -225,11 +292,17 @@ export interface PCComponent {
   category: string; // case, motherboard, cpu, gpu, ram, storage, psu, cooling, caseFans
   rating?: number;
   description?: string;
-  mainDescription?: string; // Detailed product description from Contentful
+  mainProductDescription?: string | Document; // Rich Text field for detailed product descriptions
   images?: string[];
+  imagesByOption?: Record<string, Record<string, string[]>>; // Images organized by option (e.g., { colour: { Black: [...], White: [...] } })
+  pricesByOption?: Record<
+    string,
+    Record<string, number | { price: number; ean?: string }>
+  >; // Prices by option - supports number OR {price, ean} object
   inStock?: boolean;
   featured?: boolean;
   stockLevel?: number; // Stock quantity from Contentful
+  ean?: string; // European Article Number for product identification
 
   // Supplier/Admin information (not displayed to customers)
   supplierName?: string;
@@ -239,16 +312,21 @@ export interface PCComponent {
 
   // Common fields
   brand?: string;
+  brandLogo?: string; // URL to brand/manufacturer logo image
   model?: string;
-  colour?: string;
-  color?: string; // Alias for colour
+  colour?: string | string[];
+  color?: string | string[]; // Alias for colour
+  colourOptions?: string | string[]; // Available colour options for display in specs
   features?: string[];
+  size?: string | string[]; // Size options
+  type?: string | string[]; // Type options
+  storage?: string | string[]; // Storage/capacity options
 
   // Case specific
   formFactor?: string;
   gpuClearance?: string;
   coolingSupport?: string;
-  style?: string;
+  style?: string | string[];
   compatibility?: string[];
   maxGpuLength?: number;
   maxCpuCoolerHeight?: number;
@@ -258,6 +336,7 @@ export interface PCComponent {
   // Motherboard specific
   socket?: string;
   chipset?: string;
+  cpuCompatability?: string | string[];
   ramSupport?: string;
   maxRam?: number;
   ramSlots?: number;
@@ -289,6 +368,8 @@ export interface PCComponent {
   // GPU specific
   vram?: number;
   power?: number;
+  powerConsumption?: number; // Preferred numeric GPU power consumption (W)
+  powerDraw?: number; // Alternate numeric GPU power draw (W)
   length?: number;
   height?: number;
   slots?: number;
@@ -312,7 +393,7 @@ export interface PCComponent {
   speed?: string;
   modules?: number;
   latency?: string;
-  type?: string;
+  // type field moved to common fields section above
   voltage?: number; // Voltage in volts
   compliance?: string; // e.g., "JEDEC"
   pins?: number; // Number of pins
@@ -375,16 +456,20 @@ export interface PCOptionalExtra {
   id: string;
   name: string;
   price: number;
-  category: string; // keyboard, mouse, monitor, gamepad, mousepad, headset, webcam, microphone, speakers, accessories
+  msrp?: number;
+  category?: string; // keyboard, mouse, monitor, gamepad, mousepad, headset, webcam, microphone, speakers, accessories
   rating?: number;
   description?: string;
-  mainDescription?: string; // Long-form description
+  mainProductDescription?: string | Document; // Rich Text field for detailed product descriptions
   features?: string[]; // Array of key features
   techSheet?: string; // URL to tech sheet PDF
   images?: string[];
   inStock?: boolean;
   featured?: boolean;
   stockLevel?: number; // Stock quantity from Contentful
+  warranty?: string;
+  compatibility?: string[];
+  ean?: string; // European Article Number for product identification
 
   // Supplier/Admin information (not displayed to customers)
   supplierName?: string;
@@ -397,45 +482,58 @@ export interface PCOptionalExtra {
   wireless?: boolean;
   rgb?: boolean;
   brand?: string;
+  brandLogo?: string; // URL to brand/manufacturer logo image
   color?: string;
 
   // Keyboard specific
   switches?: string;
   layout?: string;
-  keyCount?: number;
+  keyCount?: number | string;
+  connectivity?: string;
+  hotswappable?: boolean;
+  keycaps?: string;
 
   // Mouse specific
-  dpi?: number;
-  weight?: number;
+  dpi?: number | string;
+  weight?: number | string;
   sensor?: string;
+  sensorModel?: string;
+  buttons?: number;
+  batteryLife?: string;
+  charging?: string;
 
   // Monitor specific
-  size?: number; // inches
+  size?: number | string; // inches
   monitorResolution?: string;
-  refreshRate?: number;
+  resolution?: string;
+  refreshRate?: number | string;
   panelType?: string; // IPS, VA, OLED
   curved?: boolean;
   aspectRatio?: string;
-  responseTime?: number; // milliseconds
+  responseTime?: number | string; // milliseconds
+  hdr?: string;
+  ports?: string[];
 
   // Gamepad specific
   platform?: string; // PC, Xbox, PlayStation, Multi-platform
-  batteryLife?: string;
-  connection?: string;
+  reviewCount?: number;
+  stockStatus?: string;
 
   // Mousepad specific
   surface?: string; // Cloth, Hard
   dimensions?: string;
-  thickness?: number;
+  thickness?: number | string;
 
   // Audio specific (headset, speakers, microphone)
   frequencyResponse?: string;
   impedance?: number;
   microphone?: boolean;
-  surroundSound?: boolean;
+  surroundSound?: string | boolean;
+  driverSize?: string;
+  micType?: string;
+  noiseCancellation?: boolean;
 
   // Webcam/Microphone specific
-  resolution?: string; // 1080p, 4K, etc.
   frameRate?: number;
   fieldOfView?: number;
 }
@@ -509,9 +607,41 @@ const getNumericId = (contentfulId: string): number => {
   return parseInt(contentfulId.slice(0, 8), 16);
 };
 
-// -----------------------------
+// ============================================
+// Contentful API Response Helpers
+// Type-safe wrapper for Contentful SDK queries
+// ============================================
+
+/**
+ * Type-safe wrapper for Contentful API calls.
+ * Converts loose Contentful SDK typing to proper ContentfulResponse<T>
+ */
+async function fetchFromContentful<T extends Record<string, unknown>>(
+  queryFn: () => Promise<unknown>
+): Promise<ContentfulResponse<T>> {
+  const result = await queryFn();
+  // Runtime validation that response has expected structure
+  if (
+    !result ||
+    typeof result !== "object" ||
+    !("items" in result) ||
+    !("skip" in result)
+  ) {
+    throw new Error("Invalid Contentful response structure");
+  }
+  return result as ContentfulResponse<T>;
+}
+
+/**
+ * Build a type-safe Contentful query object
+ */
+function buildContentfulQuery(query: ContentfulQuery): Record<string, unknown> {
+  return query as Record<string, unknown>;
+}
+
+// ============================================
 // Safe value helpers (reduce any)
-// -----------------------------
+// ============================================
 const getString = (v: unknown): string | undefined =>
   typeof v === "string" ? v : undefined;
 const getNumber = (v: unknown): number | undefined =>
@@ -520,7 +650,19 @@ const getBoolean = (v: unknown): boolean | undefined =>
   typeof v === "boolean" ? v : undefined;
 const getArray = <T = unknown>(v: unknown): T[] | undefined =>
   Array.isArray(v) ? (v as T[]) : undefined;
-
+const getRichText = (v: unknown): string | Document | undefined => {
+  // Check if it's a Contentful Rich Text Document
+  if (
+    v &&
+    typeof v === "object" &&
+    "nodeType" in v &&
+    v.nodeType === "document"
+  ) {
+    return v as Document;
+  }
+  // Fallback to string
+  return typeof v === "string" ? v : undefined;
+};
 /**
  * Fetch all products
  */
@@ -531,6 +673,16 @@ export const fetchProducts = async (params?: {
   featured?: boolean;
   limit?: number;
 }): Promise<Product[]> => {
+  // Check cache first
+  const cacheKey = `products_${params?.category || "all"}_${
+    params?.featured || "all"
+  }_${params?.limit || "all"}`;
+  const cached = getCached<Product[]>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Returning cached products", { count: cached.length });
+    return cached;
+  }
+
   if (!isContentfulEnabled) {
     return getMockProducts();
   }
@@ -550,11 +702,11 @@ export const fetchProducts = async (params?: {
       query.limit = params.limit;
     }
 
-    const response = (await contentfulClient!.getEntries(
-      query as unknown as Record<string, unknown>
-    )) as unknown as ContentfulResponse<ProductEntryFields>;
+    const response = await fetchFromContentful<ProductEntryFields>(() =>
+      contentfulClient!.getEntries(buildContentfulQuery(query))
+    );
 
-    return response.items.map((entry) => {
+    const products = response.items.map((entry) => {
       const f = (entry.fields || {}) as Record<string, unknown>;
       return {
         id: getNumericId(entry.sys.id),
@@ -568,47 +720,16 @@ export const fetchProducts = async (params?: {
         images: getArray(f["images"]) ?? [],
       } as Product;
     });
+
+    // Cache the results
+    const cacheKey = `products_${params?.category || "all"}_${
+      params?.featured || "all"
+    }_${params?.limit || "all"}`;
+    setCache(cacheKey, products);
+    return products;
   } catch (error: unknown) {
     logger.error("Fetch products error:", error);
     return getMockProducts();
-  }
-};
-
-/**
- * Fetch single product by ID
- */
-export const fetchProduct = async (_id: number): Promise<Product | null> => {
-  if (!isContentfulEnabled) {
-    return null;
-  }
-
-  try {
-    const response = (await contentfulClient!.getEntries({
-      content_type: "product",
-      limit: 1,
-    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<ProductEntryFields>;
-
-    if (response.items.length === 0) {
-      return null;
-    }
-
-    const entry = response.items[0];
-    const f = (entry.fields || {}) as Record<string, unknown>;
-
-    return {
-      id: getNumericId(entry.sys.id),
-      name: getString(f["name"]) ?? "Unnamed Product",
-      description: getString(f["description"]) ?? "",
-      price: getNumber(f["price"]) ?? 0,
-      category: getString(f["category"]) ?? "uncategorized",
-      stock: getNumber(f["stock"]) ?? 0,
-      featured: getBoolean(f["featured"]) ?? false,
-      specs: (f["specs"] as Record<string, unknown> | undefined) || undefined,
-      images: getArray(f["images"]) ?? [],
-    } as Product;
-  } catch (error: unknown) {
-    logger.error("Fetch product error:", error);
-    return null;
   }
 };
 
@@ -620,6 +741,16 @@ export const fetchPCBuilds = async (params?: {
   category?: string;
   featured?: boolean;
 }): Promise<PCBuild[]> => {
+  // Check cache first
+  const cacheKey = `pcBuilds_${params?.category || "all"}_${
+    params?.featured || "all"
+  }`;
+  const cached = getCached<PCBuild[]>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Returning cached PC builds", { count: cached.length });
+    return cached;
+  }
+
   if (!isContentfulEnabled) {
     return getMockPCBuilds();
   }
@@ -636,10 +767,12 @@ export const fetchPCBuilds = async (params?: {
       query["fields.category"] = params.category;
     }
 
-    const response = (await contentfulClient!.getEntries({
-      ...query,
-      include: 1, // Include linked assets (images)
-    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<PCBuildFields> & {
+    const response = (await fetchFromContentful<PCBuildFields>(() =>
+      contentfulClient!.getEntries({
+        ...query,
+        include: 1, // Include linked assets (images)
+      } as Record<string, unknown>)
+    )) as ContentfulResponse<PCBuildFields> & {
       includes?: {
         Asset?: Array<{
           sys: { id: string };
@@ -648,7 +781,7 @@ export const fetchPCBuilds = async (params?: {
       };
     };
 
-    return response.items.map((entry) => {
+    const builds = response.items.map((entry) => {
       const fields = (entry.fields || {}) as Record<string, unknown>;
 
       // Process images - resolve asset links from includes
@@ -708,48 +841,16 @@ export const fetchPCBuilds = async (params?: {
         images: images,
       };
     });
+
+    // Cache the results
+    const cacheKey = `pcBuilds_${params?.category || "all"}_${
+      params?.featured || "all"
+    }`;
+    setCache(cacheKey, builds);
+    return builds;
   } catch (error: unknown) {
     logger.error("Fetch PC builds error:", error);
     return getMockPCBuilds();
-  }
-};
-
-/**
- * Fetch components by type
- */
-export const fetchComponents = async (type?: string): Promise<Component[]> => {
-  if (!isContentfulEnabled) {
-    return getMockComponents(type);
-  }
-
-  try {
-    const query: ContentfulQuery = {
-      content_type: "component",
-    };
-
-    if (type) {
-      query["fields.type"] = type;
-    }
-
-    const response = (await contentfulClient!.getEntries(
-      query as unknown as Record<string, unknown>
-    )) as unknown as ContentfulResponse<Record<string, unknown>>;
-
-    return response.items.map((entry) => {
-      const f = (entry.fields || {}) as Record<string, unknown>;
-      return {
-        id: getNumericId(entry.sys.id),
-        name: getString(f["name"]) ?? "",
-        type: getString(f["type"]) ?? "",
-        manufacturer: getString(f["manufacturer"]) ?? "",
-        price: getNumber(f["price"]) ?? 0,
-        stock: getNumber(f["stock"]) ?? 0,
-        specs: (f["specs"] as Record<string, unknown> | undefined) || undefined,
-      };
-    });
-  } catch (error: unknown) {
-    logger.error("Fetch components error:", error);
-    return getMockComponents(type);
   }
 };
 
@@ -792,6 +893,14 @@ export const fetchCategories = async (): Promise<Category[]> => {
  * Fetch site settings
  */
 export const fetchSettings = async (): Promise<Settings | null> => {
+  // Check cache first
+  const cacheKey = "settings";
+  const cached = getCached<Settings>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Settings loaded from cache");
+    return cached;
+  }
+
   // Allow disabling settings fetch explicitly to avoid noisy 400s during setup
   const disableSettings = import.meta.env.VITE_CMS_DISABLE_SETTINGS === "true";
   if (disableSettings) {
@@ -804,10 +913,12 @@ export const fetchSettings = async (): Promise<Settings | null> => {
 
   try {
     type SiteSettingsFields = Record<string, unknown>;
-    const response = (await contentfulClient!.getEntries({
-      content_type: "siteSettings",
-      limit: 1,
-    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<SiteSettingsFields> & {
+    const response = (await fetchFromContentful<SiteSettingsFields>(() =>
+      contentfulClient!.getEntries({
+        content_type: "siteSettings",
+        limit: 1,
+      } as Record<string, unknown>)
+    )) as ContentfulResponse<SiteSettingsFields> & {
       includes?: {
         Asset?: Array<{
           sys: { id: string };
@@ -905,6 +1016,10 @@ export const fetchSettings = async (): Promise<Settings | null> => {
     };
 
     logger.debug("✅ siteSettings loaded from CMS");
+
+    // Cache the result
+    setCache(cacheKey, settings);
+
     return settings;
   } catch (error) {
     logger.error("Fetch settings error:", error);
@@ -918,6 +1033,14 @@ type PageContentFields = Record<string, unknown>;
 export const fetchPageContent = async (
   pageSlug: string
 ): Promise<PageContent | null> => {
+  // Check cache first
+  const cacheKey = `page:${pageSlug}`;
+  const cached = getCached<PageContent>(cacheKey);
+  if (cached) {
+    logger.debug(`✅ Page content for "${pageSlug}" loaded from cache`);
+    return cached;
+  }
+
   if (!isContentfulEnabled) {
     logger.debug("⚠️ Contentful disabled, using fallback data");
     return null;
@@ -925,11 +1048,13 @@ export const fetchPageContent = async (
 
   try {
     logger.debug(`🔍 Fetching page content for slug: ${pageSlug}`);
-    const response = (await contentfulClient!.getEntries({
-      content_type: "pageContent",
-      "fields.pageSlug": pageSlug,
-      limit: 1,
-    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<PageContentFields>;
+    const response = await fetchFromContentful<PageContentFields>(() =>
+      contentfulClient!.getEntries({
+        content_type: "pageContent",
+        "fields.pageSlug": pageSlug,
+        limit: 1,
+      } as Record<string, unknown>)
+    );
 
     if (response.items.length === 0) {
       logger.debug("📄 No page content found");
@@ -971,6 +1096,10 @@ export const fetchPageContent = async (
       ogTitle: result.ogTitle,
       lastUpdated: result.lastUpdated,
     });
+
+    // Cache the result
+    setCache(cacheKey, result);
+
     return result;
   } catch (error: unknown) {
     logger.error("Fetch page content error:", error);
@@ -1003,9 +1132,9 @@ export const fetchFAQItems = async (params?: {
       query["fields.category"] = params.category;
     }
 
-    const response = (await contentfulClient!.getEntries(
-      query as unknown as Record<string, unknown>
-    )) as unknown as ContentfulResponse<FAQItemFields>;
+    const response = await fetchFromContentful<FAQItemFields>(() =>
+      contentfulClient!.getEntries(buildContentfulQuery(query))
+    );
 
     return response.items.map((entry) => {
       const fields = (entry.fields || {}) as Record<string, unknown>;
@@ -1052,9 +1181,9 @@ export const fetchServiceItems = async (params?: {
       query["fields.category"] = params.category;
     }
 
-    const response = (await contentfulClient!.getEntries(
-      query as unknown as Record<string, unknown>
-    )) as unknown as ContentfulResponse<ServiceItemFields>;
+    const response = await fetchFromContentful<ServiceItemFields>(() =>
+      contentfulClient!.getEntries(buildContentfulQuery(query))
+    );
 
     return response.items.map((entry) => {
       const fields = (entry.fields || {}) as Record<string, unknown>;
@@ -1087,6 +1216,16 @@ export const fetchFeatureItems = async (params?: {
   category?: string;
   showOnHomepage?: boolean;
 }): Promise<FeatureItem[]> => {
+  // Check cache with params
+  const cacheKey = `features:${params?.category || "all"}:${
+    params?.showOnHomepage || "all"
+  }`;
+  const cached = getCached<FeatureItem[]>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Feature items loaded from cache", { cacheKey });
+    return cached;
+  }
+
   if (!isContentfulEnabled) {
     return getMockFeatureItems();
   }
@@ -1104,11 +1243,11 @@ export const fetchFeatureItems = async (params?: {
       query["fields.category"] = params.category;
     }
 
-    const response = (await contentfulClient!.getEntries(
-      query as unknown as Record<string, unknown>
-    )) as unknown as ContentfulResponse<FeatureItemFields>;
+    const response = await fetchFromContentful<FeatureItemFields>(() =>
+      contentfulClient!.getEntries(buildContentfulQuery(query))
+    );
 
-    return response.items.map((entry) => {
+    const items = response.items.map((entry) => {
       const fields = (entry.fields || {}) as Record<string, unknown>;
       return {
         id: getNumericId(entry.sys.id),
@@ -1122,6 +1261,11 @@ export const fetchFeatureItems = async (params?: {
         showOnHomepage: getBoolean(fields.showOnHomepage) ?? false,
       };
     });
+
+    // Cache the result
+    setCache(cacheKey, items);
+
+    return items;
   } catch (error: unknown) {
     logger.error("Fetch feature items error:", error);
     return getMockFeatureItems();
@@ -1133,15 +1277,25 @@ export const fetchFeatureItems = async (params?: {
  */
 type CompanyStatsFields = Record<string, unknown>;
 export const fetchCompanyStats = async (): Promise<CompanyStats | null> => {
+  // Check cache first
+  const cacheKey = "companyStats";
+  const cached = getCached<CompanyStats>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Company stats loaded from cache");
+    return cached;
+  }
+
   if (!isContentfulEnabled) {
     return getMockCompanyStats();
   }
 
   try {
-    const response = (await contentfulClient!.getEntries({
-      content_type: "companyStats",
-      limit: 1,
-    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<CompanyStatsFields>;
+    const response = await fetchFromContentful<CompanyStatsFields>(() =>
+      contentfulClient!.getEntries({
+        content_type: "companyStats",
+        limit: 1,
+      } as Record<string, unknown>)
+    );
 
     if (response.items.length === 0) {
       return getMockCompanyStats();
@@ -1150,7 +1304,7 @@ export const fetchCompanyStats = async (): Promise<CompanyStats | null> => {
     const entry = response.items[0];
     const fields = (entry.fields || {}) as Record<string, unknown>;
 
-    return {
+    const stats = {
       id: getNumericId(entry.sys.id),
       yearsExperience: getNumber(fields.yearsExperience) ?? 0,
       customersServed: getNumber(fields.customersServed) ?? 0,
@@ -1160,6 +1314,11 @@ export const fetchCompanyStats = async (): Promise<CompanyStats | null> => {
       satisfactionRate: getNumber(fields.satisfactionRate) ?? 0,
       partsInStock: getNumber(fields.partsInStock) ?? 0,
     };
+
+    // Cache the result
+    setCache(cacheKey, stats);
+
+    return stats;
   } catch (error: unknown) {
     logger.error("Fetch company stats error:", error);
     return getMockCompanyStats();
@@ -1223,9 +1382,9 @@ export const fetchBlogPosts = async (params?: {
     if (params?.authorName) query["fields.authorName"] = params.authorName;
     if (params?.search) query["query"] = params.search;
 
-    const response = (await contentfulClient!.getEntries(
-      query as unknown as Record<string, unknown>
-    )) as unknown as ContentfulResponse<BlogPostFields> & {
+    const response = (await fetchFromContentful<BlogPostFields>(() =>
+      contentfulClient!.getEntries(buildContentfulQuery(query))
+    )) as ContentfulResponse<BlogPostFields> & {
       includes?: {
         Asset?: Array<{
           sys: { id: string };
@@ -1302,7 +1461,7 @@ export const fetchBlogPosts = async (params?: {
     });
     return {
       items,
-      total: (response as unknown as { total?: number }).total ?? items.length,
+      total: (response.total as number | undefined) ?? items.length,
       page,
       pageSize,
     };
@@ -1332,12 +1491,14 @@ export const fetchBlogPostBySlug = async (
   }
 
   try {
-    const response = (await contentfulClient!.getEntries({
-      content_type: "blogPost",
-      "fields.slug": slug,
-      limit: 1,
-      include: 1,
-    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<BlogPostFields> & {
+    const response = (await fetchFromContentful<BlogPostFields>(() =>
+      contentfulClient!.getEntries({
+        content_type: "blogPost",
+        "fields.slug": slug,
+        limit: 1,
+        include: 1,
+      } as Record<string, unknown>)
+    )) as ContentfulResponse<BlogPostFields> & {
       includes?: {
         Asset?: Array<{
           sys: { id: string };
@@ -1487,10 +1648,12 @@ export const fetchNavigationMenu = async (): Promise<NavigationMenu | null> => {
   }
 
   try {
-    const response = (await contentfulClient!.getEntries({
-      content_type: "navigationMenu",
-      limit: 1,
-    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<NavigationMenuFields>;
+    const response = await fetchFromContentful<NavigationMenuFields>(() =>
+      contentfulClient!.getEntries({
+        content_type: "navigationMenu",
+        limit: 1,
+      } as Record<string, unknown>)
+    );
 
     if (response.items.length === 0) {
       return getMockNavigationMenu();
@@ -1548,10 +1711,12 @@ export const fetchContactInformation =
     }
 
     try {
-      const response = (await contentfulClient!.getEntries({
-        content_type: "contactInformation",
-        limit: 1,
-      } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<ContactInformationFields>;
+      const response = await fetchFromContentful<ContactInformationFields>(() =>
+        contentfulClient!.getEntries({
+          content_type: "contactInformation",
+          limit: 1,
+        } as Record<string, unknown>)
+      );
 
       if (response.items.length === 0) {
         return getMockContactInformation();
@@ -1608,20 +1773,24 @@ export const fetchLegalPage = async (
     const slug = slugMap[pageType];
 
     // Try new approach: fetch from pageContent by slug
-    const response = (await contentfulClient!.getEntries({
-      content_type: "pageContent",
-      "fields.pageSlug": slug,
-      limit: 1,
-    } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<LegalPageFields>;
+    const response = await fetchFromContentful<LegalPageFields>(() =>
+      contentfulClient!.getEntries({
+        content_type: "pageContent",
+        "fields.pageSlug": slug,
+        limit: 1,
+      } as Record<string, unknown>)
+    );
 
     if (response.items.length === 0) {
       // Fallback: try old legalPage content type for backward compatibility during migration
       try {
-        const legacyResponse = (await contentfulClient!.getEntries({
-          content_type: "legalPage",
-          "fields.pageType": pageType,
-          limit: 1,
-        } as unknown as Record<string, unknown>)) as unknown as ContentfulResponse<LegalPageFields>;
+        const legacyResponse = await fetchFromContentful<LegalPageFields>(() =>
+          contentfulClient!.getEntries({
+            content_type: "legalPage",
+            "fields.pageType": pageType,
+            limit: 1,
+          } as Record<string, unknown>)
+        );
 
         if (legacyResponse.items.length > 0) {
           const entry = legacyResponse.items[0];
@@ -1709,6 +1878,14 @@ type PricingTierFields = Record<string, unknown>;
 export const fetchPricingTiers = async (params?: {
   category?: string;
 }): Promise<PricingTier[]> => {
+  // Check cache first
+  const cacheKey = `pricingTiers_${params?.category || "all"}`;
+  const cached = getCached<PricingTier[]>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Returning cached pricing tiers", { count: cached.length });
+    return cached;
+  }
+
   if (!isContentfulEnabled) {
     return getMockPricingTiers();
   }
@@ -1727,7 +1904,7 @@ export const fetchPricingTiers = async (params?: {
       query as unknown as Record<string, unknown>
     )) as unknown as ContentfulResponse<PricingTierFields>;
 
-    return response.items.map((entry) => {
+    const tiers = response.items.map((entry) => {
       const fields = (entry.fields || {}) as Record<string, unknown>;
       const interval = getString(fields.interval);
       return {
@@ -1746,6 +1923,11 @@ export const fetchPricingTiers = async (params?: {
         category: getString(fields.category) ?? undefined,
       };
     });
+
+    // Cache the results
+    const cacheKey = `pricingTiers_${params?.category || "all"}`;
+    setCache(cacheKey, tiers);
+    return tiers;
   } catch (error: unknown) {
     logger.error("Fetch pricing tiers error:", error);
     return getMockPricingTiers();
@@ -1757,6 +1939,14 @@ export const fetchPricingTiers = async (params?: {
  */
 type TestimonialFields = Record<string, unknown>;
 export const fetchTestimonials = async (): Promise<Testimonial[]> => {
+  // Check cache first
+  const cacheKey = "testimonials";
+  const cached = getCached<Testimonial[]>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Testimonials loaded from cache");
+    return cached;
+  }
+
   if (!isContentfulEnabled) {
     return getMockTestimonials();
   }
@@ -1782,77 +1972,14 @@ export const fetchTestimonials = async (): Promise<Testimonial[]> => {
     logger.debug("✅ Contentful testimonials fetched:", {
       count: testimonials.length,
     });
+
+    // Cache the result
+    setCache(cacheKey, testimonials);
+
     return testimonials;
   } catch (error: unknown) {
     logger.error("Fetch testimonials error:", error);
     return getMockTestimonials();
-  }
-};
-
-/**
- * Search products and builds
- */
-type SearchContentFields = Record<string, unknown>;
-export const searchContent = async (
-  query: string
-): Promise<{
-  products: Product[];
-  builds: PCBuild[];
-}> => {
-  if (!isContentfulEnabled) {
-    return { products: [], builds: [] };
-  }
-
-  try {
-    const [productsRes, buildsRes] = await Promise.all([
-      contentfulClient!.getEntries({
-        content_type: "product",
-        query: query,
-      } as unknown as Record<string, unknown>) as unknown as Promise<
-        ContentfulResponse<SearchContentFields>
-      >,
-      contentfulClient!.getEntries({
-        content_type: "pcBuild",
-        query: query,
-      } as unknown as Record<string, unknown>) as unknown as Promise<
-        ContentfulResponse<SearchContentFields>
-      >,
-    ]);
-
-    const products = productsRes.items.map((entry) => {
-      const fields = (entry.fields || {}) as Record<string, unknown>;
-      return {
-        id: getNumericId(entry.sys.id),
-        name: getString(fields.name) ?? "",
-        description: getString(fields.description) ?? "",
-        price: getNumber(fields.price) ?? 0,
-        category: getString(fields.category) ?? "",
-        stock: getNumber(fields.stock) ?? 0,
-        featured: getBoolean(fields.featured) ?? false,
-        specs: fields.specs as Record<string, unknown> | undefined,
-        images: getArray(fields.images) as string[] | undefined,
-      };
-    });
-
-    const builds = buildsRes.items.map((entry) => {
-      const fields = (entry.fields || {}) as Record<string, unknown>;
-      return {
-        id: getNumericId(entry.sys.id),
-        name: getString(fields.name) ?? "",
-        description: getString(fields.description) ?? "",
-        price: getNumber(fields.price) ?? 0,
-        category: getString(fields.category) ?? "",
-        featured: getBoolean(fields.featured) ?? false,
-        components:
-          (fields.components as Record<string, string> | undefined) || {},
-        images: getArray(fields.images) as string[] | undefined,
-      };
-    });
-
-    return { products, builds };
-  } catch (error: unknown) {
-    logger.error("Search content error:", error);
-    return { products: [], builds: [] };
   }
 };
 
@@ -1933,65 +2060,6 @@ function getMockPCBuilds(): PCBuild[] {
       },
     },
   ];
-}
-
-function getMockComponents(type?: string): Component[] {
-  const allComponents: Component[] = [
-    {
-      id: 1,
-      name: "AMD Ryzen 9 7950X",
-      type: "CPU",
-      manufacturer: "AMD",
-      price: 549,
-      stock: 15,
-    },
-    {
-      id: 2,
-      name: "Intel Core i9-14900K",
-      type: "CPU",
-      manufacturer: "Intel",
-      price: 589,
-      stock: 12,
-    },
-    {
-      id: 3,
-      name: "NVIDIA RTX 4090",
-      type: "GPU",
-      manufacturer: "NVIDIA",
-      price: 1599,
-      stock: 5,
-    },
-    {
-      id: 4,
-      name: "NVIDIA RTX 4080",
-      type: "GPU",
-      manufacturer: "NVIDIA",
-      price: 1199,
-      stock: 8,
-    },
-    {
-      id: 5,
-      name: "G.Skill Trident Z5 32GB",
-      type: "RAM",
-      manufacturer: "G.Skill",
-      price: 189,
-      stock: 25,
-    },
-    {
-      id: 6,
-      name: "Samsung 990 Pro 2TB",
-      type: "Storage",
-      manufacturer: "Samsung",
-      price: 199,
-      stock: 30,
-    },
-  ];
-
-  if (type) {
-    return allComponents.filter((c) => c.type === type);
-  }
-
-  return allComponents;
 }
 
 // getMockCategories removed - now using hardcoded categories in fetchCategories
@@ -2329,6 +2397,79 @@ function getMockBlogPosts(): BlogPostSummary[] {
   return posts;
 }
 
+function getMockVacancies(): Vacancy[] {
+  return [
+    {
+      id: "senior-frontend",
+      title: "Senior Frontend Engineer",
+      level: "Senior",
+      type: "Full-time",
+      location: "Hybrid · Norwich / Remote UK",
+      summary:
+        "Lead premium UI delivery across our React + TypeScript stack with an emphasis on performance, accessibility, and glassmorphism aesthetics.",
+      tags: ["React", "TypeScript", "shadcn/ui", "Vite"],
+      idealFor: [
+        "Operating system installation and optimisation",
+        "Custom PC builds and upgrades",
+        "Client training and best-practice guidance",
+      ],
+      featured: true,
+      displayOrder: 1,
+    },
+    {
+      id: "backend-engineer",
+      title: "Backend Engineer (Node & Payments)",
+      level: "Mid/Senior",
+      type: "Full-time",
+      location: "Hybrid · Norwich / Remote UK",
+      summary:
+        "Build resilient commerce APIs, payment flows (Stripe/PayPal), and observability pipelines that keep orders moving without downtime.",
+      tags: ["Node.js", "Stripe", "PostgreSQL", "Observability"],
+      idealFor: [
+        "Network setup and connectivity fixes",
+        "Data backup and recovery solutions",
+        "Security hardening and malware removal",
+      ],
+      featured: true,
+      displayOrder: 2,
+    },
+    {
+      id: "customer-success",
+      title: "Customer Success Lead (B2B)",
+      level: "Lead",
+      type: "Full-time",
+      location: "Hybrid · Norwich / Remote UK",
+      summary:
+        "Own onboarding and retention for our business clients, shaping playbooks that keep SLAs, NPS, and renewals on target.",
+      tags: ["B2B", "Onboarding", "SLA", "Playbooks"],
+      idealFor: [
+        "Remote troubleshooting and support",
+        "Client training and best-practice guidance",
+        "Custom PC builds and upgrades",
+      ],
+      featured: false,
+      displayOrder: 3,
+    },
+    {
+      id: "content-specialist",
+      title: "Technical Content Specialist",
+      level: "Mid",
+      type: "Contract / Part-time",
+      location: "Remote · UK/EU",
+      summary:
+        "Translate engineering excellence into clear stories—landing pages, release notes, and comparison guides that convert.",
+      tags: ["Content", "SEO", "Product Marketing", "Docs"],
+      idealFor: [
+        "PC hardware diagnostics and repair",
+        "Operating system installation and optimisation",
+        "Security hardening and malware removal",
+      ],
+      featured: false,
+      displayOrder: 4,
+    },
+  ];
+}
+
 function getMockBlogPostContent(slug: string): string {
   switch (slug) {
     case "best-graphics-cards-2025":
@@ -2372,6 +2513,19 @@ export const fetchPCComponents = async (params?: {
   limit?: number;
   featured?: boolean;
 }): Promise<PCComponent[]> => {
+  // Check cache first to reduce API calls
+  const cacheKey = `pcComponents_${params?.category || "all"}_${
+    params?.limit || "default"
+  }_${params?.featured || "all"}`;
+  const cached = getCached<PCComponent[]>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Returning cached PC components", {
+      count: cached.length,
+      cacheKey,
+    });
+    return cached;
+  }
+
   if (!isContentfulEnabled || !contentfulClient) {
     logger.debug("📦 Contentful not enabled, returning empty components array");
     return [];
@@ -2395,7 +2549,7 @@ export const fetchPCComponents = async (params?: {
 
     const query: ContentfulQuery = {
       limit: params?.limit || 100,
-      include: 1, // Include linked assets (images)
+      include: 2, // Include linked assets (images) - increased to 2 for nested assets like brandLogo
     };
 
     // If category specified, use specific content type, otherwise fetch all types
@@ -2422,6 +2576,7 @@ export const fetchPCComponents = async (params?: {
       logger.debug(
         `📦 Found ${response.items.length} ${params.category} components`
       );
+
       allComponents = response.items.map((item) =>
         mapContentfulToComponent(
           item,
@@ -2435,6 +2590,7 @@ export const fetchPCComponents = async (params?: {
         logger.debug(`🔍 Sample ${params.category} component:`, {
           id: allComponents[0].id,
           name: allComponents[0].name,
+          brandLogo: allComponents[0].brandLogo,
           imagesCount: allComponents[0].images?.length || 0,
           firstImage:
             allComponents[0].images?.[0]?.substring(0, 50) + "..." || "none",
@@ -2478,6 +2634,16 @@ export const fetchPCComponents = async (params?: {
       });
     }
 
+    // Cache the results before returning
+    const cacheKey = `pcComponents_${params?.category || "all"}_${
+      params?.limit || "default"
+    }_${params?.featured || "all"}`;
+    setCache(cacheKey, allComponents);
+    logger.debug("💾 Cached PC components", {
+      count: allComponents.length,
+      cacheKey,
+    });
+
     return allComponents;
   } catch (error: unknown) {
     logger.error("Fetch PC components error:", {
@@ -2496,6 +2662,16 @@ function mapContentfulToComponent(
   includes?: ContentfulResponse["includes"]
 ): PCComponent {
   const fields = (item.fields || {}) as Record<string, unknown>;
+
+  // Helper: parse wattage from number or string like "850W"
+  const parseWatt = (v: unknown): number | undefined => {
+    if (typeof v === "number" && !isNaN(v)) return v;
+    if (typeof v === "string") {
+      const n = parseInt(v.replace(/[^0-9]/g, ""), 10);
+      return isNaN(n) ? undefined : n;
+    }
+    return undefined;
+  };
 
   // Process images - resolve asset links from includes
   let images: string[] = [];
@@ -2604,6 +2780,67 @@ function mapContentfulToComponent(
     }
   }
 
+  // Process brand logo (similar to single image processing)
+  // Try multiple possible field names for brand logo
+  const brandLogoField =
+    fields.brandLogo || fields.BrandLogo || fields.brand_logo || fields.logo;
+  let brandLogo: string | undefined;
+
+  if (brandLogoField) {
+    // Handle if brandLogo is a direct string URL
+    if (typeof brandLogoField === "string") {
+      brandLogo = brandLogoField.startsWith("//")
+        ? `https:${brandLogoField}`
+        : brandLogoField;
+    } else if (typeof brandLogoField === "object") {
+      const logoField = brandLogoField as Record<string, unknown>;
+
+      // Check if it's a linked asset with sys
+      if (
+        logoField.sys &&
+        typeof logoField.sys === "object" &&
+        "linkType" in logoField.sys &&
+        logoField.sys.linkType === "Asset"
+      ) {
+        if (includes?.Asset) {
+          const logoSys = logoField.sys as { id?: string };
+          const asset = (
+            includes.Asset as unknown as Array<Record<string, unknown>>
+          ).find(
+            (a: Record<string, unknown>) =>
+              a.sys &&
+              typeof a.sys === "object" &&
+              "id" in a.sys &&
+              (a.sys as { id?: string }).id === logoSys.id
+          );
+          if (
+            asset &&
+            asset.fields &&
+            typeof asset.fields === "object" &&
+            "file" in asset.fields
+          ) {
+            const assetFields = asset.fields as { file?: { url?: string } };
+            brandLogo = assetFields.file?.url
+              ? `https:${assetFields.file.url}`
+              : undefined;
+          }
+        }
+      }
+      // Check if it's an already resolved asset with fields
+      else if (
+        logoField.fields &&
+        typeof logoField.fields === "object" &&
+        "file" in logoField.fields
+      ) {
+        const logoFields = logoField.fields as { file?: { url?: string } };
+        brandLogo = logoFields.file?.url
+          ? `https:${logoFields.file.url}`
+          : undefined;
+      }
+    }
+  }
+
+  // Debug: Log all available fields with prominent styling
   return {
     id: getString(fields.componentId) || getString(fields.id) || item.sys.id,
     name: getString(fields.name) ?? "",
@@ -2611,11 +2848,48 @@ function mapContentfulToComponent(
     category: category,
     rating: getNumber(fields.rating) ?? undefined,
     description: getString(fields.description) ?? undefined,
-    mainDescription: getString(fields.mainDescription) ?? undefined,
+    mainProductDescription:
+      getRichText(fields.mainProductDescription) ?? undefined,
     images: images,
+    imagesByOption: (() => {
+      if (!fields.imagesByOption) return undefined;
+
+      const rawData = fields.imagesByOption as Record<
+        string,
+        Record<string, string[]>
+      >;
+      const processed: Record<string, Record<string, string[]>> = {};
+
+      // Process each option type (colour, size, etc.)
+      for (const optionKey in rawData) {
+        processed[optionKey] = {};
+
+        // Process each option value (Black, White, etc.)
+        for (const optionValue in rawData[optionKey]) {
+          const urls = rawData[optionKey][optionValue];
+          // Add https: protocol to URLs that start with //
+          processed[optionKey][optionValue] = urls.map((url) =>
+            url.startsWith("//") ? `https:${url}` : url
+          );
+        }
+      }
+
+      return processed;
+    })(),
+    // Support both legacy numeric map and new object map with { price, ean }
+    pricesByOption: fields.pricesByOption
+      ? (fields.pricesByOption as Record<
+          string,
+          Record<string, number | { price: number; ean?: string }>
+        >)
+      : undefined,
     inStock: getBoolean(fields.inStock) ?? true,
     featured: getBoolean(fields.featured) ?? false,
     stockLevel: getNumber(fields.stockLevel) ?? undefined,
+    ean: (() => {
+      const eanValue = getNumber(fields.ean) ?? getString(fields.ean);
+      return eanValue !== undefined ? String(eanValue) : undefined;
+    })(),
 
     // Supplier/Admin information
     supplierName: getString(fields.supplierName) ?? undefined,
@@ -2625,10 +2899,37 @@ function mapContentfulToComponent(
 
     // Common fields across all components
     brand: getString(fields.brand) ?? undefined,
+    brandLogo: brandLogo, // Will come from Contentful when field is populated
     model: getString(fields.model) ?? undefined,
-    colour: getString(fields.colour) || getString(fields.color) || undefined,
-    color: getString(fields.color) || getString(fields.colour) || undefined,
-    features: getArray(fields.features) as string[] | undefined,
+    colour:
+      (getArray(fields.colour) as string[] | undefined) ||
+      getString(fields.colour) ||
+      (getArray(fields.color) as string[] | undefined) ||
+      getString(fields.color) ||
+      undefined,
+    color:
+      (getArray(fields.color) as string[] | undefined) ||
+      getString(fields.color) ||
+      (getArray(fields.colour) as string[] | undefined) ||
+      getString(fields.colour) ||
+      undefined,
+    colourOptions:
+      (getArray(fields.colourOptions) as string[] | undefined) ||
+      getString(fields.colourOptions) ||
+      undefined,
+    features: (getArray(fields.features) as string[] | undefined) || undefined,
+    size:
+      (getArray(fields.size) as string[] | undefined) ||
+      getString(fields.size) ||
+      undefined,
+    type:
+      (getArray(fields.type) as string[] | undefined) ||
+      getString(fields.type) ||
+      undefined,
+    storage:
+      (getArray(fields.storage) as string[] | undefined) ||
+      getString(fields.storage) ||
+      undefined,
 
     // Case fields
     formFactor:
@@ -2638,7 +2939,10 @@ function mapContentfulToComponent(
     coolingSupport:
       getString(fields.coolingSupport ?? fields["Cooling Support"]) ??
       undefined,
-    style: getString(fields.style ?? fields["Style"]) ?? undefined,
+    style:
+      (getArray(fields.style) as string[] | undefined) ||
+      getString(fields.style ?? fields["Style"]) ||
+      undefined,
     compatibility: getArray(fields.compatibility ?? fields["Compatability"]) as
       | string[]
       | undefined,
@@ -2657,6 +2961,21 @@ function mapContentfulToComponent(
     // Motherboard fields
     socket: getString(fields.socket ?? fields.Socket) ?? undefined,
     chipset: getString(fields.chipset ?? fields.Chipset) ?? undefined,
+    cpuCompatability: (() => {
+      const arr =
+        (getArray(fields.cpuCompatability) as string[] | undefined) ||
+        (getArray(fields["CPU Compatability"]) as string[] | undefined) ||
+        (getArray(fields.cpuCompatibility) as string[] | undefined) ||
+        (getArray(fields["CPU Compatibility"]) as string[] | undefined);
+      if (arr && arr.length) return arr;
+      const str =
+        getString(fields.cpuCompatability) ||
+        getString(fields["CPU Compatability"]) ||
+        getString(fields.cpuCompatibility) ||
+        getString(fields["CPU Compatibility"]) ||
+        undefined;
+      return str;
+    })(),
     ramSupport:
       getString(fields.ramSupport ?? fields["RAM Support"]) ?? undefined,
     maxRam: getNumber(fields.maxRam ?? fields["Max Ram"]) ?? undefined,
@@ -2664,10 +2983,14 @@ function mapContentfulToComponent(
     pciSlots: getNumber(fields.pciSlots ?? fields["PCI Slots"]) ?? undefined,
     m2Slots: getNumber(fields.m2Slots ?? fields["M2 Slots"]) ?? undefined,
     internalIOConnectors: getArray(
-      fields.internalIOConnectors ?? fields["Internal I/O Connectors"]
+      fields.internalIOConnectors ??
+        fields.internalIoConnectors ??
+        fields["Internal I/O Connectors"]
     ) as string[] | undefined,
     backPanelIOPorts: getArray(
-      fields.backPanelIOPorts ?? fields["Back Panel I/O Ports"]
+      fields.backPanelIOPorts ??
+        fields.backPanelIoPorts ??
+        fields["Back Panel I/O Ports"]
     ) as string[] | undefined,
 
     // CPU fields
@@ -2719,6 +3042,22 @@ function mapContentfulToComponent(
     // GPU fields
     vram: getNumber(fields.vram ?? fields.VRAM ?? fields["VRAM"]) ?? undefined,
     power: getNumber(fields.power ?? fields.Power) ?? undefined,
+    powerConsumption:
+      parseWatt(
+        (fields as Record<string, unknown>)["powerConsumption"] ??
+          (fields as Record<string, unknown>)["Power Consumption"] ??
+          (fields as Record<string, unknown>)["power_consumption"] ??
+          (fields as Record<string, unknown>)["Power_Consumption"] ??
+          (fields as Record<string, unknown>)["TBP"] ??
+          (fields as Record<string, unknown>)["typicalBoardPower"]
+      ) ?? undefined,
+    powerDraw:
+      parseWatt(
+        (fields as Record<string, unknown>)["powerDraw"] ??
+          (fields as Record<string, unknown>)["Power Draw"] ??
+          (fields as Record<string, unknown>)["power_draw"] ??
+          (fields as Record<string, unknown>)["Power_Draw"]
+      ) ?? undefined,
     length: getNumber(fields.length ?? fields.Length) ?? undefined,
     height: getNumber(fields.height ?? fields.Height) ?? undefined,
     slots: getNumber(fields.slots ?? fields.Slots) ?? undefined,
@@ -2765,7 +3104,7 @@ function mapContentfulToComponent(
     speed: getString(fields.speed ?? fields.Speed) ?? undefined,
     modules: getNumber(fields.modules ?? fields.Modules) ?? undefined,
     latency: getString(fields.latency ?? fields.Latency) ?? undefined,
-    type: getString(fields.type ?? fields.Type) ?? undefined,
+    // type field moved to common fields above to support arrays
     voltage: getNumber(fields.voltage ?? fields.Voltage) ?? undefined,
     compliance: getString(fields.compliance ?? fields.Compliance) ?? undefined,
     pins: getNumber(fields.pins ?? fields.Pins) ?? undefined,
@@ -2879,6 +3218,19 @@ export const fetchPCOptionalExtras = async (params?: {
   limit?: number;
   featured?: boolean;
 }): Promise<PCOptionalExtra[]> => {
+  // Check cache first to reduce API calls
+  const cacheKey = `pcOptionalExtras_${params?.category || "all"}_${
+    params?.limit || "default"
+  }_${params?.featured || "all"}`;
+  const cached = getCached<PCOptionalExtra[]>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Returning cached optional extras", {
+      count: cached.length,
+      cacheKey,
+    });
+    return cached;
+  }
+
   if (!isContentfulEnabled || !contentfulClient) {
     logger.debug(
       "📦 Contentful not enabled, returning empty optional extras array"
@@ -2891,15 +3243,12 @@ export const fetchPCOptionalExtras = async (params?: {
 
     const query: ContentfulQuery = {
       content_type: "optionalExtra",
-      limit: params?.limit || 100,
+      limit: params?.limit || 500, // fetch broadly, filter client-side
       include: 1, // Include linked assets (images)
     };
 
     if (params?.featured !== undefined) {
       query["fields.featured"] = params.featured;
-    }
-    if (params?.category) {
-      query["fields.category"] = params.category;
     }
 
     const response = await contentfulClient.getEntries(
@@ -2907,11 +3256,49 @@ export const fetchPCOptionalExtras = async (params?: {
     );
     logger.debug(`📦 Found ${response.items.length} optional extras from CMS`);
 
-    const extras = response.items.map((item) =>
+    // Map entries
+    const rawExtras = response.items.map((item) =>
       mapContentfulToOptionalExtra(
         item,
         response.includes as unknown as ContentfulResponse["includes"]
       )
+    );
+
+    // Category normalization to align CMS predefined values with internal keys
+    const categoryMap: Record<string, string> = {
+      cables: "cable",
+      cable: "cable",
+      keyboards: "keyboard",
+      keyboard: "keyboard",
+      gamepads: "gamepad",
+      gamepad: "gamepad",
+      mousepads: "mousepad",
+      mousepad: "mousepad",
+      headsets: "headset",
+      headset: "headset",
+      mice: "mouse",
+      mouse: "mouse",
+      monitors: "monitor",
+      monitor: "monitor",
+      software: "software",
+    };
+
+    const normalize = (val?: string) => {
+      if (!val) return "";
+      const key = val.trim().toLowerCase();
+      return categoryMap[key] ?? key;
+    };
+
+    const extras = params?.category
+      ? rawExtras.filter(
+          (e) => normalize(e.category) === normalize(params.category)
+        )
+      : rawExtras;
+
+    logger.debug(
+      `📦 Optional extras after category filter (${
+        params?.category ?? "all"
+      }): ${extras.length}`
     );
 
     // Log sample extra for debugging
@@ -2923,6 +3310,16 @@ export const fetchPCOptionalExtras = async (params?: {
         imagesCount: extras[0].images?.length || 0,
       });
     }
+
+    // Cache the results before returning
+    const cacheKey = `pcOptionalExtras_${params?.category || "all"}_${
+      params?.limit || "default"
+    }_${params?.featured || "all"}`;
+    setCache(cacheKey, extras);
+    logger.debug("💾 Cached optional extras", {
+      count: extras.length,
+      cacheKey,
+    });
 
     return extras;
   } catch (error: unknown) {
@@ -3002,6 +3399,50 @@ function mapContentfulToOptionalExtra(
     }
   }
 
+  // Process brand logo (same as PCComponent)
+  let brandLogo: string | undefined;
+  if (fields.brandLogo && typeof fields.brandLogo === "object") {
+    const logoField = fields.brandLogo as Record<string, unknown>;
+    if (
+      logoField.sys &&
+      typeof logoField.sys === "object" &&
+      "linkType" in logoField.sys &&
+      logoField.sys.linkType === "Asset" &&
+      includes?.Asset
+    ) {
+      const logoSys = logoField.sys as { id?: string };
+      const asset = (
+        includes.Asset as unknown as Array<Record<string, unknown>>
+      ).find(
+        (a: Record<string, unknown>) =>
+          a.sys &&
+          typeof a.sys === "object" &&
+          "id" in a.sys &&
+          (a.sys as { id?: string }).id === logoSys.id
+      );
+      if (
+        asset &&
+        asset.fields &&
+        typeof asset.fields === "object" &&
+        "file" in asset.fields
+      ) {
+        const assetFields = asset.fields as { file?: { url?: string } };
+        brandLogo = assetFields.file?.url
+          ? `https:${assetFields.file.url}`
+          : undefined;
+      }
+    } else if (
+      logoField.fields &&
+      typeof logoField.fields === "object" &&
+      "file" in logoField.fields
+    ) {
+      const logoFields = logoField.fields as { file?: { url?: string } };
+      brandLogo = logoFields.file?.url
+        ? `https:${logoFields.file.url}`
+        : undefined;
+    }
+  }
+
   return {
     id: getString(fields.extraId) || getString(fields.id) || item.sys.id,
     name: getString(fields.name) ?? "",
@@ -3009,7 +3450,8 @@ function mapContentfulToOptionalExtra(
     category: getString(fields.category) ?? "",
     rating: getNumber(fields.rating) ?? undefined,
     description: getString(fields.description) ?? undefined,
-    mainDescription: getString(fields.mainDescription) ?? undefined,
+    mainProductDescription:
+      getRichText(fields.mainProductDescription) ?? undefined,
     features: Array.isArray(fields.features)
       ? (fields.features as string[])
       : undefined,
@@ -3032,6 +3474,10 @@ function mapContentfulToOptionalExtra(
     inStock: getBoolean(fields.inStock) ?? true,
     featured: getBoolean(fields.featured) ?? false,
     stockLevel: getNumber(fields.stockLevel) ?? undefined,
+    ean: (() => {
+      const eanValue = getNumber(fields.ean) ?? getString(fields.ean);
+      return eanValue !== undefined ? String(eanValue) : undefined;
+    })(),
 
     // Supplier information (admin panel only)
     supplierName: getString(fields.supplierName) ?? undefined,
@@ -3044,6 +3490,7 @@ function mapContentfulToOptionalExtra(
     wireless: getBoolean(fields.wireless) ?? undefined,
     rgb: getBoolean(fields.rgb) ?? undefined,
     brand: getString(fields.brand) ?? undefined,
+    brandLogo: brandLogo,
     color: getString(fields.color) ?? undefined,
 
     // Keyboard specific
@@ -3068,7 +3515,7 @@ function mapContentfulToOptionalExtra(
     // Gamepad specific
     platform: getString(fields.platform) ?? undefined,
     batteryLife: getString(fields.batteryLife) ?? undefined,
-    connection: getString(fields.connection) ?? undefined,
+    connectivity: getString(fields.connectivity) ?? undefined,
 
     // Mousepad specific
     surface: getString(fields.surface) ?? undefined,
@@ -3085,5 +3532,368 @@ function mapContentfulToOptionalExtra(
     resolution: getString(fields.resolution) ?? undefined,
     frameRate: getNumber(fields.frameRate) ?? undefined,
     fieldOfView: getNumber(fields.fieldOfView) ?? undefined,
+  };
+}
+
+/**
+ * Vacancy type for job postings
+ */
+export interface Vacancy {
+  id: string;
+  title: string;
+  level: string; // e.g., "Senior", "Mid", "Lead"
+  type: string; // e.g., "Full-time", "Contract", "Part-time"
+  location: string; // e.g., "Hybrid · Norwich / Remote UK"
+  summary: string; // Short 1-2 sentence role description
+  tags: string[]; // Skills and technologies
+  idealFor?: string[]; // Ideal candidate profiles
+  description?: string | Document; // Detailed role description (rich text optional)
+  displayOrder?: number; // For sorting vacancies
+  featured?: boolean; // Highlight on vacancies page
+}
+
+/**
+ * Business Workstation type for pre-configured business PCs
+ */
+export interface BusinessWorkstation {
+  id: string;
+  name: string;
+  tagline: string;
+  price: number;
+  iconEmoji: string;
+  imageUrl?: string;
+  recommended?: boolean;
+  processor: string;
+  ram: string;
+  storage: string;
+  graphics: string;
+  cooler?: string;
+  motherboard?: string;
+  case?: string;
+  psu?: string;
+  warranty: string;
+  operatingSystem: string;
+  formFactor?: string;
+  features: string[];
+  idealFor: string[];
+  officePerformance: number;
+  creativePerformance: number;
+  dataPerformance: number;
+  displayOrder?: number;
+  featured?: boolean;
+}
+
+/**
+ * Fetch vacancies from Contentful
+ */
+type VacancyFields = Record<string, unknown>;
+export const fetchVacancies = async (params?: {
+  featured?: boolean;
+  limit?: number;
+}): Promise<Vacancy[]> => {
+  // Check cache first
+  const cacheKey = "vacancies";
+  const cached = getCached<Vacancy[]>(cacheKey);
+  if (cached) {
+    logger.debug("✅ Vacancies loaded from cache");
+    return cached;
+  }
+
+  if (!isContentfulEnabled || !contentfulClient) {
+    logger.debug("📋 Contentful not enabled, returning mock vacancies");
+    return getMockVacancies();
+  }
+
+  try {
+    logger.debug("🔍 Fetching vacancies from Contentful...", params);
+
+    const query: ContentfulQuery = {
+      content_type: "vacancy",
+      order: ["fields.displayOrder", "fields.title"] as unknown as string,
+      limit: params?.limit || 100,
+    };
+
+    if (params?.featured !== undefined) {
+      query["fields.featured"] = params.featured;
+    }
+
+    const response = (await contentfulClient.getEntries(
+      query as unknown as Record<string, unknown>
+    )) as unknown as ContentfulResponse<VacancyFields>;
+
+    logger.debug(`📋 Found ${response.items.length} vacancies from CMS`);
+
+    const vacancies = response.items.map((entry) => {
+      const fields = (entry.fields || {}) as Record<string, unknown>;
+      return {
+        id: getString(fields.vacancyId) || entry.sys.id,
+        title: getString(fields.title) ?? "",
+        level: getString(fields.level) ?? "",
+        type: getString(fields.type) ?? "",
+        location: getString(fields.location) ?? "",
+        summary: getRichText(fields.summary) ?? getString(fields.summary) ?? "",
+        tags: (getArray(fields.tags) as string[] | undefined) || [],
+        idealFor: (getArray(fields.idealFor) as string[] | undefined) || [],
+        description: getRichText(fields.description) ?? undefined,
+        displayOrder: getNumber(fields.displayOrder) ?? undefined,
+        featured: getBoolean(fields.featured) ?? false,
+      } as Vacancy;
+    });
+
+    // Cache the result
+    setCache(cacheKey, vacancies);
+
+    return vacancies;
+  } catch (error: unknown) {
+    logger.error("Fetch vacancies error:", error);
+    return getMockVacancies();
+  }
+};
+
+/**
+ * Fetch business workstations from Contentful
+ */
+export const fetchBusinessWorkstations = async (params?: {
+  featured?: boolean;
+  limit?: number;
+}): Promise<BusinessWorkstation[]> => {
+  if (!isContentfulEnabled || !contentfulClient) {
+    return [];
+  }
+
+  try {
+    const query: ContentfulQuery = {
+      content_type: "businessWorkstation",
+      limit: params?.limit || 100,
+      order: ["fields.displayOrder", "fields.name"] as unknown as string,
+    };
+
+    if (params?.featured !== undefined) {
+      query["fields.featured"] = params.featured;
+    }
+
+    const response = await contentfulClient.getEntries(
+      query as unknown as Record<string, unknown>
+    );
+
+    const workstations = response.items.map((item) =>
+      mapContentfulToWorkstation(
+        item,
+        response as unknown as ContentfulResponse<unknown>
+      )
+    );
+
+    return workstations;
+  } catch (error: unknown) {
+    logger.error("Fetch business workstations error:", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+};
+
+/**
+ * Helper function to map Contentful entry to BusinessWorkstation
+ */
+function mapContentfulToWorkstation(
+  item: ContentfulEntry,
+  response?: ContentfulResponse<unknown>
+): BusinessWorkstation {
+  const fields = (item.fields || {}) as Record<string, unknown>;
+  const workstationName = getString(fields.name) ?? "Unknown";
+
+  // Helper to get image URL from Contentful
+  const getImageUrl = (
+    imageUrlField: unknown,
+    _fieldName?: string
+  ): string | undefined => {
+    if (!imageUrlField) {
+      return undefined;
+    }
+
+    // Check if it's a STRING (direct URL)
+    const imageUrl = getString(imageUrlField);
+    if (imageUrl) {
+      return imageUrl;
+    }
+
+    // Check if it's an ARRAY of assets (Contentful multi-asset field)
+    if (Array.isArray(imageUrlField) && imageUrlField.length > 0) {
+      const firstAsset = imageUrlField[0];
+
+      if (firstAsset && typeof firstAsset === "object") {
+        const asset = firstAsset as Record<string, unknown>;
+
+        // Try to get URL from inline asset
+        if (
+          "fields" in asset &&
+          asset.fields &&
+          typeof asset.fields === "object"
+        ) {
+          const assetFields = asset.fields as Record<string, unknown>;
+          if (assetFields.file && typeof assetFields.file === "object") {
+            const file = assetFields.file as Record<string, unknown>;
+            const url = getString(file.url);
+            if (url) {
+              const finalUrl =
+                url.startsWith("//") || url.startsWith("http")
+                  ? url
+                  : `https:${url}`;
+
+              return finalUrl;
+            }
+          }
+        }
+
+        // Try to resolve from includes if it's a reference
+        if ("sys" in asset && asset.sys && typeof asset.sys === "object") {
+          const sysMeta = asset.sys as Record<string, unknown>;
+          const assetId = sysMeta.id as string | undefined;
+
+          if (
+            assetId &&
+            response?.includes?.Asset &&
+            Array.isArray(response.includes.Asset)
+          ) {
+            const includesAssets = response.includes.Asset as unknown as Array<
+              Record<string, unknown>
+            >;
+            const resolvedAsset = includesAssets.find((a) => {
+              const aSys = a.sys as Record<string, string> | undefined;
+              return aSys?.id === assetId;
+            });
+
+            if (
+              resolvedAsset &&
+              resolvedAsset.fields &&
+              typeof resolvedAsset.fields === "object"
+            ) {
+              const assetFields = resolvedAsset.fields as Record<
+                string,
+                unknown
+              >;
+              if (assetFields.file && typeof assetFields.file === "object") {
+                const file = assetFields.file as Record<string, unknown>;
+                const url = getString(file.url);
+                if (url) {
+                  const finalUrl =
+                    url.startsWith("//") || url.startsWith("http")
+                      ? url
+                      : `https:${url}`;
+                  return finalUrl;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Check if it's a single OBJECT (not an array)
+    if (
+      imageUrlField &&
+      typeof imageUrlField === "object" &&
+      !Array.isArray(imageUrlField)
+    ) {
+      const asset = imageUrlField as Record<string, unknown>;
+
+      // Check if it's a reference (has sys.id) that needs to be resolved from includes
+      if ("sys" in asset && asset.sys && typeof asset.sys === "object") {
+        const sysMeta = asset.sys as Record<string, unknown>;
+        const assetId = sysMeta.id as string | undefined;
+
+        if (
+          assetId &&
+          response?.includes?.Asset &&
+          Array.isArray(response.includes.Asset)
+        ) {
+          const includesAssets = response.includes.Asset as unknown as Array<
+            Record<string, unknown>
+          >;
+          const resolvedAsset = includesAssets.find((a) => {
+            const aSys = a.sys as Record<string, string> | undefined;
+            return aSys?.id === assetId;
+          });
+
+          if (
+            resolvedAsset &&
+            resolvedAsset.fields &&
+            typeof resolvedAsset.fields === "object"
+          ) {
+            const assetFields = resolvedAsset.fields as Record<string, unknown>;
+            if (assetFields.file && typeof assetFields.file === "object") {
+              const file = assetFields.file as Record<string, unknown>;
+              const url = getString(file.url);
+              if (url) {
+                const finalUrl =
+                  url.startsWith("//") || url.startsWith("http")
+                    ? url
+                    : `https:${url}`;
+                return finalUrl;
+              }
+            }
+          }
+        }
+      }
+
+      // Handle nested asset with direct fields.file.url (inline asset)
+      if (
+        "fields" in asset &&
+        asset.fields &&
+        typeof asset.fields === "object"
+      ) {
+        const assetFields = asset.fields as Record<string, unknown>;
+        if (assetFields.file && typeof assetFields.file === "object") {
+          const file = assetFields.file as Record<string, unknown>;
+          const url = getString(file.url);
+          if (url) {
+            const finalUrl =
+              url.startsWith("//") || url.startsWith("http")
+                ? url
+                : `https:${url}`;
+            return finalUrl;
+          }
+        }
+      }
+    }
+    return undefined;
+  };
+
+  const imageUrlFromField =
+    getImageUrl(fields.imageUrl, "imageUrl") ||
+    getImageUrl(fields.image, "image") ||
+    getImageUrl(fields.images, "images");
+
+  return {
+    id: getString(fields.workstationId) || item.sys.id,
+    name: workstationName,
+    tagline: getString(fields.tagline) ?? "",
+    price: getNumber(fields.price) ?? 0,
+    iconEmoji: getString(fields.iconEmoji) ?? "💼",
+    // Prefer explicit imageUrl, then single image, then images array (use first)
+    imageUrl: imageUrlFromField,
+    recommended: getBoolean(fields.recommended) ?? false,
+    processor: getString(fields.processor) ?? "",
+    ram: getString(fields.ram) ?? "",
+    storage: getString(fields.storage) ?? "",
+    graphics: getString(fields.graphics) ?? "",
+    cooler: getString(fields.cooler) ?? undefined,
+    motherboard: getString(fields.motherboard) ?? undefined,
+    case: getString(fields.case) ?? undefined,
+    psu: getString(fields.psu) ?? undefined,
+    warranty: getString(fields.warranty) ?? "",
+    operatingSystem: getString(fields.operatingSystem) ?? "Windows 11 Pro",
+    formFactor: getString(fields.formFactor) ?? undefined,
+    features: Array.isArray(fields.features)
+      ? (fields.features as string[])
+      : [],
+    idealFor: Array.isArray(fields.idealFor)
+      ? (fields.idealFor as string[])
+      : [],
+    officePerformance: getNumber(fields.officePerformance) ?? 0,
+    creativePerformance: getNumber(fields.creativePerformance) ?? 0,
+    dataPerformance: getNumber(fields.dataPerformance) ?? 0,
+    displayOrder: getNumber(fields.displayOrder) ?? undefined,
+    featured: getBoolean(fields.featured) ?? false,
   };
 }

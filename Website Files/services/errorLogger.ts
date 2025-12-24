@@ -3,6 +3,8 @@
  * Centralized error logging and tracking for the application
  */
 
+import { logger } from "./logger";
+
 interface ErrorLogEntry {
   timestamp: string;
   message: string;
@@ -47,18 +49,17 @@ class ErrorLogger {
       this.errors.pop();
     }
 
-    // Log to console in development
+    // Log details in development via centralized logger
     if (import.meta.env?.DEV) {
-      console.group(`🚨 Error Logged [${errorEntry.severity.toUpperCase()}]`);
-      console.error("Message:", error.message);
-      console.error("Stack:", error.stack);
-      if (context?.componentStack) {
-        console.error("Component Stack:", context.componentStack);
-      }
-      if (context?.additionalInfo) {
-        console.error("Additional Info:", context.additionalInfo);
-      }
-      console.groupEnd();
+      logger.error(
+        `🚨 Error Logged [${errorEntry.severity.toUpperCase()}]`,
+        error,
+        {
+          stack: error.stack,
+          componentStack: context?.componentStack,
+          additionalInfo: context?.additionalInfo,
+        }
+      );
     }
 
     // In production, send to monitoring service
@@ -76,7 +77,9 @@ class ErrorLogger {
         JSON.stringify(storedErrors.slice(0, 20))
       );
     } catch (e) {
-      console.warn("Failed to store error in localStorage:", e);
+      logger.warn("Failed to store error in localStorage", {
+        error: e as unknown,
+      });
     }
   }
 
@@ -122,7 +125,9 @@ class ErrorLogger {
     try {
       localStorage.removeItem("vortex_error_log");
     } catch (e) {
-      console.warn("Failed to clear error log from localStorage:", e);
+      logger.warn("Failed to clear error log from localStorage", {
+        error: e as unknown,
+      });
     }
   }
 
@@ -159,7 +164,7 @@ class ErrorLogger {
       }
       */
     } catch (e) {
-      console.error("Failed to send error to monitoring service:", e);
+      logger.error("Failed to send error to monitoring service", e as unknown);
     }
   }
 

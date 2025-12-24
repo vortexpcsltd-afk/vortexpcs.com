@@ -8,6 +8,7 @@ import {
   trackPageView,
   trackUserEvent,
 } from "./advancedAnalytics";
+import { logger } from "./logger";
 
 let sessionId: string | null = null;
 let sessionStartTime: Date | null = null;
@@ -27,24 +28,36 @@ let perfFlags = {
  * Initialize session tracking
  */
 export function initializeSessionTracking(userId?: string) {
-  if (sessionId) {
-    console.log("📊 [SessionTracker] Session already initialized:", sessionId);
+  // Check if we already have a session in sessionStorage
+  const existingSessionId = sessionStorage.getItem("vortex_session_id");
+
+  if (existingSessionId && sessionId === existingSessionId) {
+    logger.info("📊 [SessionTracker] Session already initialized", {
+      sessionId,
+    });
     return sessionId;
   }
 
-  // Generate session ID
-  sessionId = `session_${Date.now()}_${Math.random()
-    .toString(36)
-    .substring(2, 15)}`;
-  sessionStartTime = new Date();
-
-  // Store session ID in sessionStorage for components to access
-  sessionStorage.setItem("vortex_session_id", sessionId);
-
-  console.log("📊 [SessionTracker] Initializing new session:", {
-    sessionId,
-    userId,
-  });
+  // Use existing session from storage if available (page refresh)
+  if (existingSessionId) {
+    sessionId = existingSessionId;
+    sessionStartTime = new Date(); // Reset start time for this page load
+    logger.info("📊 [SessionTracker] Resuming session from storage", {
+      sessionId,
+      userId,
+    });
+  } else {
+    // Generate new session ID
+    sessionId = `session_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 15)}`;
+    sessionStartTime = new Date();
+    sessionStorage.setItem("vortex_session_id", sessionId);
+    logger.info("📊 [SessionTracker] Initializing new session", {
+      sessionId,
+      userId,
+    });
+  }
 
   // Get device info
   const device = {
@@ -147,17 +160,17 @@ export function initializeSessionTracking(userId?: string) {
  * Track page view
  */
 export function trackPage(page: string, _title?: string, userId?: string) {
-  console.log("📊 [SessionTracker] trackPage called:", { page, sessionId });
+  logger.info("📊 [SessionTracker] trackPage called", { page, sessionId });
 
   if (!sessionId) {
-    console.log("📊 [SessionTracker] No session, initializing...");
+    logger.info("📊 [SessionTracker] No session, initializing...");
     initializeSessionTracking(userId);
   }
 
   // Track time on previous page
   if (currentPage && pageStartTime) {
     const timeOnPage = Date.now() - pageStartTime.getTime();
-    console.log("📊 [SessionTracker] Tracking previous page:", {
+    logger.info("📊 [SessionTracker] Tracking previous page", {
       currentPage,
       timeOnPage,
     });
@@ -180,7 +193,7 @@ export function trackPage(page: string, _title?: string, userId?: string) {
   currentPage = page;
   pageStartTime = new Date();
 
-  console.log("📊 [SessionTracker] Starting new page track:", {
+  logger.info("📊 [SessionTracker] Starting new page track", {
     page,
     sessionId,
   });
@@ -199,7 +212,7 @@ export function trackPage(page: string, _title?: string, userId?: string) {
     });
 
     // Immediately log a page view for the new page so dashboards update without waiting for a navigation/unload event
-    console.log("📊 [SessionTracker] Tracking immediate pageview for new page");
+    logger.info("📊 [SessionTracker] Tracking immediate pageview for new page");
     trackPageView({
       sessionId,
       userId: userId || undefined,
@@ -235,16 +248,15 @@ export function trackClick(
         .substring(2, 15)}`;
       sessionStorage.setItem("vortex_session_id", effectiveSessionId);
       sessionId = effectiveSessionId;
-      console.log(
-        "📊 [SessionTracker] Generated session for event tracking:",
-        effectiveSessionId
-      );
+      logger.info("📊 [SessionTracker] Generated session for event tracking", {
+        sessionId: effectiveSessionId,
+      });
     } else {
       sessionId = effectiveSessionId;
     }
   }
 
-  console.log("📊 [SessionTracker] Tracking event:", {
+  logger.info("📊 [SessionTracker] Tracking event", {
     eventType,
     sessionId: effectiveSessionId,
     eventData,
@@ -278,9 +290,19 @@ export function trackDownload(fileName: string, userId?: string) {
  * Setup activity tracking
  */
 function setupActivityTracking() {
+  // Throttle activity updates to max once per 30 seconds
+  let lastActivityUpdate = 0;
+  const ACTIVITY_THROTTLE_MS = 30000; // 30 seconds
+
   // Update last activity on user interaction
   const updateActivity = () => {
     if (sessionId) {
+      const now = Date.now();
+      if (now - lastActivityUpdate < ACTIVITY_THROTTLE_MS) {
+        return; // Skip if we updated recently
+      }
+      lastActivityUpdate = now;
+
       trackSession({
         sessionId,
         lastActivity: new Date(),
@@ -296,7 +318,7 @@ function setupActivityTracking() {
     }
   };
 
-  // Track various user interactions
+  // Track various user interactions (throttled)
   document.addEventListener("click", updateActivity);
   document.addEventListener("scroll", updateActivity);
   document.addEventListener("keypress", updateActivity);

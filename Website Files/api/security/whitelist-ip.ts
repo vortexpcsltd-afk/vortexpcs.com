@@ -7,10 +7,29 @@ function ensureAdminInitialized() {
     if (!credsBase64) {
       throw new Error("FIREBASE_SERVICE_ACCOUNT_BASE64 not found");
     }
-    const creds = JSON.parse(
-      Buffer.from(credsBase64, "base64").toString("utf-8")
-    );
-    admin.initializeApp({ credential: admin.credential.cert(creds) });
+    let creds: any;
+    try {
+      const decoded = Buffer.from(credsBase64, "base64").toString("utf-8");
+      creds = JSON.parse(decoded);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Invalid FIREBASE_SERVICE_ACCOUNT_BASE64: ${msg}`);
+    }
+    const projectId = creds?.project_id || process.env.FIREBASE_PROJECT_ID;
+    if (!projectId) {
+      throw new Error(
+        "Missing project_id in service account and FIREBASE_PROJECT_ID env"
+      );
+    }
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert(creds),
+        projectId,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Firebase admin init failed: ${msg}`);
+    }
   }
 }
 
@@ -35,7 +54,7 @@ async function verifyIsAdmin(
       .doc(decoded.uid)
       .get();
     if (snap.exists) {
-      const data = snap.data() as any;
+      const data = snap.data() as { role?: string } | undefined;
       firestoreRole = typeof data?.role === "string" ? data.role : undefined;
     }
   } catch {}
@@ -62,7 +81,7 @@ function ipDocId(ip: string): string {
   return ip.replace(/[^a-zA-Z0-9_.-]/g, "_");
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -77,7 +96,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    await verifyIsAdmin(req);
+    try {
+      await verifyIsAdmin(req);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (
+        msg.includes("FIREBASE_SERVICE_ACCOUNT_BASE64") ||
+        msg.includes("Firebase admin init failed") ||
+        msg.includes("Invalid FIREBASE_SERVICE_ACCOUNT_BASE64") ||
+        msg.includes("Missing project_id")
+      ) {
+        res.setHeader("X-Diagnostic", "admin-init-failed");
+        return res.status(503).json({
+          error: "Service unavailable",
+          reason: "FIREBASE_ADMIN_INIT_FAILED",
+          details: msg,
+        });
+      }
+      throw e;
+    }
 
     const { ip, reason } = (req.body || {}) as {
       ip?: string;
@@ -116,3 +153,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
+export default handler;

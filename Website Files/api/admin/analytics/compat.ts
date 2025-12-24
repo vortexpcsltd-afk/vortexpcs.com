@@ -5,6 +5,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
 import { getCache, setCache } from "../../services/cache.js";
+
+import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -21,6 +23,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (!isFirebaseConfigured()) {
+    console.log("[compat] Firebase not configured");
+    return res.status(503).json({
+      error: "Analytics not configured",
+      message: "Firebase is not configured. Please set environment variables.",
+    });
   }
 
   try {
@@ -102,15 +112,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         period: daysNum,
       },
     };
-
     setCache(cacheKey, payload, 60_000);
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json(payload);
   } catch (error) {
-    console.error("Compatibility analytics error:", error);
+    console.error("Error fetching compatibility analytics:", error);
+    const errorStr = String(error);
+    const errorMsg = error instanceof Error ? error.message : errorStr;
+
+    // Check for Firebase initialization errors
+    if (errorMsg.includes("Firebase") || errorMsg.includes("credentials")) {
+      return res.status(503).json({
+        error: "Firebase not configured on this deployment",
+        message: "Analytics requires Firebase Admin credentials to be set",
+        setupRequired: true,
+      });
+    }
+
     return res.status(500).json({
       error: "Failed to fetch compatibility analytics",
-      details: error instanceof Error ? error.message : "Unknown error",
+      details: errorMsg,
     });
   }
 }
+

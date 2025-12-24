@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Centralized Logging Service
  * Provides environment-aware logging with Sentry integration

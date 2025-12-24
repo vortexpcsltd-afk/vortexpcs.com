@@ -48,6 +48,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { useNavigation } from "../contexts/NavigationContext";
 import {
   logoutUser,
   changeUserPassword,
@@ -69,10 +70,6 @@ import {
 } from "../services/database";
 import { contentfulClient, isContentfulEnabled } from "../config/contentful";
 import { trackDownload } from "../services/sessionTracker";
-
-interface BusinessDashboardProps {
-  setCurrentView: (view: string) => void;
-}
 
 interface Subscription {
   id: string;
@@ -115,7 +112,8 @@ interface ServiceTicket {
   responseTime?: string;
 }
 
-export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
+export function BusinessDashboard() {
+  const { navigate } = useNavigation();
   const [activeTab, setActiveTab] = useState<
     "overview" | "subscriptions" | "workstations" | "support" | "account"
   >("overview");
@@ -538,7 +536,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
             </div>
             <div className="flex gap-2">
               <Button
-                onClick={() => setCurrentView("business-solutions")}
+                onClick={() => navigate("business-solutions")}
                 className="bg-white/10 hover:bg-white/20 border border-white/20"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -805,7 +803,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                 </Button>
 
                 <Button
-                  onClick={() => setCurrentView("business-solutions")}
+                  onClick={() => navigate("business-solutions")}
                   className="bg-white/10 hover:bg-white/20 border border-white/20 justify-start h-auto py-4"
                 >
                   <Package className="w-5 h-5 mr-3" />
@@ -986,7 +984,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold">Your Subscriptions</h2>
               <Button
-                onClick={() => setCurrentView("business-solutions")}
+                onClick={() => navigate("business-solutions")}
                 className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -1003,7 +1001,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                   Boost support response times and coverage by adding a plan.
                 </p>
                 <Button
-                  onClick={() => setCurrentView("business-solutions")}
+                  onClick={() => navigate("business-solutions")}
                   className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
                 >
                   <Plus className="w-4 h-4 mr-2" /> Explore Plans
@@ -1152,7 +1150,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                     priority access to our technical team with Business Premium.
                   </p>
                   <Button
-                    onClick={() => setCurrentView("business-solutions")}
+                    onClick={() => navigate("business-solutions")}
                     className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
                   >
                     Compare Plans
@@ -1216,7 +1214,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
                     Refresh Orders
                   </Button>
                   <Button
-                    onClick={() => setCurrentView("business-solutions")}
+                    onClick={() => navigate("business-solutions")}
                     className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -1566,7 +1564,7 @@ export function BusinessDashboard({ setCurrentView }: BusinessDashboardProps) {
               <div className="grid md:grid-cols-3 gap-4">
                 <button
                   className="p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all text-left"
-                  onClick={() => setCurrentView("faq")}
+                  onClick={() => navigate("faq")}
                 >
                   <FileText className="w-6 h-6 text-sky-400 mb-2" />
                   <div className="font-semibold mb-1">Knowledge Base</div>

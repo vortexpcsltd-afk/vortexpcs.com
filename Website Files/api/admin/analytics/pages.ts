@@ -5,6 +5,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
 import { getCache, setCache } from "../../services/cache.js";
+
+import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -208,6 +210,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(payload);
   } catch (error: unknown) {
     console.error("Get page analytics error:", error);
+    const errorStr = String(error);
+    const errorMsg = error instanceof Error ? error.message : errorStr;
+
+    // Log error and return 500
+    console.error("[pages] Analytics error:", errorMsg);
+
+    // Check for Firebase initialization errors
+    if (errorMsg.includes("Firebase") || errorMsg.includes("credentials")) {
+      return res.status(503).json({
+        error: "Firebase not configured on this deployment",
+        message: "Analytics requires Firebase Admin credentials to be set",
+        setupRequired: true,
+      });
+    }
+
     type FirestoreErrorLike = { code?: number | string; message?: string };
     const err = error as FirestoreErrorLike;
     const code = err?.code;
@@ -221,7 +238,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(500).json({
       error: "Failed to fetch page analytics",
-      details: error instanceof Error ? error.message : "Unknown error",
+      details: errorMsg,
     });
   }
 }
+

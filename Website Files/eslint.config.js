@@ -12,6 +12,7 @@ export default [
       "node_modules",
       "build",
       ".vite",
+      "backups/**",
       "api/**",
       "backend-examples/**",
       "scripts/**",
@@ -36,6 +37,7 @@ export default [
       "api/**/*.{ts,js}",
       "backend-examples/**/*.{ts,js}",
       "scripts/**/*.{ts,js}",
+      "utils/envGuard.ts",
     ],
     languageOptions: {
       ecmaVersion: 2020,
@@ -46,6 +48,7 @@ export default [
       "@typescript-eslint": tseslint,
     },
     rules: {
+      "no-console": ["warn", { allow: ["warn", "error"] }],
       ...js.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
       "@typescript-eslint/no-explicit-any": "warn",
@@ -70,7 +73,7 @@ export default [
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
+      globals: { ...globals.browser, JSX: "readonly" },
       parser: tsParser,
       parserOptions: {
         ecmaVersion: "latest",
@@ -83,6 +86,7 @@ export default [
       "react-refresh": reactRefresh,
     },
     rules: {
+      "no-console": ["warn", { allow: ["warn", "error"] }],
       ...js.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,

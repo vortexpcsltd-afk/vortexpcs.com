@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CreditCard,
@@ -15,6 +15,7 @@ import {
   Award,
   Truck,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
@@ -28,6 +29,7 @@ import { StripePaymentForm } from "./StripePaymentForm";
 import type { CartItem } from "../types";
 import { logger } from "../services/logger";
 import { toast } from "sonner";
+import { ButtonWithLoading } from "./util/LoadingComponents";
 
 // Initialize Stripe (module level)
 const stripePromise = loadStripe(
@@ -36,6 +38,7 @@ const stripePromise = loadStripe(
 
 interface CheckoutPageProps {
   cartItems: CartItem[];
+  cartHydrated: boolean;
   onBack: () => void;
   onSuccess: (orderId: string, orderNumber: string) => void;
 }
@@ -52,10 +55,12 @@ interface ShippingAddress {
   county?: string;
   postcode: string;
   country: string;
+  password?: string;
 }
 
 export function CheckoutPage({
   cartItems,
+  cartHydrated,
   onBack,
   onSuccess,
 }: CheckoutPageProps) {
@@ -68,6 +73,16 @@ export function CheckoutPage({
     null
   );
   const [stripeOrderNumber, setStripeOrderNumber] = useState<string>("");
+
+  // Redirect if cart is empty
+  useEffect(() => {
+    if (!cartHydrated) return;
+    if (!cartItems || cartItems.length === 0) {
+      logger.warn("Checkout accessed with empty cart, redirecting");
+      toast.error("Your cart is empty");
+      setTimeout(() => navigate("/"), 100);
+    }
+  }, [cartHydrated, cartItems, navigate]);
   const [formData, setFormData] = useState<ShippingAddress>({
     fullName: "",
     email: "",
@@ -78,10 +93,113 @@ export function CheckoutPage({
     county: "",
     postcode: "",
     country: "United Kingdom",
+    password: "",
   });
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
+  const [couponCode, setCouponCode] = useState<string>("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountPercent: number;
+    discountAmount: number;
+  } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+
+  const customBuildOptions = [
+    {
+      id: "standard-assembly",
+      name: "Standard Assembly",
+      price: 85,
+      positioning: "Straightforward, reliable, cost-effective.",
+      campaign: "Built right, ready to run.",
+      includes: [
+        "Professional assembly of all selected components",
+        "Cable management (functional, not showcase)",
+        "BIOS update and system check",
+        "Windows installation (if purchased)",
+        "14-day build warranty",
+      ],
+      idealFor:
+        "Customers who want their parts put together correctly and ready to go.",
+      badge: "Great value",
+      accent: "from-slate-800/80 via-sky-800/50 to-sky-900/40",
+    },
+    {
+      id: "performance-build",
+      name: "Performance Build",
+      price: 130,
+      positioning: "Elevated service with polish and optimisation.",
+      campaign: "Optimised, polished, battle-ready.",
+      includes: [
+        "All Standard Assembly features",
+        "Advanced cable management with airflow optimisation",
+        "Stress testing (CPU, GPU, RAM) for stability",
+        "Thermal paste upgrade (premium compound)",
+        "RGB lighting setup and sync",
+        "1-month build support",
+      ],
+      idealFor:
+        "Gamers and creators who want assurance their system is tuned and looks sharp.",
+      badge: "Most popular",
+      accent: "from-sky-800/70 via-blue-800/60 to-blue-900/50",
+    },
+    {
+      id: "elite-showcase",
+      name: "Elite Showcase Build",
+      price: 185,
+      positioning: "VIP build, priority and attention to detail",
+      campaign: "Showcase perfection, benchmarked brilliance.",
+      includes: [
+        "All Performance Build features",
+        "Custom cable sleeving and aesthetic routing",
+        "BIOS/firmware fine-tuning for performance",
+        "Full benchmark report (FPS, temps, scores)",
+        "Priority support for 6 months",
+        "Extended build warranty (1 year)",
+      ],
+      idealFor:
+        "Enthusiasts who want their PC to be a centerpiece — technically and visually.",
+      badge: "Fastest turnaround",
+      accent: "from-blue-900/70 via-indigo-900/60 to-cyan-900/50",
+    },
+  ] as const;
+
+  type BuildServiceId = (typeof customBuildOptions)[number]["id"];
+  const [selectedBuildService, setSelectedBuildService] =
+    useState<BuildServiceId>("performance-build");
+  const [showBuildServiceOptions, setShowBuildServiceOptions] =
+    useState<boolean>(true);
+  const [createAccount, setCreateAccount] = useState<boolean>(true);
+
+  const categorySet = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of cartItems) {
+      const cat = (item.category || "").toString().toLowerCase();
+      if (cat) set.add(cat);
+    }
+    return set;
+  }, [cartItems]);
+
+  const totalLineItems = useMemo(
+    () => cartItems.reduce((sum, item) => sum + (item.quantity || 0), 0),
+    [cartItems]
+  );
+
+  const isLikelyFullBuild = useMemo(() => {
+    const hasCpu = categorySet.has("cpu");
+    const hasMotherboard = categorySet.has("motherboard");
+    const hasRam = categorySet.has("ram");
+    const hasStorage = categorySet.has("storage");
+    const hasPsu = categorySet.has("psu");
+    const hasCase = categorySet.has("case");
+    // Require core building blocks and enough line items to represent a full system
+    const hasCore = hasCpu && hasMotherboard && hasRam && hasStorage;
+    const hasChassisAndPower = hasPsu && hasCase;
+    const hasEnoughLines = totalLineItems >= 5;
+    return hasCore && hasChassisAndPower && hasEnoughLines;
+  }, [categorySet, totalLineItems]);
 
   // Shipping options (Free always available as requested)
   const shippingOptions = [
@@ -108,15 +226,32 @@ export function CheckoutPage({
   const [selectedShipping, setSelectedShipping] =
     useState<ShippingMethodId>("free");
 
-  // Calculate totals
-  const subtotal = cartItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  // Calculate totals with validation
+  const componentsSubtotal = cartItems.reduce((sum, item) => {
+    // Validate item before calculating
+    if (
+      typeof item.price !== "number" ||
+      typeof item.quantity !== "number" ||
+      item.price < 0 ||
+      item.quantity < 1
+    ) {
+      logger.warn("Invalid cart item in total calculation", { item });
+      return sum;
+    }
+    return sum + item.price * item.quantity;
+  }, 0);
   const shippingCost = shippingOptions.find(
     (o) => o.id === selectedShipping
   )!.cost;
-  const total = subtotal + shippingCost;
+  const buildService =
+    isLikelyFullBuild && showBuildServiceOptions
+      ? customBuildOptions.find((opt) => opt.id === selectedBuildService)
+      : null;
+  const buildServiceCost = buildService?.price ?? 0;
+  const subtotal = componentsSubtotal + buildServiceCost;
+  const discountAmount = appliedCoupon?.discountAmount ?? 0;
+  const finalSubtotal = subtotal - discountAmount;
+  const total = finalSubtotal + shippingCost;
 
   // Load saved address from localStorage on mount
   useEffect(() => {
@@ -130,6 +265,48 @@ export function CheckoutPage({
       logger.warn("Failed to load saved address", { error });
     }
   }, []);
+
+  // Validate coupon code
+  const validateCoupon = async (code: string) => {
+    if (!code.trim()) {
+      setCouponError(null);
+      setAppliedCoupon(null);
+      return;
+    }
+
+    setCouponLoading(true);
+    setCouponError(null);
+
+    try {
+      const response = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code.trim().toUpperCase() }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        setCouponError(error.message || "Invalid coupon code");
+        setAppliedCoupon(null);
+        return;
+      }
+
+      const data = await response.json();
+      const discount = (subtotal * data.discountPercent) / 100;
+      setAppliedCoupon({
+        code: code.trim().toUpperCase(),
+        discountPercent: data.discountPercent,
+        discountAmount: discount,
+      });
+      setCouponError(null);
+    } catch (err) {
+      logger.error("Coupon validation error:", err);
+      setCouponError("Unable to validate coupon. Please try again.");
+      setAppliedCoupon(null);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
 
   // Validate form
   const validateForm = (): boolean => {
@@ -154,6 +331,15 @@ export function CheckoutPage({
       !/^[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}$/i.test(formData.postcode.trim())
     ) {
       errors.postcode = "Invalid UK postcode";
+    }
+
+    if (createAccount) {
+      const pwd = (formData.password || "").trim();
+      if (!pwd) {
+        errors.password = "Password is required to create an account";
+      } else if (pwd.length < 6) {
+        errors.password = "Use at least 6 characters";
+      }
     }
 
     setValidationErrors(errors);
@@ -204,18 +390,61 @@ export function CheckoutPage({
         // Guest checkout - no auth token
       }
 
+      // Validate cart items before processing
+      const invalidItems = cartItems.filter(
+        (item) =>
+          !item ||
+          !item.id ||
+          !item.name ||
+          typeof item.price !== "number" ||
+          item.price < 0 ||
+          typeof item.quantity !== "number" ||
+          item.quantity < 1 ||
+          !item.category
+      );
+
+      if (invalidItems.length > 0) {
+        setError(
+          "Some items in your cart are invalid. Please refresh and try again."
+        );
+        setIsProcessing(false);
+        logger.error("Invalid cart items detected", { invalidItems });
+        return;
+      }
+
+      if (cartItems.length === 0 && !buildService) {
+        setError("Your cart is empty");
+        setIsProcessing(false);
+        return;
+      }
+
+      const buildServiceItem = buildService
+        ? {
+            id: `build-service-${buildService.id}`,
+            name: buildService.name,
+            category: "build-service",
+            price: buildService.price,
+            quantity: 1,
+          }
+        : null;
+
+      const orderItems = [
+        ...cartItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          price: Math.max(0, item.price), // Ensure non-negative
+          quantity: Math.max(1, Math.floor(item.quantity)), // Ensure positive integer
+          image: item.image,
+        })),
+        ...(buildServiceItem ? [buildServiceItem] : []),
+      ];
+
       // Prepare order data
       const orderData = {
         amount: total,
         currency: "gbp",
-        cartItems: cartItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          category: item.category,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image,
-        })),
+        cartItems: orderItems,
         shippingAddress: {
           line1: formData.line1,
           line2: formData.line2,
@@ -229,6 +458,37 @@ export function CheckoutPage({
         customerPhone: formData.phone,
         shippingMethod: selectedShipping,
         shippingCost,
+        coupon: appliedCoupon
+          ? {
+              code: appliedCoupon.code,
+              discountPercent: appliedCoupon.discountPercent,
+              discountAmount: appliedCoupon.discountAmount,
+            }
+          : null,
+        buildService: buildService
+          ? {
+              id: buildService.id,
+              name: buildService.name,
+              price: buildService.price,
+            }
+          : null,
+        accountRequest: createAccount
+          ? {
+              create: true,
+              fullName: formData.fullName,
+              email: formData.email,
+              phone: formData.phone,
+              password: formData.password?.trim(),
+              address: {
+                line1: formData.line1,
+                line2: formData.line2,
+                city: formData.city,
+                county: formData.county,
+                postcode: formData.postcode,
+                country: formData.country,
+              },
+            }
+          : { create: false },
       };
 
       // Process payment based on selected method
@@ -257,6 +517,26 @@ export function CheckoutPage({
     }
   };
 
+  const createAccountIfNeeded = async () => {
+    if (!createAccount) return;
+    const password = (formData.password || "").trim();
+    if (!password) return;
+
+    try {
+      const { registerUser } = await import("../services/auth");
+      const displayName = formData.fullName.trim() || formData.email.trim();
+      await registerUser(formData.email.trim(), password, displayName);
+      logger.info("Account created from checkout", {
+        email: formData.email,
+      });
+    } catch (err) {
+      logger.warn("Checkout account creation failed or skipped", {
+        error: String(err),
+      });
+      // Do not block checkout flow if account creation fails
+    }
+  };
+
   // Process Stripe payment - CREATE PAYMENT INTENT (no redirect)
   const processStripePayment = async (
     orderData: Record<string, unknown>,
@@ -274,16 +554,38 @@ export function CheckoutPage({
 
     if (!response.ok) {
       const errorText = await response.text();
+      let errorMessage = "Failed to initialize payment";
+      let errorDetails = {};
+
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorDetails = errorJson;
+        if (errorJson.message) {
+          errorMessage = errorJson.message;
+        }
+        if (response.status === 500 && errorJson.error) {
+          errorMessage = `Server error: ${errorJson.error}`;
+        }
+      } catch {
+        errorDetails = { rawError: errorText };
+      }
+
       logger.error("Payment Intent creation failed", {
         status: response.status,
-        error: errorText,
+        statusText: response.statusText,
+        error: errorMessage,
+        details: errorDetails,
+        orderAmount: orderData.amount,
       });
-      throw new Error("Failed to initialize payment");
+      throw new Error(errorMessage);
     }
 
     const { clientSecret, orderNumber } = await response.json();
 
     if (!clientSecret) {
+      logger.error("Missing clientSecret in response", {
+        response: await response.json(),
+      });
       throw new Error("No client secret returned from server");
     }
 
@@ -297,11 +599,13 @@ export function CheckoutPage({
   };
 
   // Handle successful Stripe payment
-  const handleStripeSuccess = (paymentIntentId: string) => {
+  const handleStripeSuccess = async (paymentIntentId: string) => {
     logger.info("Stripe payment successful", {
       paymentIntentId,
       orderNumber: stripeOrderNumber,
     });
+
+    await createAccountIfNeeded();
 
     // Clear cart
     localStorage.removeItem("vortex_cart");
@@ -341,6 +645,9 @@ export function CheckoutPage({
         shippingAddress: orderData.shippingAddress,
         customerName: orderData.customerName,
         customerPhone: orderData.customerPhone,
+        buildService: buildService
+          ? `${buildService.name} (£${buildService.price.toFixed(2)})`
+          : "",
       },
     };
 
@@ -379,6 +686,9 @@ export function CheckoutPage({
       throw new Error("PayPal approval URL not found");
     }
 
+    // Create account before redirecting to PayPal (best-effort; non-blocking)
+    await createAccountIfNeeded();
+
     // Redirect to PayPal
     window.location.href = approvalLink.href;
   };
@@ -389,7 +699,10 @@ export function CheckoutPage({
     authToken: string | null
   ) => {
     // DIAGNOSTIC: Log exact values being sent
-    const itemsTotal = cartItems.reduce(
+    const orderItems = Array.isArray(orderData.cartItems)
+      ? (orderData.cartItems as CartItem[])
+      : [];
+    const itemsTotal = orderItems.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0
     );
@@ -399,8 +712,10 @@ export function CheckoutPage({
       shippingCost: shippingCost.toFixed(2),
       computedTotal: total.toFixed(2),
       orderDataAmount: orderData.amount,
-      itemCount: cartItems.length,
-      items: cartItems.map((i) => ({
+      itemCount: orderItems.length,
+      buildServiceCost: buildServiceCost.toFixed(2),
+      buildServiceName: buildService?.name,
+      items: orderItems.map((i) => ({
         name: i.name,
         price: i.price,
         qty: i.quantity,
@@ -435,6 +750,8 @@ export function CheckoutPage({
     }
 
     const { orderId, orderNumber } = await response.json();
+
+    await createAccountIfNeeded();
     // Store order details for success page
     localStorage.setItem("latest_order_number", orderNumber);
     localStorage.setItem("bank_order_id", orderId);
@@ -469,6 +786,29 @@ export function CheckoutPage({
       icon: Building2,
     },
   ];
+
+  // Early return if cart is empty (prevents flash of content before redirect)
+  if (!cartHydrated) {
+    return (
+      <div className="min-h-screen py-12 px-4 flex items-center justify-center">
+        <div className="text-center text-white">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-sky-500" />
+          <p>Loading your cart...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!cartItems || cartItems.length === 0) {
+    return (
+      <div className="min-h-screen py-12 px-4 flex items-center justify-center">
+        <div className="text-center text-white">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-sky-500" />
+          <p>Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-12 px-4">
@@ -691,8 +1031,207 @@ export function CheckoutPage({
                     className="bg-white/5 border-white/10 text-gray-400 cursor-not-allowed opacity-60"
                   />
                 </div>
+
+                <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex-1 min-w-[220px]">
+                    <p className="text-sm text-white font-medium flex items-center gap-2">
+                      Create a free account
+                      <span className="text-[11px] bg-sky-500/20 text-sky-200 px-2 py-0.5 rounded-full border border-sky-500/30">
+                        Recommended
+                      </span>
+                    </p>
+                    <p className="text-xs text-gray-400 leading-relaxed mt-1">
+                      Save your address for faster checkout, track orders and
+                      returns, and get dedicated support.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCreateAccount((prev) => !prev)}
+                    className={`flex-shrink-0 relative inline-flex h-9 w-16 items-center rounded-full transition-colors ${
+                      createAccount ? "bg-sky-600" : "bg-gray-700"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-7 w-7 transform rounded-full bg-white transition-transform ${
+                        createAccount ? "translate-x-7" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {createAccount && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label
+                        htmlFor="password"
+                        className="text-gray-300 mb-2 block"
+                      >
+                        Create Password *
+                      </Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) =>
+                          handleInputChange("password", e.target.value)
+                        }
+                        className={`bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 transition-all ${
+                          validationErrors.password ? "border-red-500" : ""
+                        }`}
+                        placeholder="Create a password"
+                      />
+                      {validationErrors.password && (
+                        <p className="text-xs text-red-400 mt-1">
+                          {validationErrors.password}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        6+ characters. Your email becomes your username.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
+
+            {/* Custom Build Service */}
+            {isLikelyFullBuild && (
+              <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
+                <div className="flex items-start justify-between gap-3 mb-5">
+                  <div>
+                    <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-sky-400" />
+                      Custom Build Service
+                    </h2>
+                    <p className="text-sm text-gray-400 mt-1 max-w-3xl">
+                      Choose how far we go with assembly, optimisation, and
+                      presentation.
+                    </p>
+                  </div>
+                  <div className="px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-xs text-sky-200 whitespace-nowrap">
+                    Auto-applied for full builds
+                  </div>
+                </div>
+
+                {showBuildServiceOptions && (
+                  <div className="grid gap-4 md:grid-cols-3 mb-6">
+                    {customBuildOptions.map((option) => {
+                      const isSelected = selectedBuildService === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setSelectedBuildService(option.id)}
+                          aria-pressed={isSelected}
+                          disabled={!!stripeClientSecret || isProcessing}
+                          className={`group relative w-full text-left rounded-2xl border transition-all duration-200 p-5 bg-gradient-to-br ${
+                            option.accent
+                          } ${
+                            isSelected
+                              ? "border-sky-400/70 shadow-lg shadow-sky-500/30"
+                              : "border-white/10 hover:border-sky-400/40 hover:shadow-sky-500/20"
+                          } disabled:opacity-50 disabled:cursor-not-allowed flex flex-col`}
+                        >
+                          <div className="mb-3 w-full">
+                            <p className="text-white font-semibold text-lg leading-tight mb-1">
+                              {option.name}
+                            </p>
+                            <p className="text-[13px] text-gray-300 leading-snug">
+                              {option.positioning}
+                            </p>
+                          </div>
+
+                          <div className="text-center mb-3 w-full">
+                            <p className="text-2xl font-bold text-sky-100">
+                              £{option.price.toFixed(0)}
+                            </p>
+                          </div>
+
+                          {option.badge && (
+                            <span className="w-full text-center text-[11px] px-2 py-1.5 rounded-full bg-white/10 border border-white/20 text-sky-100 mb-3">
+                              {option.badge}
+                            </span>
+                          )}
+
+                          <span className="w-full text-center text-[11px] text-sky-200 bg-white/10 border border-white/10 rounded-full px-2 py-1.5 mb-3">
+                            {option.campaign}
+                          </span>
+
+                          <div className="space-y-2 flex-1">
+                            <p className="text-[11px] uppercase tracking-wide text-gray-300/80">
+                              Includes
+                            </p>
+                            <ul className="space-y-1.5">
+                              {option.includes.map((item) => (
+                                <li
+                                  key={item}
+                                  className="text-xs text-white/90 flex items-start gap-2"
+                                >
+                                  <span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-sky-300 flex-shrink-0" />
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            <div className="pt-3 border-t border-white/10 mt-3 text-[12px] text-gray-200 leading-snug">
+                              <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">
+                                Ideal for
+                              </p>
+                              <p>{option.idealFor}</p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBuildService(option.id)}
+                            className={`w-full mt-4 inline-flex items-center justify-center gap-1 text-[12px] px-2 py-2 rounded-lg border transition-all ${
+                              isSelected
+                                ? "border-sky-300/60 text-white bg-sky-500/20"
+                                : "border-white/30 text-gray-200 hover:border-sky-300/40 hover:bg-sky-500/10"
+                            }`}
+                          >
+                            {isSelected ? (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            ) : (
+                              <Sparkles className="w-3.5 h-3.5" />
+                            )}
+                            {isSelected ? "Selected" : "Select"}
+                          </button>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="border-t border-white/10 pt-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-300 leading-relaxed">
+                        If you prefer to assemble your own PC, toggle below to
+                        remove the build service fee. You'll receive all your
+                        components unassembled, ready for you to build.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowBuildServiceOptions(!showBuildServiceOptions);
+                      }}
+                      className={`flex-shrink-0 relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
+                        !showBuildServiceOptions ? "bg-sky-600" : "bg-gray-700"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                          !showBuildServiceOptions
+                            ? "translate-x-7"
+                            : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            )}
 
             {/* Trust Badges */}
             <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-4 mb-6">
@@ -838,20 +1377,16 @@ export function CheckoutPage({
 
                   {/* Submit Button (only show if no Stripe form active) */}
                   {!stripeClientSecret && (
-                    <Button
+                    <ButtonWithLoading
                       onClick={(e) => {
                         e.preventDefault();
                         void handleSubmit();
                       }}
-                      disabled={isProcessing}
+                      isLoading={isProcessing}
+                      loadingText="Processing..."
                       className="w-full h-14 text-lg bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300 mt-6"
                     >
-                      {isProcessing ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Processing...
-                        </>
-                      ) : selectedPayment === "stripe" ? (
+                      {selectedPayment === "stripe" ? (
                         <>
                           <Lock className="w-5 h-5 mr-2" />
                           Continue to Payment - £{total.toFixed(2)}
@@ -862,7 +1397,7 @@ export function CheckoutPage({
                           Complete Secure Payment - £{total.toFixed(2)}
                         </>
                       )}
-                    </Button>
+                    </ButtonWithLoading>
                   )}
 
                   {/* Security Notice */}
@@ -910,6 +1445,24 @@ export function CheckoutPage({
                     </div>
                   </div>
                 ))}
+                {buildService && (
+                  <div className="flex gap-3">
+                    <div className="w-16 h-16 bg-white/5 border border-sky-500/40 rounded flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="w-5 h-5 text-sky-300" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm truncate">
+                        {buildService.name}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Custom Build Service
+                      </p>
+                      <p className="text-sm text-sky-400 font-semibold">
+                        £{buildServiceCost.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Separator className="bg-white/10 my-4" />
@@ -917,9 +1470,95 @@ export function CheckoutPage({
               {/* Pricing */}
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Components</span>
+                  <span className="text-white">
+                    £{componentsSubtotal.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Custom Build Service</span>
+                  <span className="text-white">
+                    £{buildServiceCost.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Subtotal</span>
                   <span className="text-white">£{subtotal.toFixed(2)}</span>
                 </div>
+
+                {/* Coupon Code Section */}
+                <div className="space-y-2 p-3 rounded-md bg-white/5 border border-white/10">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
+                    Discount Code
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Enter coupon code"
+                      value={couponCode}
+                      onChange={(e) =>
+                        setCouponCode(e.target.value.toUpperCase())
+                      }
+                      onBlur={() => validateCoupon(couponCode)}
+                      disabled={isProcessing || couponLoading}
+                      className="h-9 bg-black/30 border-white/20 text-white placeholder:text-gray-500"
+                    />
+                    <ButtonWithLoading
+                      type="button"
+                      onClick={() => validateCoupon(couponCode)}
+                      disabled={!couponCode.trim() || isProcessing}
+                      isLoading={couponLoading}
+                      loadingText="Applying..."
+                      className="h-9 px-3 bg-sky-600 hover:bg-sky-500 text-white text-sm rounded-md"
+                    >
+                      Apply
+                    </ButtonWithLoading>
+                  </div>
+                  {couponError && (
+                    <p className="text-xs text-red-400 mt-1">{couponError}</p>
+                  )}
+                  {appliedCoupon && (
+                    <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded p-2 mt-2">
+                      <span className="text-xs text-green-400">
+                        {appliedCoupon.code} ({appliedCoupon.discountPercent}%
+                        off)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCouponCode("");
+                          setAppliedCoupon(null);
+                          setCouponError(null);
+                        }}
+                        className="text-green-400 hover:text-green-300 text-xs font-semibold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Discount Display */}
+                {appliedCoupon && appliedCoupon.discountAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-400">Discount</span>
+                    <span className="text-green-400 font-semibold">
+                      -£{appliedCoupon.discountAmount.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                {appliedCoupon && appliedCoupon.discountAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">
+                      Subtotal after discount
+                    </span>
+                    <span className="text-white">
+                      £{finalSubtotal.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
                 {/* Shipping selection */}
                 <div className="space-y-2 p-3 rounded-md bg-white/5 border border-white/10">
                   <p className="text-xs uppercase tracking-wide text-gray-400">

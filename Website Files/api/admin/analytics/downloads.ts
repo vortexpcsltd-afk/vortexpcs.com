@@ -5,6 +5,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
 import { getCache, setCache } from "../../services/cache.js";
+
+import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -23,6 +25,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (!isFirebaseConfigured()) {
+    console.log("[downloads] Firebase not configured");
+    return res.status(503).json({
+      error: "Analytics not configured",
+      message: "Firebase is not configured. Please set environment variables.",
+    });
   }
 
   try {
@@ -143,6 +153,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(payload);
   } catch (error: unknown) {
     console.error("Get download analytics error:\n", error);
+    const errorStr = String(error);
+    const errorMsg = error instanceof Error ? error.message : errorStr;
+
+    // Check for Firebase initialization errors
+    if (errorMsg.includes("Firebase") || errorMsg.includes("credentials")) {
+      return res.status(503).json({
+        error: "Firebase not configured on this deployment",
+        message: "Analytics requires Firebase Admin credentials to be set",
+        setupRequired: true,
+      });
+    }
+
     type FirestoreErrorLike = { code?: number | string; message?: string };
     const err = error as FirestoreErrorLike;
     const code = err?.code;
@@ -156,7 +178,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(500).json({
       error: "Failed to fetch download analytics",
-      details: error instanceof Error ? error.message : "Unknown error",
+      details: errorMsg,
     });
   }
 }
+

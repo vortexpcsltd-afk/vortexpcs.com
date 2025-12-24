@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "../services/logger";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { X, Download, Smartphone, Monitor } from "lucide-react";
@@ -13,6 +14,30 @@ export default function PWAInstallPrompt() {
     useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+
+  const trackPwaEvent = async (action: string) => {
+    try {
+      await fetch("/api/analytics/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "event",
+          payload: {
+            eventType: "pwa_install",
+            action,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            source: "pwa_prompt",
+          },
+        }),
+      });
+    } catch (error) {
+      logger.warn("Failed to track PWA event", {
+        error: String(error),
+        action,
+      });
+    }
+  };
 
   useEffect(() => {
     // Check if already installed
@@ -39,10 +64,13 @@ export default function PWAInstallPrompt() {
       // Store the event for later use
       setDeferredPrompt(e as BeforeInstallPromptEvent);
 
-      // Show custom install prompt after 30 seconds
+      // Track that the prompt was shown
+      trackPwaEvent("prompt_shown");
+
+      // Show custom install prompt after 15 seconds
       setTimeout(() => {
         setShowPrompt(true);
-      }, 30000);
+      }, 15000);
     };
 
     window.addEventListener("beforeinstallprompt", handler);
@@ -52,6 +80,9 @@ export default function PWAInstallPrompt() {
       setIsInstalled(true);
       setShowPrompt(false);
       localStorage.removeItem("pwa-install-dismissed");
+
+      // Track app installation event
+      trackPwaEvent("installed");
     });
 
     return () => {
@@ -69,10 +100,16 @@ export default function PWAInstallPrompt() {
     const { outcome } = await deferredPrompt.userChoice;
 
     if (outcome === "accepted") {
-      console.log("User accepted PWA install");
+      logger.info("User accepted PWA install");
       setIsInstalled(true);
+
+      // Track successful PWA installation
+      await trackPwaEvent("accepted");
     } else {
-      console.log("User dismissed PWA install");
+      logger.info("User dismissed PWA install");
+
+      // Track PWA installation dismissal
+      await trackPwaEvent("dismissed");
     }
 
     // Clear the deferred prompt
@@ -83,6 +120,9 @@ export default function PWAInstallPrompt() {
   const handleDismiss = () => {
     setShowPrompt(false);
     localStorage.setItem("pwa-install-dismissed", Date.now().toString());
+
+    // Track prompt dismissal
+    trackPwaEvent("prompt_dismissed");
   };
 
   // Don't show if already installed or no prompt available

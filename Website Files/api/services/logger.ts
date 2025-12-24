@@ -151,10 +151,10 @@ export function createLogger(req?: {
   if (req) {
     context.method = req.method;
     context.endpoint = req.url;
-    const ipHeader = (req.headers?.["x-forwarded-for"] ||
-      req.headers?.["x-real-ip"]) as string | string[] | undefined;
-    context.ip = Array.isArray(ipHeader) ? ipHeader[0] : ipHeader;
-    context.userAgent = req.headers?.["user-agent"];
+    const ipHeader =
+      req.headers?.["x-forwarded-for"] || req.headers?.["x-real-ip"];
+    context.ip = typeof ipHeader === "string" ? ipHeader : undefined;
+    context.userAgent = req.headers?.["user-agent"] as string | undefined;
   }
 
   return new Logger(context);

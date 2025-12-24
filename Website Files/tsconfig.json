@@ -42,6 +42,9 @@
     "dist",
     "**/*.backup.tsx",
     "backup-before-figma",
+    "backups",
+    "archive",
+    "**/BACKUP_*",
     "**/*.test.ts",
     "**/*.test.tsx",
     "src/test"

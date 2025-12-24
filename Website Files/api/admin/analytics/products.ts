@@ -6,6 +6,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
 import { getCache, setCache } from "../../services/cache.js";
+
+import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -141,15 +143,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       period: daysNum,
     };
 
-    // Cache the result
-    setCache(cacheKey, result, 60); // 60 seconds
+    const payload = {
+      success: true,
+      data: result,
+    };
 
-    return res.status(200).json(result);
-  } catch (error) {
+    // Cache the result
+    setCache(cacheKey, payload, 60); // 60 seconds
+
+    return res.status(200).json(payload);
+  } catch (error: unknown) {
     console.error("Error fetching product analytics:", error);
+    const errorStr = String(error);
+    const errorMsg = error instanceof Error ? error.message : errorStr;
+
+    // Log error and return 500
+    console.error("[products] Analytics error:", errorMsg);
+
+    // Check for Firebase initialization errors
+    if (errorMsg.includes("Firebase") || errorMsg.includes("credentials")) {
+      return res.status(503).json({
+        error: "Firebase not configured on this deployment",
+        message: "Analytics requires Firebase Admin credentials to be set",
+        setupRequired: true,
+      });
+    }
+
     return res.status(500).json({
       error: "Failed to fetch product analytics",
-      details: error instanceof Error ? error.message : "Unknown error",
+      details: errorMsg,
     });
   }
 }
+

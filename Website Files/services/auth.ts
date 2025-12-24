@@ -1,11 +1,99 @@
 /**
  * Firebase Authentication Service
  * Handles user authentication, registration, and session management
+ * Includes retry logic and error recovery for network failures
  */
 
 import type { User, UserCredential } from "firebase/auth";
 import { auth, googleProvider, db } from "../config/firebase";
 import { logger } from "./logger";
+// CSRF client was removed during rollback; use plain headers
+
+/**
+ * Retry configuration for network operations
+ */
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 1000, // 1 second
+  maxDelay: 10000, // 10 seconds
+};
+
+/**
+ * Check if error is retryable (network/timeout issues)
+ */
+function isRetryableError(error: unknown): boolean {
+  const errorCode =
+    error && typeof error === "object" && "code" in error
+      ? (error as { code: string }).code
+      : null;
+
+  const retryableCodes = [
+    "auth/network-request-failed",
+    "auth/timeout",
+    "unavailable",
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "ENOTFOUND",
+  ];
+
+  return (
+    retryableCodes.includes(errorCode || "") ||
+    (error instanceof Error &&
+      (error.message.includes("network") ||
+        error.message.includes("timeout") ||
+        error.message.includes("fetch")))
+  );
+}
+
+/**
+ * Retry operation with exponential backoff
+ */
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  retries = RETRY_CONFIG.maxRetries
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry if not a network error or if we're out of retries
+      if (!isRetryableError(error) || attempt === retries) {
+        throw error;
+      }
+
+      // Calculate delay with exponential backoff and jitter
+      const delay = Math.min(
+        RETRY_CONFIG.baseDelay * Math.pow(2, attempt) + Math.random() * 1000,
+        RETRY_CONFIG.maxDelay
+      );
+
+      logger.warn(
+        `${operationName} failed, retrying in ${Math.round(delay)}ms`,
+        {
+          attempt: attempt + 1,
+          maxRetries: retries,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Check if user is online
+ */
+function isOnline(): boolean {
+  return typeof navigator !== "undefined" ? navigator.onLine : true;
+}
 
 export interface UserProfile {
   uid: string;
@@ -35,23 +123,33 @@ export const registerUser = async (
     );
   }
 
+  // Check online status first
+  if (!isOnline()) {
+    throw new Error(
+      "No internet connection. Please check your network and try again."
+    );
+  }
+
   try {
     const { createUserWithEmailAndPassword, updateProfile } = await import(
       "firebase/auth"
     );
     const { doc, setDoc } = await import("firebase/firestore");
 
-    const userCredential: UserCredential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password
+    // Wrap registration in retry logic
+    const userCredential: UserCredential = await retryOperation(
+      () => createUserWithEmailAndPassword(auth!, email, password),
+      "Register user"
     );
     const user = userCredential.user;
 
-    // Update user profile
-    await updateProfile(user, { displayName });
+    // Update user profile with retry
+    await retryOperation(
+      () => updateProfile(user, { displayName }),
+      "Update profile"
+    );
 
-    // Create user profile in Firestore
+    // Create user profile in Firestore with retry
     const userProfile: UserProfile = {
       uid: user.uid,
       email: user.email!,
@@ -62,7 +160,10 @@ export const registerUser = async (
       lastLogin: new Date(),
     };
 
-    await setDoc(doc(db, "users", user.uid), userProfile);
+    await retryOperation(
+      () => setDoc(doc(db, "users", user.uid), userProfile),
+      "Create user profile"
+    );
 
     // Assign unique account number via serverless API (idempotent)
     try {
@@ -90,6 +191,13 @@ export const registerUser = async (
   } catch (error: unknown) {
     logger.error("Registration error:", error);
 
+    // Check if user went offline during registration
+    if (!isOnline()) {
+      throw new Error(
+        "Lost internet connection during registration. Please check your network and try again."
+      );
+    }
+
     // Parse Firebase error codes and return user-friendly messages
     const errorCode =
       error && typeof error === "object" && "code" in error
@@ -113,10 +221,20 @@ export const registerUser = async (
         );
       case "auth/network-request-failed":
         throw new Error(
-          "Network error. Please check your connection and try again."
+          "Network error occurred after multiple retries. Please check your connection and try again."
+        );
+      case "auth/timeout":
+        throw new Error(
+          "Request timed out. Please check your connection and try again."
+        );
+      case "unavailable":
+        throw new Error(
+          "Firebase service temporarily unavailable. Please try again in a moment."
         );
       default:
-        throw new Error("Registration failed. Please try again.");
+        throw new Error(
+          "Registration failed. Please check your connection and try again."
+        );
     }
   }
 };
@@ -126,7 +244,8 @@ export const registerUser = async (
  */
 export const loginUser = async (
   email: string,
-  password: string
+  password: string,
+  _rememberMe: boolean = false // Kept for API compatibility
 ): Promise<User> => {
   if (!auth || !db) {
     throw new Error(
@@ -134,16 +253,31 @@ export const loginUser = async (
     );
   }
 
+  // Check online status first
+  if (!isOnline()) {
+    throw new Error(
+      "No internet connection. Please check your network and try again."
+    );
+  }
+
   try {
-    const { signInWithEmailAndPassword } = await import("firebase/auth");
+    const {
+      signInWithEmailAndPassword,
+      setPersistence,
+      browserLocalPersistence,
+    } = await import("firebase/auth");
     const { doc, getDoc, setDoc, updateDoc } = await import(
       "firebase/firestore"
     );
 
-    const userCredential = await signInWithEmailAndPassword(
-      auth,
-      email,
-      password
+    // Always use local persistence for better UX
+    // Users expect to stay logged in across page refreshes
+    await setPersistence(auth!, browserLocalPersistence);
+
+    // Wrap login in retry logic for network failures
+    const userCredential = await retryOperation(
+      () => signInWithEmailAndPassword(auth!, email, password),
+      "Sign in"
     );
     const user = userCredential.user;
 
@@ -182,15 +316,18 @@ export const loginUser = async (
   } catch (error: unknown) {
     logger.error("Login error:", error);
 
+    // Check if user went offline during login
+    if (!isOnline()) {
+      throw new Error(
+        "Lost internet connection during login. Please check your network and try again."
+      );
+    }
+
     // Parse Firebase error codes and return user-friendly messages
     const errorCode =
       error && typeof error === "object" && "code" in error
         ? (error as { code: string }).code
         : null;
-
-    // Log the actual error for debugging
-    console.error("[Auth] Login failed with error code:", errorCode);
-    console.error("[Auth] Full error:", error);
 
     switch (errorCode) {
       case "auth/invalid-email":
@@ -207,21 +344,29 @@ export const loginUser = async (
         throw new Error("Incorrect email or password. Please try again.");
       case "auth/too-many-requests":
         throw new Error(
-          "Too many failed login attempts. Please try again later."
+          "Too many failed login attempts. Please try again in a few minutes or reset your password."
         );
       case "auth/network-request-failed":
         throw new Error(
-          "Network error. Please check your connection and try again."
+          "Network error occurred after multiple retries. Please check your connection and try again."
+        );
+      case "auth/timeout":
+        throw new Error(
+          "Login request timed out. Please check your connection and try again."
+        );
+      case "unavailable":
+        throw new Error(
+          "Authentication service temporarily unavailable. Please try again in a moment."
         );
       case "permission-denied":
         throw new Error(
           "Permission denied. Your account may not be properly set up. Please contact support."
         );
       default: {
-        // Include error code in message for debugging
+        // Provide helpful message for unexpected errors
         const debugMessage = errorCode
-          ? `Login failed (${errorCode}). Please check your credentials and try again.`
-          : "Login failed. Please check your credentials and try again.";
+          ? `Login failed (${errorCode}). Please check your credentials and network connection.`
+          : "Login failed. Please check your credentials and network connection.";
         throw new Error(debugMessage);
       }
     }
@@ -579,4 +724,32 @@ export const onAuthStateChanged = (callback: (user: User | null) => void) => {
       unsubscribe();
     }
   };
+};
+/**
+ * Get the current user's ID token for authenticated API requests
+ * Safe fallback for when Firebase isn't available
+ */
+export const getIdTokenForAuthenticatedRequest = async (): Promise<
+  string | null
+> => {
+  try {
+    const user = getCurrentUser();
+    if (!user) {
+      logger.debug("No current user for ID token");
+      return null;
+    }
+
+    // Check if getIdToken method exists on Firebase User object
+    const firebaseUser = user as { getIdToken?: () => Promise<string> };
+    if (typeof firebaseUser.getIdToken === "function") {
+      const idToken = await firebaseUser.getIdToken();
+      return idToken || null;
+    }
+
+    logger.warn("getIdToken not available on user object");
+    return null;
+  } catch (error) {
+    logger.error("Failed to get ID token:", error);
+    return null;
+  }
 };

@@ -32,10 +32,12 @@ interface Component {
   id: string;
   name: string;
   brand?: string;
+  brandLogo?: string;
   price: number;
   image?: string;
   performance?: number | string; // Can be numeric score or tier string
   powerDraw?: number;
+  powerConsumption?: number; // Newly added explicit GPU/part power field from CMS
   features?: string[];
   // CMS fields for flexible integration
   rating?: number;
@@ -46,6 +48,9 @@ interface Component {
   cores?: number;
   threads?: number;
   tdp?: number;
+  basePower?: number;
+  processorBasePower?: number;
+  maximumTurboPower?: number;
   // GPU fields
   vram?: number;
   power?: number;
@@ -104,6 +109,10 @@ export function VisualPCConfigurator() {
   const [viewAngle, setViewAngle] = useState(15);
   const configuratorRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<Record<string, number>>({});
+  const ITEMS_PER_PAGE = 12;
 
   // CMS Integration: fetch components from Contentful
   const [cmsComponents, setCmsComponents] = useState<
@@ -310,26 +319,95 @@ export function VisualPCConfigurator() {
     0
   );
 
-  // Calculate power draw from various component fields
-  const totalPowerDraw = (() => {
+  // Calculate power draw from selected components (no debug logs)
+  const totalPowerDraw = useMemo(() => {
     let draw = 0;
 
-    // CPU TDP
-    if (buildConfig.cpu?.tdp) {
-      draw += buildConfig.cpu.tdp;
+    // CPU power: basePower -> processorBasePower -> tdp -> maximumTurboPower
+    if (buildConfig.cpu) {
+      const cpu = buildConfig.cpu;
+      let cpuPower: number | undefined;
+      if (typeof cpu.basePower === "number") {
+        cpuPower = cpu.basePower;
+      } else if (typeof cpu.processorBasePower === "number") {
+        cpuPower = cpu.processorBasePower;
+      } else if (typeof cpu.tdp === "number") {
+        cpuPower = cpu.tdp;
+      } else if (typeof cpu.maximumTurboPower === "number") {
+        cpuPower = cpu.maximumTurboPower;
+      }
+      if (typeof cpuPower === "number") {
+        draw += cpuPower;
+      } else {
+        const cores = (cpu.cores as number) || 6;
+        const estimate =
+          cores >= 16 ? 150 : cores >= 12 ? 125 : cores >= 8 ? 95 : 65;
+        draw += estimate;
+      }
     }
 
-    // GPU power consumption
-    if (buildConfig.gpu?.power) {
-      draw += buildConfig.gpu.power;
+    // GPU power: powerConsumption -> power -> powerDraw
+    if (buildConfig.gpu) {
+      const gpu = buildConfig.gpu;
+      let gpuPower: number | undefined;
+      if (typeof gpu.powerConsumption === "number") {
+        gpuPower = gpu.powerConsumption;
+      } else if (typeof gpu.power === "number") {
+        gpuPower = gpu.power;
+      } else if (typeof gpu.powerDraw === "number") {
+        gpuPower = gpu.powerDraw;
+      }
+      if (typeof gpuPower === "number") {
+        draw += gpuPower;
+      } else {
+        const name = String(gpu.name || "").toLowerCase();
+        let estimate = 200;
+        if (/rtx\s?5090|rtx\s?4090/.test(name)) estimate = 450;
+        else if (/rtx\s?(5080|4080)/.test(name)) estimate = 320;
+        else if (/rtx\s?(5070|4070)/.test(name)) estimate = 220;
+        else if (/rtx\s?(4060|3060)/.test(name)) estimate = 170;
+        else if (/rx\s?7900/.test(name)) estimate = 355;
+        else if (/rx\s?7800/.test(name)) estimate = 263;
+        else if (/rx\s?7700/.test(name)) estimate = 245;
+        draw += estimate;
+      }
     }
 
-    // Base system components (motherboard, RAM, storage, fans, etc.)
-    const baseSystemPower = 100;
-    draw += baseSystemPower;
+    // Motherboard (estimated 50-80W)
+    if (buildConfig.motherboard) {
+      draw += 60;
+    }
 
-    return draw;
-  })();
+    // RAM (estimated 3-5W per stick, assume 2 sticks)
+    if (buildConfig.memory) {
+      draw += 10;
+    }
+
+    // Storage (SSD: 2-5W, HDD: 6-10W)
+    if (buildConfig.storage) {
+      draw += 5;
+    }
+
+    // Cooling (fans + pump if AIO: 5-15W)
+    if (buildConfig.cooling) {
+      draw += 10;
+    }
+
+    // Case fans (estimate 7 fans at 2-3W each: 3 front, 3 top, 1 rear)
+    if (buildConfig.case) {
+      draw += 18;
+    }
+
+    // Only add remaining base power if we don't have major components
+    if (!buildConfig.motherboard && !buildConfig.cpu && !buildConfig.gpu) {
+      draw += 100;
+    }
+
+    return Math.round(draw);
+  }, [buildConfig]);
+
+  // Calculate recommended PSU wattage (add 25% headroom for efficiency and future upgrades)
+  const recommendedPSU = Math.ceil((totalPowerDraw * 1.25) / 50) * 50; // Round up to nearest 50W
 
   // Helper to derive performance score from CMS component data
   const getComponentPerformanceScore = (
@@ -438,31 +516,27 @@ export function VisualPCConfigurator() {
   };
 
   return (
-    <div className="min-h-screen text-white overflow-x-hidden">
-      {/* Animated Background */}
-      <div className="fixed inset-0 bg-gradient-to-br from-blue-900/20 via-cyan-900/10 to-sky-900/20 animate-gradient"></div>
-      <div
-        className="fixed inset-0 opacity-40"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }}
-      ></div>
-
-      <div className="relative container mx-auto px-4 py-8">
+    <div
+      className="w-full text-white overflow-x-hidden bg-gradient-to-br from-blue-900/20 via-cyan-900/10 to-sky-900/20"
+      style={{
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+      }}
+    >
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
+        <div className="text-center mb-6 sm:mb-8 md:mb-12">
+          <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-7xl font-bold mb-2 sm:mb-3 md:mb-4 pb-2 sm:pb-3 md:pb-4 bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
             Visual PC Configurator
           </h1>
           <p
-            className="text-base sm:text-lg md:text-xl text-gray-300 mx-auto max-w-full sm:max-w-2xl md:max-w-3xl px-2 sm:px-0 break-words"
+            className="text-xs sm:text-sm md:text-lg lg:text-xl text-gray-300 mx-auto max-w-full px-1 sm:px-2 break-words"
             style={{ wordBreak: "break-word", whiteSpace: "normal" }}
           >
             Custom PCs built for speed, power, and precision. Delivered within 5
             days.
           </p>
           <p
-            className="text-base sm:text-lg md:text-xl text-gray-300 mx-auto max-w-full sm:max-w-2xl md:max-w-3xl px-2 sm:px-0 break-words mt-2"
+            className="text-xs sm:text-sm md:text-lg lg:text-xl text-gray-300 mx-auto max-w-full px-1 sm:px-2 break-words mt-1 sm:mt-2"
             style={{ wordBreak: "break-word", whiteSpace: "normal" }}
           >
             Build your dream PC with our interactive 3D visualisation tool
@@ -470,9 +544,9 @@ export function VisualPCConfigurator() {
         </div>
 
         {/* Status Indicators - Responsive badges */}
-        <div className="flex flex-wrap justify-center gap-2 sm:gap-4 md:gap-6 mb-8 w-full">
+        <div className="flex flex-wrap justify-center gap-2 sm:gap-3 md:gap-4 mb-6 sm:mb-8 w-full">
           <Badge
-            className={`px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm md:text-base ${
+            className={`px-2 py-1 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs md:text-sm ${
               Object.values(buildConfig).length === 0
                 ? "bg-red-500/20 border-red-500/40 text-red-400"
                 : Object.values(buildConfig).length < 6
@@ -519,20 +593,20 @@ export function VisualPCConfigurator() {
           </Badge>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-3 px-0">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4 px-0">
           {/* 3D Visualization */}
-          <div className="xl:col-span-2 w-full">
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-1 sm:p-2 md:p-4">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl sm:text-2xl font-bold text-white">
+          <div className="lg:col-span-2 w-full">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-2 sm:p-3 md:p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-white">
                   The Vortex 3D PC Visualisation Tool
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex gap-1 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setViewAngle((prev) => (prev + 45) % 360)}
-                    className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10"
+                    className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10 text-xs sm:text-sm px-2 sm:px-3"
                   >
                     <RotateCcw className="w-4 h-4 mr-2" />
                     Rotate
@@ -564,13 +638,15 @@ export function VisualPCConfigurator() {
               {/* 3D PC Visualization Container */}
               <div
                 ref={configuratorRef}
-                className="relative bg-gradient-to-br from-slate-900/50 to-slate-950/50 rounded-xl p-1 sm:p-2 md:p-4 min-h-[180px] sm:min-h-[320px] md:min-h-[600px] flex items-center justify-center overflow-hidden"
+                className="relative bg-gradient-to-br from-slate-900/50 to-slate-950/50 rounded-xl p-1 sm:p-2 md:p-4 min-h-[200px] sm:min-h-[320px] md:min-h-[500px] lg:min-h-[600px] flex items-center justify-center overflow-hidden w-full"
                 style={{ perspective: "1200px" }}
               >
                 {/* 3D PC Build Visualization */}
                 <div
-                  className="relative w-[220px] sm:w-[350px] md:w-[600px] h-[120px] sm:h-[220px] md:h-[500px] transition-transform duration-700"
+                  className="relative transition-transform duration-700 w-full"
                   style={{
+                    width: "clamp(180px, 90%, 650px)",
+                    height: "clamp(100px, 50vw, 500px)",
                     transformStyle: "preserve-3d",
                     transform: `rotateY(${viewAngle}deg) rotateX(-5deg)`,
                   }}
@@ -1524,10 +1600,10 @@ export function VisualPCConfigurator() {
           </div>
 
           {/* Sidebar with Performance & Summary */}
-          <div className="space-y-6 w-full xl:w-auto">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6 w-full lg:w-auto">
             {/* Performance Benchmarks */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
-              <h3 className="text-xl font-bold mb-4 flex items-center">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-3 sm:p-4 md:p-6">
+              <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4 flex items-center">
                 <Trophy className="w-5 h-5 mr-2 text-yellow-400" />
                 Performance Benchmarks
               </h3>
@@ -1588,8 +1664,8 @@ export function VisualPCConfigurator() {
             </Card>
 
             {/* Build Validation */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
-              <h3 className="text-xl font-bold mb-4 flex items-center">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-3 sm:p-4 md:p-6">
+              <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4 flex items-center">
                 <CheckCircle className="w-5 h-5 mr-2 text-green-400" />
                 Build Validation
               </h3>
@@ -1607,8 +1683,10 @@ export function VisualPCConfigurator() {
             </Card>
 
             {/* Build Summary */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-6">
-              <h3 className="text-xl font-bold mb-4">Build Summary</h3>
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 p-3 sm:p-4 md:p-6">
+              <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4">
+                Build Summary
+              </h3>
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Total Price:</span>
@@ -1620,6 +1698,12 @@ export function VisualPCConfigurator() {
                   <span className="text-gray-400">Power Draw:</span>
                   <span className="font-bold text-yellow-400">
                     {totalPowerDraw}W
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Recommended PSU:</span>
+                  <span className="font-bold text-green-400">
+                    {recommendedPSU}W+
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -1647,10 +1731,10 @@ export function VisualPCConfigurator() {
                       COMPONENT SELECTION
                     </span>
                   </div>
-                  <h2 className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent mb-2">
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-black bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent mb-2">
                     Choose Your Components
                   </h2>
-                  <p className="text-gray-300 text-sm sm:text-base max-w-2xl">
+                  <p className="text-xs sm:text-sm md:text-base text-gray-300 max-w-2xl">
                     Select premium hardware for each category. Live
                     compatibility checks ensure everything works perfectly
                     together.
@@ -1814,8 +1898,8 @@ export function VisualPCConfigurator() {
           </div>
 
           {/* Category Navigation - Enhanced Design */}
-          <div className="mb-8">
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          <div className="mb-8 w-full">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3">
               {CATEGORIES.map((category) => {
                 const Icon = category.icon;
                 const isSelected =
@@ -1825,9 +1909,12 @@ export function VisualPCConfigurator() {
                 return (
                   <button
                     key={category.id}
-                    onClick={() => setSelectedCategory(category.id)}
+                    onClick={() => {
+                      setSelectedCategory(category.id);
+                      setCurrentPage({ ...currentPage, [category.id]: 1 });
+                    }}
                     className={`
-                      group relative overflow-hidden rounded-2xl p-5 transition-all duration-300 transform hover:scale-105 hover:-translate-y-1
+                      group relative overflow-hidden rounded-lg sm:rounded-2xl p-2 sm:p-4 md:p-5 transition-all duration-300 transform hover:scale-105 hover:-translate-y-1
                       ${
                         isActive
                           ? "bg-gradient-to-br from-sky-500/25 to-blue-600/25 border-2 border-sky-400/70 shadow-2xl shadow-sky-500/30"
@@ -1853,10 +1940,10 @@ export function VisualPCConfigurator() {
                     </div>
 
                     {/* Content */}
-                    <div className="relative flex flex-col items-center gap-3">
+                    <div className="relative flex flex-col items-center gap-1.5 sm:gap-3">
                       <div
                         className={`
-                          w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg
+                          w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg sm:rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg
                           ${
                             isActive
                               ? "bg-gradient-to-br from-sky-500/40 to-blue-600/40 border-2 border-sky-300/60 shadow-sky-500/50"
@@ -1865,7 +1952,7 @@ export function VisualPCConfigurator() {
                         `}
                       >
                         <Icon
-                          className={`w-7 h-7 transition-all duration-300 ${
+                          className={`w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 transition-all duration-300 ${
                             isActive
                               ? "text-sky-300 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"
                               : "text-gray-400 group-hover:text-sky-400 group-hover:drop-shadow-[0_0_6px_rgba(56,189,248,0.3)]"
@@ -1875,7 +1962,7 @@ export function VisualPCConfigurator() {
 
                       <div className="text-center">
                         <div
-                          className={`text-xs font-bold transition-all duration-300 uppercase tracking-wider ${
+                          className={`text-[10px] sm:text-xs md:text-sm font-bold transition-all duration-300 uppercase tracking-wider ${
                             isActive
                               ? "text-white drop-shadow-[0_2px_8px_rgba(56,189,248,0.4)]"
                               : "text-gray-400 group-hover:text-sky-300"
@@ -1907,7 +1994,7 @@ export function VisualPCConfigurator() {
           </div>
 
           {/* Component Grid - Premium Card Design */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
             {isLoadingComponents ? (
               <div className="col-span-full flex flex-col items-center justify-center py-16">
                 <div className="relative">
@@ -1939,22 +2026,32 @@ export function VisualPCConfigurator() {
                 </Card>
               </div>
             ) : (
-              cmsComponents[selectedCategory]?.map((component) => {
-                const comp = component as PCComponent;
-                const isCurrentlySelected =
-                  buildConfig[selectedCategory as keyof BuildConfiguration]
-                    ?.id === comp.id;
+              (() => {
+                const currentPageNum = currentPage[selectedCategory] || 1;
+                const startIndex = (currentPageNum - 1) * ITEMS_PER_PAGE;
+                const endIndex = startIndex + ITEMS_PER_PAGE;
+                const paginatedComponents =
+                  cmsComponents[selectedCategory]?.slice(
+                    startIndex,
+                    endIndex
+                  ) || [];
 
-                return (
-                  <Card
-                    key={comp.id}
-                    onClick={() =>
-                      selectComponent(
-                        selectedCategory,
-                        comp as unknown as Component
-                      )
-                    }
-                    className={`
+                return paginatedComponents.map((component) => {
+                  const comp = component as PCComponent;
+                  const isCurrentlySelected =
+                    buildConfig[selectedCategory as keyof BuildConfiguration]
+                      ?.id === comp.id;
+
+                  return (
+                    <Card
+                      key={comp.id}
+                      onClick={() =>
+                        selectComponent(
+                          selectedCategory,
+                          comp as unknown as Component
+                        )
+                      }
+                      className={`
                       group relative overflow-hidden cursor-pointer transition-all duration-300 transform hover:scale-[1.02]
                       ${
                         isCurrentlySelected
@@ -1962,106 +2059,207 @@ export function VisualPCConfigurator() {
                           : "bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/30 hover:shadow-xl hover:shadow-sky-500/10"
                       }
                     `}
-                  >
-                    {/* Animated background on hover */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-sky-500/0 to-blue-500/0 group-hover:from-sky-500/5 group-hover:to-blue-500/5 transition-all duration-500"></div>
+                    >
+                      {/* Animated background on hover */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-sky-500/0 to-blue-500/0 group-hover:from-sky-500/5 group-hover:to-blue-500/5 transition-all duration-500"></div>
 
-                    {/* Selected badge */}
-                    {isCurrentlySelected && (
-                      <div className="absolute top-3 right-3 z-10">
-                        <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-green-500/20 border border-green-500/40 backdrop-blur-xl shadow-lg">
-                          <CheckCircle className="w-3.5 h-3.5 text-green-400" />
-                          <span className="text-xs font-semibold text-green-300">
-                            Selected
-                          </span>
+                      {/* Selected badge */}
+                      {isCurrentlySelected && (
+                        <div className="absolute top-3 right-3 z-10">
+                          <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-green-500/20 border border-green-500/40 backdrop-blur-xl shadow-lg">
+                            <CheckCircle className="w-3.5 h-3.5 text-green-400" />
+                            <span className="text-xs font-semibold text-green-300">
+                              Selected
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    <div className="relative p-4 space-y-3">
-                      {/* Product Image */}
-                      <div className="relative aspect-square rounded-xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 overflow-hidden mb-3">
-                        {comp.images && comp.images[0] ? (
-                          <img
-                            src={comp.images[0]}
-                            alt={comp.name}
-                            className="w-full h-full object-contain p-1 transition-transform duration-500 group-hover:scale-110"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Package className="w-16 h-16 text-gray-600 opacity-30" />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Product Info */}
-                      <div className="space-y-2.5">
-                        {/* Brand */}
-                        {comp.brand && (
-                          <div className="text-xs font-semibold text-sky-400 uppercase tracking-wider">
-                            {comp.brand}
-                          </div>
-                        )}
-
-                        {/* Name */}
-                        <h4 className="font-bold text-white text-base leading-tight line-clamp-2 min-h-[3rem] group-hover:text-sky-300 transition-colors">
-                          {comp.name}
-                        </h4>
-
-                        {/* Description */}
-                        {comp.description && (
-                          <p className="text-sm text-gray-400 leading-relaxed">
-                            {comp.description}
-                          </p>
-                        )}
-
-                        {/* Divider */}
-                        <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-
-                        {/* Price and Action */}
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex flex-col">
-                            <span className="text-xs text-gray-500 uppercase tracking-wide">
-                              Price
-                            </span>
-                            <span className="text-2xl font-black bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
-                              £{comp.price.toFixed(0)}
-                            </span>
-                          </div>
-
-                          {isCurrentlySelected ? (
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeComponent(selectedCategory);
-                              }}
-                              variant="outline"
-                              size="sm"
-                              className="bg-red-600 text-white border border-red-600/60 hover:bg-red-500 hover:border-red-500/70 active:bg-red-700 active:shadow-inner shadow-lg shadow-red-600/30 transition-all"
-                            >
-                              Remove
-                            </Button>
+                      <div className="relative p-3 sm:p-4 space-y-2 sm:space-y-3">
+                        {/* Product Image */}
+                        <div className="relative aspect-square rounded-xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 overflow-hidden mb-3">
+                          {comp.images && comp.images[0] ? (
+                            <img
+                              src={comp.images[0]}
+                              alt={comp.name}
+                              className="w-full h-full object-contain p-1 transition-transform duration-500 group-hover:scale-110"
+                            />
                           ) : (
-                            <Button
-                              size="sm"
-                              className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg hover:shadow-sky-500/50 transition-all"
-                            >
-                              Select
-                            </Button>
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="w-16 h-16 text-gray-600 opacity-30" />
+                            </div>
                           )}
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Hover glow effect */}
-                    <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-sky-500/10 via-transparent to-blue-500/10"></div>
-                    </div>
-                  </Card>
-                );
-              })
+                        {/* Product Info */}
+                        <div className="space-y-2.5">
+                          {/* Brand */}
+                          {comp.brandLogo ? (
+                            <img
+                              src={comp.brandLogo}
+                              alt={comp.brand || "Brand"}
+                              className="h-5 mb-1 object-contain"
+                              loading="lazy"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          ) : comp.brand ? (
+                            <div className="text-xs font-semibold text-sky-400 uppercase tracking-wider">
+                              {comp.brand}
+                            </div>
+                          ) : null}
+
+                          {/* Name */}
+                          <h4 className="font-bold text-white text-base leading-tight line-clamp-2 min-h-[3rem] group-hover:text-sky-300 transition-colors">
+                            {comp.name}
+                          </h4>
+
+                          {/* Description */}
+                          {comp.description && (
+                            <p className="text-sm text-gray-400 leading-relaxed">
+                              {comp.description}
+                            </p>
+                          )}
+
+                          {/* Divider */}
+                          <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+
+                          {/* Price and Action */}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-col">
+                              <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                Price
+                              </span>
+                              <span className="text-2xl font-black bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                                £{comp.price.toFixed(0)}
+                              </span>
+                            </div>
+
+                            {isCurrentlySelected ? (
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeComponent(selectedCategory);
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="bg-red-600 text-white border border-red-600/60 hover:bg-red-500 hover:border-red-500/70 active:bg-red-700 active:shadow-inner shadow-lg shadow-red-600/30 transition-all"
+                              >
+                                Remove
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg hover:shadow-sky-500/50 transition-all"
+                              >
+                                Select
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Hover glow effect */}
+                      <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+                        <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-sky-500/10 via-transparent to-blue-500/10"></div>
+                      </div>
+                    </Card>
+                  );
+                });
+              })()
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {!isLoadingComponents &&
+            cmsComponents[selectedCategory]?.length > ITEMS_PER_PAGE &&
+            (() => {
+              const currentPageNum = currentPage[selectedCategory] || 1;
+              const totalItems = cmsComponents[selectedCategory]?.length || 0;
+              const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+              const startItem = (currentPageNum - 1) * ITEMS_PER_PAGE + 1;
+              const endItem = Math.min(
+                currentPageNum * ITEMS_PER_PAGE,
+                totalItems
+              );
+
+              return (
+                <div className="flex flex-col gap-4 items-center justify-between mt-6 sm:mt-8 px-2 sm:px-4">
+                  <div className="text-xs sm:text-sm text-gray-400 text-center">
+                    Showing {startItem}-{endItem} of {totalItems}{" "}
+                    {selectedCategory} options
+                  </div>
+                  <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
+                    <Button
+                      onClick={() =>
+                        setCurrentPage({
+                          ...currentPage,
+                          [selectedCategory]: currentPageNum - 1,
+                        })
+                      }
+                      disabled={currentPageNum === 1}
+                      variant="outline"
+                      size="sm"
+                      className="border-white/10 hover:border-sky-500/30 disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from(
+                        { length: Math.min(totalPages, 5) },
+                        (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPageNum <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPageNum >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPageNum - 2 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              onClick={() =>
+                                setCurrentPage({
+                                  ...currentPage,
+                                  [selectedCategory]: pageNum,
+                                })
+                              }
+                              variant="outline"
+                              size="sm"
+                              className={`w-9 h-9 p-0 ${
+                                currentPageNum === pageNum
+                                  ? "bg-sky-500/20 border-sky-500/50 text-sky-400"
+                                  : "border-white/10 hover:border-sky-500/30"
+                              }`}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        }
+                      )}
+                    </div>
+                    <Button
+                      onClick={() =>
+                        setCurrentPage({
+                          ...currentPage,
+                          [selectedCategory]: currentPageNum + 1,
+                        })
+                      }
+                      disabled={currentPageNum === totalPages}
+                      variant="outline"
+                      size="sm"
+                      className="border-white/10 hover:border-sky-500/30 disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
 
           {/* Confirm Build Section - Enhanced CTA */}
           {Object.values(buildConfig).filter(Boolean).length > 0 && (
@@ -2103,6 +2301,12 @@ export function VisualPCConfigurator() {
                         <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
                         <span className="text-gray-400">
                           {totalPowerDraw}W power draw
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                        <span className="text-gray-400">
+                          {recommendedPSU}W+ PSU recommended
                         </span>
                       </div>
                     </div>

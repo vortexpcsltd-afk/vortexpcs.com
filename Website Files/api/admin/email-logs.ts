@@ -1,6 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import admin from "firebase-admin";
 
+interface EmailLogData {
+  to: string;
+  subject: string;
+  timestamp: Date | { toDate(): Date };
+  status: string;
+  [key: string]: unknown;
+}
+
 /**
  * Email Logs Viewer (Admin Diagnostic)
  * GET /api/admin/email-logs?limit=50
@@ -35,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .get();
 
     const logs = logsSnap.docs.map((doc) => {
-      const data = doc.data() as any;
+      const data = doc.data() as EmailLogData;
       return {
         id: doc.id,
         ...data,

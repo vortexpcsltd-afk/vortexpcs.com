@@ -1,0 +1,21 @@
+### 16. **Actionable Insights Dashboard**
+
+**Priority: Medium** | **Complexity: Medium**
+
+- **Recommendations Tab** (NEW):
+  - Top 5 missing products to source (based on high-demand searches with zero/low inventory)
+  - Underperforming categories (high searches, low results/CTR)
+  - Quick wins (products to add for immediate impact, low effort/high value)
+  - Search term spelling corrections to implement (typo clusters and synonyms)
+
+**Data Sources**:
+
+- `searchQueries`, `zeroResultSearches`, `searchRefinements`
+- CMS inventory via `services/cms.ts` (stockLevel/inStock)
+- Conversion/CTR metrics from `analytics_events`
+
+**Implementation Notes**:
+
+- UI: AdminPanel → Analytics → “Recommendations” tab with cards and tables
+- Logic: Reuse `utils/searchDemandPredictor.ts` + typo detection from Smart Suggestions
+- Export: CSV/Excel of recommended items and corrections

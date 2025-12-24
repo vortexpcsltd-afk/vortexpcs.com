@@ -42,7 +42,8 @@ function loadServiceAccount(): any | null {
 }
 
 function initAdmin() {
-  const maybeApps = (admin as any).apps;
+  // Note: admin.apps exists but isn't in @types/firebase-admin
+  const maybeApps = (admin as any).apps; // Acceptable: Firebase Admin SDK type limitation
   if (maybeApps && maybeApps.length) return;
   const svc = loadServiceAccount();
   if (!svc)

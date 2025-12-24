@@ -5,11 +5,12 @@
 export const GETADDRESS_IO_API_KEY: string | undefined =
   import.meta.env.VITE_GETADDRESS_IO_API_KEY || undefined;
 
+import { logger } from "../services/logger";
+
 if (import.meta.env.DEV) {
   const hasKey = Boolean(GETADDRESS_IO_API_KEY);
-   
-  console.debug(
-    `📬 Address Provider Key: ${hasKey ? "FOUND" : "NOT FOUND"}`,
-    hasKey ? `${GETADDRESS_IO_API_KEY?.slice(0, 6)}...` : ""
-  );
+  logger.info("Address Provider Key", {
+    state: hasKey ? "FOUND" : "NOT FOUND",
+    preview: hasKey ? `${GETADDRESS_IO_API_KEY?.slice(0, 6)}...` : "",
+  });
 }

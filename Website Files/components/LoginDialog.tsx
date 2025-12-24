@@ -35,6 +35,45 @@ import {
 import { getSessionId } from "../services/sessionTracker";
 import { recordLoginAttempt } from "../services/security";
 
+// Simple password validation inline (TODO: move to utils/passwordValidation.ts)
+function validatePasswordStrength(password: string): {
+  isValid: boolean;
+  score: number;
+  feedback: string[];
+} {
+  const feedback: string[] = [];
+  let score = 0;
+
+  if (password.length >= 8) score++;
+  else feedback.push("At least 8 characters");
+
+  if (/[A-Z]/.test(password)) score++;
+  else feedback.push("Include uppercase letters");
+
+  if (/[a-z]/.test(password)) score++;
+  else feedback.push("Include lowercase letters");
+
+  if (/[0-9]/.test(password)) score++;
+  else feedback.push("Include numbers");
+
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+  else feedback.push("Include special characters");
+
+  return {
+    isValid: score >= 3,
+    score,
+    feedback,
+  };
+}
+
+function getPasswordStrengthLabel(score: number): string {
+  if (score <= 1) return "Weak";
+  if (score === 2) return "Fair";
+  if (score === 3) return "Good";
+  if (score === 4) return "Strong";
+  return "Very Strong";
+}
+
 interface LoginDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -57,6 +96,21 @@ export function LoginDialog({
   const [success, setSuccess] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [showTechDetails, setShowTechDetails] = useState(false);
+  const [passwordStrength, setPasswordStrength] =
+    useState<ReturnType<typeof validatePasswordStrength>>();
+  const [rememberMe, setRememberMe] = useState(true); // Default to true - most users expect to stay logged in
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPassword = e.target.value;
+    setPassword(newPassword);
+
+    if (newPassword && currentTab === "register") {
+      const strength = validatePasswordStrength(newPassword);
+      setPasswordStrength(strength);
+    } else {
+      setPasswordStrength(undefined);
+    }
+  };
 
   const mapCodeToSuggestion = (code: string | null): string | null => {
     if (!code) return null;
@@ -113,7 +167,7 @@ export function LoginDialog({
     }
 
     try {
-      const user = await loginUser(normalizedEmail, pwd);
+      const user = await loginUser(normalizedEmail, pwd, rememberMe);
       // Record success to reset attempts if not blocked
       recordLoginAttempt("success", normalizedEmail).catch(() => {});
       logger.debug("Login successful", { uid: user.uid, email: user.email });
@@ -160,7 +214,7 @@ export function LoginDialog({
       }
 
       // Track failed login attempt
-      console.log("[LoginDialog] Tracking failed login attempt...", {
+      logger.info("[LoginDialog] Tracking failed login attempt", {
         email: normalizedEmail,
         code: errorCode,
       });
@@ -171,7 +225,7 @@ export function LoginDialog({
           sessionStorage.getItem("vortex_session_id") ||
           getSessionId() ||
           "unknown";
-        console.log("[LoginDialog] Session ID:", sessionId);
+        logger.info("[LoginDialog] Session ID", { sessionId });
 
         // Also track as a security event so dashboards count it
         await trackSecurityEvent({
@@ -199,7 +253,7 @@ export function LoginDialog({
           page: window.location.pathname,
         });
 
-        console.log("[LoginDialog] ✅ Failed login tracked successfully");
+        logger.success("[LoginDialog] Failed login tracked successfully");
       } catch (trackError: unknown) {
         console.error(
           "[LoginDialog] ❌ Failed to track login failure:",
@@ -285,44 +339,51 @@ export function LoginDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-sky-500/30 backdrop-blur-2xl max-w-md">
+      <DialogContent className="bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-sky-500/30 backdrop-blur-2xl w-[95vw] sm:w-full max-w-md">
         {/* Glow effect */}
         <div className="absolute -inset-[2px] bg-gradient-to-r from-sky-500/20 via-blue-500/20 to-cyan-500/20 blur-xl -z-10"></div>
 
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-center bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent">
+          <DialogTitle className="text-xl sm:text-2xl font-bold text-center bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent leading-tight">
             Welcome to Vortex PCs
           </DialogTitle>
-          <DialogDescription className="text-center text-gray-400">
+          <DialogDescription className="text-center text-gray-400 text-sm sm:text-base leading-tight px-2">
             Login to your account or create a new one to get started
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={currentTab} onValueChange={setCurrentTab} className="mt-4">
-          <TabsList className="grid w-full grid-cols-2 bg-white/5 border border-white/10">
+        <Tabs
+          value={currentTab}
+          onValueChange={setCurrentTab}
+          className="mt-3 sm:mt-4"
+        >
+          <TabsList className="grid w-full grid-cols-2 bg-white/5 border border-white/10 h-10 sm:h-11 p-1 rounded-lg">
             <TabsTrigger
               value="login"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-600 data-[state=active]:to-blue-600 data-[state=active]:text-white"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-600 data-[state=active]:to-blue-600 data-[state=active]:text-white text-sm sm:text-base rounded-md"
             >
-              <LogIn className="w-4 h-4 mr-2" />
+              <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
               Login
             </TabsTrigger>
             <TabsTrigger
               value="register"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-600 data-[state=active]:to-blue-600 data-[state=active]:text-white"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-600 data-[state=active]:to-blue-600 data-[state=active]:text-white text-sm sm:text-base rounded-md"
             >
-              <UserPlus className="w-4 h-4 mr-2" />
+              <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
               Sign Up
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="login" className="space-y-4 mt-6">
+          <TabsContent
+            value="login"
+            className="space-y-3 sm:space-y-4 mt-4 sm:mt-6"
+          >
             {error && (
               <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <div className="space-y-2">
-                    <p className="font-medium">{error}</p>
+                    <p className="font-medium text-sm">{error}</p>
                     {errorCode && (
                       <p className="text-xs text-red-300">Code: {errorCode}</p>
                     )}
@@ -360,13 +421,13 @@ export function LoginDialog({
               </Alert>
             )}
 
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
+            <form onSubmit={handleLogin} className="space-y-3 sm:space-y-4">
+              <div className="space-y-1.5 sm:space-y-2">
                 <Label
                   htmlFor="login-email"
-                  className="text-white flex items-center"
+                  className="text-white flex items-center text-sm"
                 >
-                  <Mail className="w-4 h-4 mr-2 text-sky-400" />
+                  <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 text-sky-400" />
                   Email Address
                 </Label>
                 <Input
@@ -382,12 +443,12 @@ export function LoginDialog({
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5 sm:space-y-2">
                 <Label
                   htmlFor="login-password"
-                  className="text-white flex items-center"
+                  className="text-white flex items-center text-sm"
                 >
-                  <Lock className="w-4 h-4 mr-2 text-sky-400" />
+                  <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 text-sky-400" />
                   Password
                 </Label>
                 <Input
@@ -403,11 +464,13 @@ export function LoginDialog({
                 />
               </div>
 
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
                 <label className="flex items-center text-gray-400 cursor-pointer hover:text-sky-400 transition-colors">
                   <input
                     type="checkbox"
-                    className="mr-2 rounded border-white/10 bg-white/5"
+                    className="mr-1.5 sm:mr-2 rounded border-white/10 bg-white/5"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
                     disabled={loading}
                   />
                   Remember me
@@ -424,22 +487,25 @@ export function LoginDialog({
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white py-6 shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300"
+                className="w-full bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 hover:to-blue-400 text-white py-4 sm:py-6 text-sm sm:text-base shadow-md hover:shadow-lg transition-all duration-300"
                 disabled={loading}
               >
-                <LogIn className="w-4 h-4 mr-2" />
+                <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                 {loading ? "Logging in..." : "Login to Your Account"}
               </Button>
             </form>
           </TabsContent>
 
-          <TabsContent value="register" className="space-y-4 mt-6">
+          <TabsContent
+            value="register"
+            className="space-y-3 sm:space-y-4 mt-4 sm:mt-6"
+          >
             {error && (
               <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <div className="space-y-2">
-                    <p className="font-medium">{error}</p>
+                    <p className="font-medium text-sm">{error}</p>
                     {errorCode && (
                       <p className="text-xs text-red-300">Code: {errorCode}</p>
                     )}
@@ -468,13 +534,13 @@ export function LoginDialog({
               </Alert>
             )}
 
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div className="space-y-2">
+            <form onSubmit={handleRegister} className="space-y-3 sm:space-y-4">
+              <div className="space-y-1.5 sm:space-y-2">
                 <Label
                   htmlFor="register-name"
-                  className="text-white flex items-center"
+                  className="text-white flex items-center text-sm"
                 >
-                  <User className="w-4 h-4 mr-2 text-sky-400" />
+                  <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 text-sky-400" />
                   Full Name
                 </Label>
                 <Input
@@ -523,14 +589,70 @@ export function LoginDialog({
                   id="register-password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  onChange={handlePasswordChange}
+                  placeholder="Create a strong password"
                   className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-sky-500/50"
                   required
                   disabled={loading}
                   minLength={6}
                   autoComplete="new-password"
                 />
+
+                {/* Password strength indicator */}
+                {passwordStrength && (
+                  <div className="space-y-2 mt-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            passwordStrength.score === 0
+                              ? "bg-red-500 w-[20%]"
+                              : passwordStrength.score === 1
+                              ? "bg-orange-500 w-[40%]"
+                              : passwordStrength.score === 2
+                              ? "bg-yellow-500 w-[60%]"
+                              : passwordStrength.score === 3
+                              ? "bg-blue-500 w-[80%]"
+                              : "bg-green-500 w-full"
+                          }`}
+                        />
+                      </div>
+                      <span
+                        className={`text-xs font-medium whitespace-nowrap ${
+                          passwordStrength.score <= 1
+                            ? "text-red-400"
+                            : passwordStrength.score === 2
+                            ? "text-yellow-400"
+                            : passwordStrength.score === 3
+                            ? "text-blue-400"
+                            : "text-green-400"
+                        }`}
+                      >
+                        {getPasswordStrengthLabel(passwordStrength.score)}
+                      </span>
+                    </div>
+
+                    {/* Requirements checklist */}
+                    {passwordStrength.feedback.length > 0 && (
+                      <ul className="text-xs space-y-1">
+                        {passwordStrength.feedback.map((message, i) => (
+                          <li key={i} className="text-gray-400">
+                            <span className="mr-1">○</span>
+                            {message}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {/* Success message when all requirements met */}
+                    {passwordStrength.isValid && (
+                      <div className="text-xs text-green-400 flex items-center">
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                        All requirements met!
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-start text-sm">
@@ -564,10 +686,13 @@ export function LoginDialog({
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white py-6 shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300"
-                disabled={loading}
+                className="w-full bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 hover:to-blue-400 text-white py-4 sm:py-6 text-sm sm:text-base shadow-md hover:shadow-lg transition-all duration-300"
+                disabled={
+                  loading ||
+                  (passwordStrength ? !passwordStrength.isValid : false)
+                }
               >
-                <UserPlus className="w-4 h-4 mr-2" />
+                <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                 {loading ? "Creating Account..." : "Create Account"}
               </Button>
             </form>

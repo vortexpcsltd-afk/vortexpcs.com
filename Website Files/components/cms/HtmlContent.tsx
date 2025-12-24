@@ -1,33 +1,47 @@
-import React from "react";
+import DOMPurify from "dompurify";
 
 type HtmlContentProps = {
   html: string;
   className?: string;
 };
 
-// Very lightweight sanitizer to keep styling safe while preventing obvious script injection.
-// For fully untrusted content consider a dedicated sanitizer like DOMPurify.
-function sanitize(html: string): string {
-  if (!html) return "";
-  // Remove script/style tags entirely
-  let cleaned = html
-    .replace(/<\/(?:script|style)>/gi, "")
-    .replace(/<(?:script|style)[^>]*>[\s\S]*?<\/(?:script|style)>/gi, "");
-  // Remove on* event handlers
-  cleaned = cleaned
-    .replace(/ on[a-zA-Z]+\s*=\s*"[^"]*"/g, "")
-    .replace(/ on[a-zA-Z]+\s*=\s*'[^']*'/g, "")
-    .replace(/ on[a-zA-Z]+\s*=\s*[^\s>]+/g, "");
-  // Neutralize javascript: urls in href/src attributes
-  cleaned = cleaned.replace(
-    /(href|src)\s*=\s*(['"])\s*javascript:[^"']*\2/gi,
-    '$1="#"'
-  );
-  return cleaned;
-}
-
 export function HtmlContent({ html, className = "" }: HtmlContentProps) {
-  const safe = React.useMemo(() => sanitize(html), [html]);
+  // Sanitize HTML to prevent XSS attacks while preserving safe formatting
+  const sanitizedHtml = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "p",
+      "br",
+      "strong",
+      "em",
+      "u",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "ul",
+      "ol",
+      "li",
+      "a",
+      "blockquote",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
+      "code",
+      "pre",
+      "span",
+      "div",
+    ],
+    ALLOWED_ATTR: ["href", "title", "target", "rel"],
+    ALLOW_DATA_ATTR: false,
+    // Removed HOOK_AFTER_SANITIZE_ELEMENTS as it's not part of the DOMPurify Config type
+    // Security attributes can be added in a separate pass after sanitization if needed
+  });
+
   return (
     <div
       className={[
@@ -47,8 +61,8 @@ export function HtmlContent({ html, className = "" }: HtmlContentProps) {
         "[&_table]:w-full [&_th]:text-left [&_th]:text-gray-200 [&_td]:text-gray-300",
         className,
       ].join(" ")}
-      // We intentionally use sanitized HTML to preserve rich structure from CMS
-      dangerouslySetInnerHTML={{ __html: safe }}
+      // HTML is sanitized by DOMPurify to prevent XSS attacks
+      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
     />
   );
 }

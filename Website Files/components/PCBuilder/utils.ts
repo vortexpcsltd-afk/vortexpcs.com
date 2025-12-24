@@ -1,3 +1,4 @@
+export function noop() {}
 import {
   ImageRef,
   AnyComponent,
@@ -138,12 +139,15 @@ export const checkCompatibility = (
   if (ram && motherboard) {
     const ramType = ram.type;
     const boardSupport = motherboard.ramSupport;
-    const ramSupported = !ramType
+    const ramTypeStr = Array.isArray(ramType) ? ramType[0] : ramType;
+    const ramSupported = !ramTypeStr
       ? true
       : Array.isArray(boardSupport)
-      ? boardSupport.some((s) => typeof s === "string" && s.includes(ramType))
+      ? boardSupport.some(
+          (s) => typeof s === "string" && s.includes(ramTypeStr)
+        )
       : typeof boardSupport === "string"
-      ? boardSupport.includes(ramType)
+      ? boardSupport.includes(ramTypeStr)
       : true; // unknown support shape => assume OK
     if (!ramSupported) {
       issues.push({
@@ -206,22 +210,83 @@ export const checkCompatibility = (
 
   // PSU Wattage Check
   if (cpu && gpu && psu) {
-    const cpuTdp = typeof cpu.tdp === "number" ? cpu.tdp : 65;
-    const gpuPower = typeof gpu.power === "number" ? gpu.power : 150;
-    const estimatedPower = cpuTdp + gpuPower + 150; // Base system + peripherals
-    const recommendedPower = Math.round(estimatedPower * 1.2); // 20% headroom
+    // Get CPU power with better defaults based on component name
+    let cpuTdp = typeof cpu.tdp === "number" ? cpu.tdp : 0;
+    if (cpuTdp === 0) {
+      // Check alternative fields
+      const basePower =
+        typeof cpu.processorBasePower === "number" ? cpu.processorBasePower : 0;
+      if (basePower > 0) {
+        cpuTdp = basePower;
+      } else {
+        // Intelligent default based on CPU name
+        const cpuName = (cpu.name ?? "").toLowerCase();
+        if (/9950x|14900ks|13900ks|9900x3d|7950x3d/.test(cpuName)) cpuTdp = 170;
+        else if (/9900x|14900k|13900k|7950x/.test(cpuName)) cpuTdp = 150;
+        else if (/9800x3d|14700k|13700k|7900x|7800x3d/.test(cpuName))
+          cpuTdp = 120;
+        else if (/14600k|13600k|7700x|7600x/.test(cpuName)) cpuTdp = 100;
+        else if (/cores/.test(cpuName)) {
+          const coresMatch = cpuName.match(/(\d+)[\s-]?cores?/);
+          const cores = coresMatch ? parseInt(coresMatch[1]) : cpu.cores ?? 6;
+          cpuTdp =
+            cores >= 16 ? 170 : cores >= 12 ? 120 : cores >= 8 ? 100 : 65;
+        } else cpuTdp = 95; // Conservative default
+      }
+    }
+
+    // Get GPU power with better defaults based on component name
+    let gpuPower =
+      typeof gpu.power === "number"
+        ? gpu.power
+        : typeof gpu.powerConsumption === "number"
+        ? gpu.powerConsumption
+        : typeof gpu.powerDraw === "number"
+        ? gpu.powerDraw
+        : 0;
+    if (gpuPower === 0) {
+      // Intelligent default based on GPU name
+      const gpuName = (gpu.name ?? "").toLowerCase();
+      if (/rtx\s?5090|rtx\s?4090/.test(gpuName)) gpuPower = 575;
+      else if (/rtx\s?5080|rtx\s?4080\s?super/.test(gpuName)) gpuPower = 385;
+      else if (/rtx\s?4080/.test(gpuName)) gpuPower = 320;
+      else if (/rtx\s?5070\s?ti|rtx\s?4070\s?ti\s?super/.test(gpuName))
+        gpuPower = 285;
+      else if (/rtx\s?5070|rtx\s?4070\s?super/.test(gpuName)) gpuPower = 220;
+      else if (/rtx\s?4070/.test(gpuName)) gpuPower = 200;
+      else if (/rtx\s?5060\s?ti|rtx\s?4060\s?ti/.test(gpuName)) gpuPower = 165;
+      else if (/rtx\s?5060|rtx\s?4060/.test(gpuName)) gpuPower = 140;
+      else if (/rx\s?7900\s?xtx/.test(gpuName)) gpuPower = 355;
+      else if (/rx\s?7900\s?xt/.test(gpuName)) gpuPower = 315;
+      else if (/rx\s?7800\s?xt/.test(gpuName)) gpuPower = 263;
+      else if (/rx\s?7700\s?xt/.test(gpuName)) gpuPower = 245;
+      else gpuPower = 200; // Conservative default
+    }
+
+    const basePower = 150; // Base system + peripherals (motherboard, RAM, storage, fans)
+    const estimatedPower = cpuTdp + gpuPower + basePower;
+    const recommendedPower = Math.round(estimatedPower * 1.25); // 25% headroom for efficiency
 
     if (typeof psu.wattage === "number" && psu.wattage < recommendedPower) {
       issues.push({
-        severity: "warning",
-        title: "Insufficient PSU Wattage",
-        description: `Your system may consume up to ${Math.round(
+        severity: psu.wattage < estimatedPower ? "critical" : "warning",
+        title:
+          psu.wattage < estimatedPower
+            ? "Critical PSU Shortage"
+            : "Low PSU Headroom",
+        description: `Your system will consume approximately ${Math.round(
           estimatedPower
-        )}W, but the ${psu.name ?? "PSU"} only provides ${
-          psu.wattage
-        }W. We recommend ${recommendedPower}W for optimal performance.`,
+        )}W under load (CPU: ${cpuTdp}W + GPU: ${gpuPower}W + System: ${basePower}W). The ${
+          psu.name ?? "PSU"
+        } provides ${psu.wattage}W${
+          psu.wattage < estimatedPower
+            ? ", which is insufficient"
+            : ", leaving minimal headroom"
+        }. We recommend ${recommendedPower}W for optimal efficiency and stability.`,
         recommendation:
-          "Consider upgrading to a higher wattage power supply for better efficiency and headroom.",
+          psu.wattage < estimatedPower
+            ? "⚠️ URGENT: Upgrade to a higher wattage PSU immediately. System may not boot or will be unstable."
+            : "Consider upgrading to a higher wattage PSU for better efficiency, longevity, and future upgrade headroom.",
         affectedComponents: [
           cpu.name ?? "CPU",
           gpu.name ?? "GPU",
@@ -323,8 +388,48 @@ export const calculatePowerConsumption = (
     ? componentData.gpu?.find((c) => c.id === selectedComponents.gpu)
     : null;
 
-  const cpuTdp = typeof cpu?.tdp === "number" ? cpu.tdp : 65;
-  const gpuPower = typeof gpu?.power === "number" ? gpu.power : 150;
+  // Get CPU power with intelligent defaults
+  let cpuTdp = typeof cpu?.tdp === "number" ? cpu.tdp : 0;
+  if (cpuTdp === 0 && cpu) {
+    const cpuName = (cpu.name ?? "").toLowerCase();
+    if (/9950x|14900ks|13900ks|9900x3d|7950x3d/.test(cpuName)) cpuTdp = 170;
+    else if (/9900x|14900k|13900k|7950x/.test(cpuName)) cpuTdp = 150;
+    else if (/9800x3d|14700k|13700k|7900x|7800x3d/.test(cpuName)) cpuTdp = 120;
+    else if (/14600k|13600k|7700x|7600x/.test(cpuName)) cpuTdp = 100;
+    else if (/cores/.test(cpuName)) {
+      const coresMatch = cpuName.match(/(\d+)[\s-]?cores?/);
+      const cores = coresMatch ? parseInt(coresMatch[1]) : cpu.cores ?? 6;
+      cpuTdp = cores >= 16 ? 170 : cores >= 12 ? 120 : cores >= 8 ? 100 : 65;
+    } else cpuTdp = 95;
+  }
+
+  // Get GPU power with intelligent defaults
+  let gpuPower =
+    typeof gpu?.power === "number"
+      ? gpu.power
+      : typeof gpu?.powerConsumption === "number"
+      ? gpu.powerConsumption
+      : typeof gpu?.powerDraw === "number"
+      ? gpu.powerDraw
+      : 0;
+  if (gpuPower === 0 && gpu) {
+    const gpuName = (gpu.name ?? "").toLowerCase();
+    if (/rtx\s?5090|rtx\s?4090/.test(gpuName)) gpuPower = 575;
+    else if (/rtx\s?5080|rtx\s?4080\s?super/.test(gpuName)) gpuPower = 385;
+    else if (/rtx\s?4080/.test(gpuName)) gpuPower = 320;
+    else if (/rtx\s?5070\s?ti|rtx\s?4070\s?ti\s?super/.test(gpuName))
+      gpuPower = 285;
+    else if (/rtx\s?5070|rtx\s?4070\s?super/.test(gpuName)) gpuPower = 220;
+    else if (/rtx\s?4070/.test(gpuName)) gpuPower = 200;
+    else if (/rtx\s?5060\s?ti|rtx\s?4060\s?ti/.test(gpuName)) gpuPower = 165;
+    else if (/rtx\s?5060|rtx\s?4060/.test(gpuName)) gpuPower = 140;
+    else if (/rx\s?7900\s?xtx/.test(gpuName)) gpuPower = 355;
+    else if (/rx\s?7900\s?xt/.test(gpuName)) gpuPower = 315;
+    else if (/rx\s?7800\s?xt/.test(gpuName)) gpuPower = 263;
+    else if (/rx\s?7700\s?xt/.test(gpuName)) gpuPower = 245;
+    else gpuPower = 200;
+  }
+
   const basePower = 150; // Base system + peripherals
 
   return cpuTdp + gpuPower + basePower;

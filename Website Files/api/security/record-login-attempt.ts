@@ -5,26 +5,55 @@ import {
   validateMethod,
   ApiError,
 } from "../middleware/error-handler.js";
+import { isDevelopment, isFirebaseConfigured } from "../services/env-utils.js";
 
 function ensureAdminInitialized() {
-  if (!admin.apps.length) {
-    const credsBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
-    if (!credsBase64) {
-      throw new Error("FIREBASE_SERVICE_ACCOUNT_BASE64 not found");
-    }
-    const creds = JSON.parse(
-      Buffer.from(credsBase64, "base64").toString("utf-8")
+  if (admin.apps.length) return;
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  if (projectId && clientEmail && privateKey) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: projectId,
+        clientEmail: clientEmail,
+        privateKey: privateKey,
+      }),
+      projectId,
+    });
+    console.log(
+      "[record-login-attempt] Firebase Admin initialized via env vars"
     );
-    admin.initializeApp({ credential: admin.credential.cert(creds) });
+    return;
   }
+  const credsBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+  if (!credsBase64) {
+    throw new Error(
+      "Missing Firebase admin credentials (no env vars or base64)"
+    );
+  }
+  const decoded = Buffer.from(credsBase64, "base64").toString("utf-8");
+  const creds = JSON.parse(decoded);
+  const pid = creds?.project_id || process.env.FIREBASE_PROJECT_ID;
+  if (!pid) {
+    throw new Error(
+      "Missing project_id in service account and FIREBASE_PROJECT_ID env"
+    );
+  }
+  admin.initializeApp({
+    credential: admin.credential.cert(creds),
+    projectId: pid,
+  });
+  console.log("[record-login-attempt] Firebase Admin initialized via base64");
 }
 
 function getRequestIp(req: VercelRequest): string {
   const xfwd = (req.headers["x-forwarded-for"] || "") as string;
   const xReal = (req.headers["x-real-ip"] || "") as string;
+  // Note: req.socket.remoteAddress exists but isn't typed in @vercel/node
   const ip = xfwd
     ? xfwd.split(",")[0].trim()
-    : xReal || (req.socket as any)?.remoteAddress || "unknown";
+    : xReal || (req.socket as any)?.remoteAddress || "unknown"; // Acceptable: Vercel runtime limitation
   return ip;
 }
 
@@ -45,8 +74,30 @@ export default withErrorHandler(
       return res.status(200).end();
     }
 
+    // Development mode - return mock success
+    if (isDevelopment() || !isFirebaseConfigured()) {
+      console.log(
+        "[record-login-attempt] Development mode - skipping recording"
+      );
+      return res.status(200).json({ success: true, message: "dev-mode" });
+    }
+
     try {
-      ensureAdminInitialized();
+      try {
+        ensureAdminInitialized();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(
+          "[record-login-attempt] Firebase Admin init failed, returning success:",
+          msg
+        );
+        // Return success instead of error - login tracking is non-critical
+        return res.status(200).json({
+          success: true,
+          message: "Login tracking unavailable",
+          recorded: false,
+        });
+      }
 
       const ip = getRequestIp(req);
       const { outcome, email } = (req.body || {}) as {
@@ -67,7 +118,7 @@ export default withErrorHandler(
         const now = admin.firestore.FieldValue.serverTimestamp();
         await db.runTransaction(async (tx) => {
           const snap = await tx.get(docRef);
-          const data = snap.exists ? (snap.data() as any) : {};
+          const data = snap.exists ? (snap.data() as Partial<IPBlockData>) : {};
 
           // Don't block whitelisted IPs
           const whitelisted = Boolean(data.whitelisted);
@@ -99,30 +150,30 @@ export default withErrorHandler(
               attempts,
               blocked: toBlock,
               lastAttemptAt: now,
-              firstAttemptAt: data.firstAttemptAt || now,
+              firstAttemptAt: (data as any).firstAttemptAt || now, // Note: firstAttemptAt not in IPBlockData interface
               lastEmailTried: email || data.lastEmailTried || null,
               blockedAt:
                 toBlock && !alreadyBlocked ? now : data.blockedAt || null,
               reason: toBlock
                 ? "Too many failed login attempts"
-                : data.reason || null,
+                : (data as any).reason || null, // Note: reason not fully typed
               updatedAt: now,
             },
             { merge: true }
           );
         });
         const updated = await docRef.get();
-        const out = updated.data() || {};
+        const out = (updated.data() || {}) as Partial<IPBlockData>;
         return res.status(200).json({
           recorded: true,
-          blocked: Boolean((out as any).blocked),
-          attempts: Number((out as any).attempts || 0),
+          blocked: Boolean(out.blocked),
+          attempts: Number(out.attempts || 0),
           ip,
         });
       } else {
         // outcome === "success"; optionally reset attempts if not blocked
         const snap = await docRef.get();
-        const data = snap.exists ? (snap.data() as any) : null;
+        const data = snap.exists ? (snap.data() as Partial<IPBlockData>) : null;
         if (data && !data.blocked) {
           await docRef.set(
             {

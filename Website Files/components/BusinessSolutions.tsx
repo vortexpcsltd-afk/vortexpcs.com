@@ -3,7 +3,7 @@
  * Pre-configured workstations and service packages for small businesses
  */
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -26,6 +26,11 @@ import {
   Wrench,
   MessageSquare,
   Calendar,
+  BarChart3,
+  Gamepad2,
+  Wind,
+  Layers,
+  Box,
 } from "lucide-react";
 import {
   Dialog,
@@ -47,9 +52,16 @@ import {
 import { toast } from "sonner";
 import { logger } from "../services/logger";
 import { SubscriptionModal } from "./SubscriptionModal";
+import {
+  fetchBusinessWorkstations,
+  type BusinessWorkstation,
+} from "../services/cms";
+import { type CartItem } from "../types";
 
 interface BusinessSolutionsProps {
   setCurrentView: (view: string) => void;
+  onAddToCart?: (item: CartItem) => void;
+  onOpenCart?: () => void;
 }
 
 interface WorkstationConfig {
@@ -58,12 +70,17 @@ interface WorkstationConfig {
   tagline: string;
   price: number;
   image: string;
+  formFactor?: string;
   recommended?: boolean;
   specs: {
     processor: string;
     ram: string;
     storage: string;
     graphics: string;
+    cooler?: string;
+    motherboard?: string;
+    case?: string;
+    psu?: string;
     warranty: string;
     os?: string;
   };
@@ -89,7 +106,11 @@ interface ServiceTier {
   savings?: string;
 }
 
-export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
+export function BusinessSolutions({
+  setCurrentView,
+  onAddToCart,
+  onOpenCart,
+}: BusinessSolutionsProps) {
   const [selectedWorkstation, setSelectedWorkstation] =
     useState<WorkstationConfig | null>(null);
   const [selectedService, setSelectedService] = useState<ServiceTier | null>(
@@ -98,216 +119,36 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [quoteForm, setQuoteForm] = useState({
-    businessName: "",
-    postcode: "",
-    contactName: "",
-    contractNumber: "",
-    email: "",
-    os: "Windows 11 Pro",
-  });
+  const [cmsWorkstations, setCmsWorkstations] = useState<BusinessWorkstation[]>(
+    []
+  );
 
-  const workstations: WorkstationConfig[] = [
-    {
-      id: "essential-office",
-      name: "Essential Office",
-      tagline: "Perfect for everyday business tasks",
-      price: 599,
-      image: "💼",
-      specs: {
-        processor: "Intel Core i5-13400 (10-Core)",
-        ram: "16GB DDR4 3200MHz",
-        storage: "512GB NVMe SSD",
-        graphics: "Intel UHD Graphics 730",
-        warranty: "3-Year Business Warranty",
-        os: "Windows 11 Pro",
-      },
-      features: [
-        "Microsoft Office ready",
-        "Multi-monitor support (up to 3 displays)",
-        "Quiet operation for office environments",
-        "Energy efficient design",
-        "Tool-less chassis for easy upgrades",
-      ],
-      idealFor: [
-        "Email & web browsing",
-        "Office productivity",
-        "Video conferencing",
-        "Document management",
-      ],
-      performance: {
-        office: 95,
-        creative: 45,
-        data: 50,
-      },
-    },
-    {
-      id: "productivity-pro",
-      name: "Productivity Pro",
-      tagline: "Enhanced performance for demanding workflows",
-      price: 899,
-      image: "⚡",
-      recommended: true,
-      specs: {
-        processor: "Intel Core i7-13700 (16-Core)",
-        ram: "32GB DDR4 3200MHz",
-        storage: "1TB NVMe SSD",
-        graphics: "NVIDIA T400 4GB",
-        warranty: "3-Year Business Warranty",
-        os: "Windows 11 Pro",
-      },
-      features: [
-        "Accelerated multitasking",
-        "Professional graphics for CAD/Design",
-        "Dual drive bays for expansion",
-        "Advanced cooling system",
-        "Remote management capable",
-      ],
-      idealFor: [
-        "Advanced spreadsheets",
-        "Light CAD work",
-        "Photo editing",
-        "Database management",
-      ],
-      performance: {
-        office: 100,
-        creative: 75,
-        data: 80,
-      },
-    },
-    {
-      id: "creative-powerhouse",
-      name: "Creative Powerhouse",
-      tagline: "Built for design, media, and content creation",
-      price: 1399,
-      image: "🎨",
-      specs: {
-        processor: "AMD Ryzen 9 7900X (12-Core)",
-        ram: "64GB DDR5 5600MHz",
-        storage: "2TB NVMe SSD",
-        graphics: "NVIDIA RTX 4060 8GB",
-        warranty: "3-Year Business Warranty",
-        os: "Windows 11 Pro",
-      },
-      features: [
-        "Colour-accurate workflow support",
-        "Hardware-accelerated rendering",
-        "Massive storage for projects",
-        "Quiet precision cooling",
-        "Thunderbolt 4 connectivity",
-      ],
-      idealFor: [
-        "Video editing (4K)",
-        "3D modeling & rendering",
-        "Graphic design",
-        "Photography workflows",
-      ],
-      performance: {
-        office: 100,
-        creative: 95,
-        data: 85,
-      },
-    },
-    {
-      id: "data-cruncher",
-      name: "Data Cruncher",
-      tagline: "Engineered for analytics and processing",
-      price: 1199,
-      image: "📊",
-      specs: {
-        processor: "AMD Ryzen 9 7950X (16-Core)",
-        ram: "64GB DDR5 5600MHz",
-        storage: "1TB NVMe SSD + 4TB HDD",
-        graphics: "NVIDIA T1000 8GB",
-        warranty: "3-Year Business Warranty",
-        os: "Windows 11 Pro",
-      },
-      features: [
-        "High core count for parallel processing",
-        "ECC memory option available",
-        "Massive data storage capacity",
-        "Virtualization ready",
-        "RAID configuration support",
-      ],
-      idealFor: [
-        "Data analysis & BI",
-        "Financial modeling",
-        "Scientific computing",
-        "Virtual machines",
-      ],
-      performance: {
-        office: 100,
-        creative: 70,
-        data: 100,
-      },
-    },
-    {
-      id: "engineering-station",
-      name: "Engineering Station",
-      tagline: "Professional workstation for engineering",
-      price: 1899,
-      image: "🔧",
-      specs: {
-        processor: "Intel Xeon W-2245 (8-Core)",
-        ram: "128GB DDR4 ECC",
-        storage: "2TB NVMe SSD + 2TB HDD",
-        graphics: "NVIDIA RTX A2000 12GB",
-        warranty: "5-Year Business Warranty",
-        os: "Windows 11 Pro",
-      },
-      features: [
-        "ISV certified for CAD applications",
-        "Error-correcting memory",
-        "Professional GPU for precision",
-        "Tool-free serviceability",
-        "24/7 reliability rated",
-      ],
-      idealFor: [
-        "CAD/CAM/CAE",
-        "Simulation & analysis",
-        "BIM workflows",
-        "Complex assemblies",
-      ],
-      performance: {
-        office: 100,
-        creative: 90,
-        data: 95,
-      },
-    },
-    {
-      id: "enterprise-elite",
-      name: "Enterprise Elite",
-      tagline: "Ultimate performance for critical workloads",
-      price: 2799,
-      image: "👑",
-      specs: {
-        processor: "AMD Threadripper PRO 5965WX (24-Core)",
-        ram: "256GB DDR4 ECC",
-        storage: "4TB NVMe SSD (RAID 0) + 8TB HDD",
-        graphics: "NVIDIA RTX A4000 16GB",
-        warranty: "5-Year Business Warranty",
-        os: "Windows 11 Pro",
-      },
-      features: [
-        "Extreme multi-threaded performance",
-        "Professional visualisation",
-        "Enterprise-grade reliability",
-        "Advanced security features",
-        "Dedicated support line",
-      ],
-      idealFor: [
-        "Server-level workloads",
-        "AI/ML development",
-        "Advanced rendering",
-        "Mission-critical applications",
-      ],
-      performance: {
-        office: 100,
-        creative: 100,
-        data: 100,
-      },
-    },
-  ];
+  // Load workstations from CMS on mount
+  useEffect(() => {
+    const loadWorkstations = async () => {
+      try {
+        const data = await fetchBusinessWorkstations();
+        if (data.length > 0) {
+          setCmsWorkstations(data);
+        }
+      } catch (error) {
+        logger.error("Failed to load workstations from CMS:", error);
+      }
+    };
+    loadWorkstations();
+  }, []);
+  const [quoteForm, setQuoteForm] = useState({
+    orderType: "bulk-quote" as "bulk-quote" | "cart",
+    companyName: "",
+    companyRegistration: "",
+    vatNumber: "",
+    contactName: "",
+    contactEmail: "",
+    contactPhone: "",
+    postcode: "",
+    os: "Windows 11 Pro",
+    quantity: 1,
+  });
 
   const serviceTiers: ServiceTier[] = [
     {
@@ -376,12 +217,40 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
     },
   ];
 
+  // Use CMS workstations if available, otherwise use empty array
+  const workstations: WorkstationConfig[] =
+    cmsWorkstations.length > 0
+      ? cmsWorkstations.map((ws) => ({
+          id: ws.id,
+          name: ws.name,
+          tagline: ws.tagline,
+          price: ws.price,
+          image: ws.imageUrl || "", // No fallback - require Contentful image
+          formFactor: ws.formFactor,
+          recommended: ws.recommended,
+          specs: {
+            processor: ws.processor,
+            ram: ws.ram,
+            storage: ws.storage,
+            graphics: ws.graphics,
+            cooler: ws.cooler,
+            motherboard: ws.motherboard,
+            case: ws.case,
+            psu: ws.psu,
+            warranty: ws.warranty,
+            os: ws.operatingSystem,
+          },
+          features: ws.features,
+          idealFor: ws.idealFor,
+          performance: {
+            office: ws.officePerformance,
+            creative: ws.creativePerformance,
+            data: ws.dataPerformance,
+          },
+        }))
+      : [];
   const handleAddToCart = (workstation: WorkstationConfig) => {
     setSelectedWorkstation(workstation);
-    setQuoteForm((prev) => ({
-      ...prev,
-      os: workstation.specs.os || "Windows 11 Pro",
-    }));
     setQuoteOpen(true);
   };
 
@@ -392,198 +261,421 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
 
   return (
     <div className="min-h-screen text-white">
-      {/* Hero Section */}
-      <section className="relative py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <div className="relative z-10 max-w-7xl mx-auto text-center">
-          <Badge className="bg-sky-500/20 border-sky-500 text-white px-6 py-2 text-sm mb-6 font-semibold">
-            <Building2 className="w-4 h-4 inline mr-2" />
-            Business Solutions
-          </Badge>
+      {/* Blur overlay when modal is open */}
+      {quoteOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" />
+      )}
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6">
-            <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
-              Power Your Business
-            </span>
-            <br />
-            <span className="text-white">With Professional Workstations</span>
-          </h1>
+      {/* Main Content */}
+      <div className={quoteOpen ? "blur-sm pointer-events-none" : ""}>
+        {/* Hero Section */}
+        <section className="relative py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+          <div className="relative z-10 max-w-7xl mx-auto text-center">
+            <Badge className="bg-sky-500/20 border-sky-500 text-white px-6 py-2 text-sm mb-6 font-semibold">
+              <Building2 className="w-4 h-4 inline mr-2" />
+              Business Solutions
+            </Badge>
 
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
-            Pre-configured workstations designed for productivity, backed by
-            comprehensive support packages to keep your business running
-            smoothly.
-          </p>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6">
+              <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
+                Power Your Business
+              </span>
+              <br />
+              <span className="text-white">With Professional Workstations</span>
+            </h1>
 
-          <div className="flex flex-wrap gap-8 justify-center items-center text-sm">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-green-400" />
-              <span>3-5 Year Warranties</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-green-400" />
-              <span>Business-Grade Components</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-green-400" />
-              <span>Volume Discounts Available</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-green-400" />
-              <span>Expert UK Support</span>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
+              Pre-configured workstations designed for productivity, backed by
+              comprehensive support packages to keep your business running
+              smoothly.
+            </p>
+
+            <div className="flex flex-wrap gap-8 justify-center items-center text-sm">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-400" />
+                <span>3-5 Year Warranties</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-400" />
+                <span>Business-Grade Components</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-400" />
+                <span>Volume Discounts Available</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-400" />
+                <span>Expert UK Support</span>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       {/* Request Quote Modal */}
       <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
-        <DialogContent className="bg-black/95 border-white/10 text-white">
+        <DialogContent className="max-w-2xl bg-black/95 border-white/10 text-white max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl">
-              Request Business Quote
-            </DialogTitle>
+            <DialogTitle className="text-2xl">Business Order</DialogTitle>
             <DialogDescription>
               {selectedWorkstation
                 ? `For: ${selectedWorkstation.name} (${selectedWorkstation.specs.processor}, ${selectedWorkstation.specs.ram})`
-                : "Provide your details to receive a tailored quote."}
+                : "Provide your details to proceed with your order."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-            <div className="space-y-2">
-              <Label htmlFor="businessName">Business Name</Label>
-              <Input
-                id="businessName"
-                placeholder="e.g. Vortex Consulting Ltd"
-                value={quoteForm.businessName}
-                onChange={(e) =>
-                  setQuoteForm((p) => ({ ...p, businessName: e.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="postcode">Postcode</Label>
-              <Input
-                id="postcode"
-                placeholder="e.g. NR1 1AA"
-                value={quoteForm.postcode}
-                onChange={(e) =>
-                  setQuoteForm((p) => ({ ...p, postcode: e.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contactName">Contact Name</Label>
-              <Input
-                id="contactName"
-                placeholder="e.g. Jane Smith"
-                value={quoteForm.contactName}
-                onChange={(e) =>
-                  setQuoteForm((p) => ({ ...p, contactName: e.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contractNumber">Contract Number (optional)</Label>
-              <Input
-                id="contractNumber"
-                placeholder="If applicable"
-                value={quoteForm.contractNumber}
-                onChange={(e) =>
-                  setQuoteForm((p) => ({
-                    ...p,
-                    contractNumber: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="email">Business Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@company.com"
-                value={quoteForm.email}
-                onChange={(e) =>
-                  setQuoteForm((p) => ({ ...p, email: e.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Operating System</Label>
-              <Select
-                value={quoteForm.os}
-                onValueChange={(v) => setQuoteForm((p) => ({ ...p, os: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select OS" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Windows 11 Home">
-                    Windows 11 Home
-                  </SelectItem>
-                  <SelectItem value="Windows 11 Pro">Windows 11 Pro</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Order Type Selection */}
+          <div className="space-y-3 border border-white/10 rounded-lg p-4 mb-4">
+            <Label className="text-base font-semibold">
+              How would you like to order?
+            </Label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="orderType"
+                  value="bulk-quote"
+                  checked={quoteForm.orderType === "bulk-quote"}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({
+                      ...p,
+                      orderType: e.target.value as "bulk-quote" | "cart",
+                    }))
+                  }
+                  className="w-4 h-4"
+                />
+                <span>Request Bulk Buy Quote</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="orderType"
+                  value="cart"
+                  checked={quoteForm.orderType === "cart"}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({
+                      ...p,
+                      orderType: e.target.value as "bulk-quote" | "cart",
+                    }))
+                  }
+                  className="w-4 h-4"
+                />
+                <span>Add to Cart</span>
+              </label>
             </div>
           </div>
 
-          <DialogFooter className="mt-4">
+          {/* Company Information */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">Company Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Company Name *</Label>
+                <Input
+                  id="companyName"
+                  placeholder="e.g. Vortex Consulting Ltd"
+                  value={quoteForm.companyName}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({ ...p, companyName: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="companyRegistration">
+                  Company Registration No
+                </Label>
+                <Input
+                  id="companyRegistration"
+                  placeholder="e.g. 12345678"
+                  value={quoteForm.companyRegistration}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({
+                      ...p,
+                      companyRegistration: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vatNumber">VAT Number</Label>
+                <Input
+                  id="vatNumber"
+                  placeholder="e.g. GB123456789"
+                  value={quoteForm.vatNumber}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({ ...p, vatNumber: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="postcode">Postcode *</Label>
+                <Input
+                  id="postcode"
+                  placeholder="e.g. NR1 1AA"
+                  value={quoteForm.postcode}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({ ...p, postcode: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Information */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">Contact Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contactName">Contact Name *</Label>
+                <Input
+                  id="contactName"
+                  placeholder="e.g. Jane Smith"
+                  value={quoteForm.contactName}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({ ...p, contactName: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contactEmail">Email Address *</Label>
+                <Input
+                  id="contactEmail"
+                  type="email"
+                  placeholder="jane@company.com"
+                  value={quoteForm.contactEmail}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({
+                      ...p,
+                      contactEmail: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="contactPhone">Contact Number *</Label>
+                <Input
+                  id="contactPhone"
+                  type="tel"
+                  placeholder="e.g. 01603 123456"
+                  value={quoteForm.contactPhone}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({
+                      ...p,
+                      contactPhone: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Order Details */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">Order Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity Required *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  value={quoteForm.quantity}
+                  onChange={(e) =>
+                    setQuoteForm((p) => ({
+                      ...p,
+                      quantity: Math.max(1, parseInt(e.target.value) || 1),
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="os">Operating System *</Label>
+                <Select
+                  value={quoteForm.os}
+                  onValueChange={(v) => setQuoteForm((p) => ({ ...p, os: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select OS" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Windows 11 Home">
+                      Windows 11 Home
+                    </SelectItem>
+                    <SelectItem value="Windows 11 Pro">
+                      Windows 11 Pro
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6 flex gap-3">
+            <Button variant="outline" onClick={() => setQuoteOpen(false)}>
+              Cancel
+            </Button>
             <Button
               className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
               disabled={quoteLoading}
               onClick={async () => {
                 if (!selectedWorkstation) return;
-                const { businessName, postcode, contactName, email, os } =
-                  quoteForm;
-                if (!businessName || !postcode || !contactName || !email) {
+
+                // Validate required fields
+                const {
+                  companyName,
+                  contactName,
+                  contactEmail,
+                  contactPhone,
+                  postcode,
+                  orderType,
+                } = quoteForm;
+                if (
+                  !companyName ||
+                  !contactName ||
+                  !contactEmail ||
+                  !contactPhone ||
+                  !postcode
+                ) {
                   toast.error(
-                    "Please fill in business name, postcode, contact name and email"
+                    "Please fill in all required fields (marked with *)"
                   );
                   return;
                 }
+
                 try {
                   setQuoteLoading(true);
-                  const res = await fetch("/api/business/quote", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      businessName,
-                      postcode,
-                      contactName,
-                      contractNumber: quoteForm.contractNumber,
-                      email,
-                      os,
-                      workstation: {
-                        id: selectedWorkstation.id,
-                        name: selectedWorkstation.name,
-                        price: selectedWorkstation.price,
-                        specs: selectedWorkstation.specs,
-                      },
-                    }),
-                  });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok || !data?.success) {
-                    throw new Error(data?.error || "Failed to submit quote");
+
+                  if (orderType === "bulk-quote") {
+                    // Send bulk quote request
+                    const res = await fetch("/api/business/quote", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        orderType,
+                        companyName,
+                        companyRegistration: quoteForm.companyRegistration,
+                        vatNumber: quoteForm.vatNumber,
+                        postcode,
+                        contactName,
+                        contactEmail,
+                        contactPhone,
+                        os: quoteForm.os,
+                        quantity: quoteForm.quantity,
+                        workstation: {
+                          id: selectedWorkstation.id,
+                          name: selectedWorkstation.name,
+                          price: selectedWorkstation.price,
+                          specs: selectedWorkstation.specs,
+                        },
+                      }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    logger.info("Quote response", {
+                      status: res.status,
+                      ok: res.ok,
+                      data,
+                    });
+                    if (!res.ok || !data?.success) {
+                      toast.error(
+                        data?.message ||
+                          "Failed to submit bulk quote request. Please try again."
+                      );
+                      return;
+                    }
+                    toast.success(
+                      "Bulk quote request submitted! We'll contact you within 24 hours."
+                    );
+                  } else {
+                    // Add to shopping cart
+                    const res = await fetch("/api/business/order", {
+                      method: "POST",
+                      body: JSON.stringify({
+                        orderType,
+                        companyName,
+                        companyRegistration: quoteForm.companyRegistration,
+                        vatNumber: quoteForm.vatNumber,
+                        postcode,
+                        contactName,
+                        contactEmail,
+                        contactPhone,
+                        os: quoteForm.os,
+                        quantity: quoteForm.quantity,
+                        workstation: {
+                          id: selectedWorkstation.id,
+                          name: selectedWorkstation.name,
+                          price: selectedWorkstation.price,
+                          specs: selectedWorkstation.specs,
+                        },
+                      }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    logger.info("Order response", {
+                      status: res.status,
+                      ok: res.ok,
+                      data,
+                    });
+                    if (!res.ok || !data?.success) {
+                      toast.error(
+                        data?.message ||
+                          "Failed to add to cart. Please try again."
+                      );
+                      return;
+                    }
+
+                    if (!onAddToCart) {
+                      toast.error(
+                        "Cart is unavailable. Please contact support to complete your purchase."
+                      );
+                    } else {
+                      // Push the requested quantity into the existing cart system
+                      const count = Math.max(1, quoteForm.quantity);
+                      for (let i = 0; i < count; i += 1) {
+                        onAddToCart({
+                          id: selectedWorkstation.id,
+                          name: selectedWorkstation.name,
+                          price: selectedWorkstation.price,
+                          category: "business-workstation",
+                          image: selectedWorkstation.image,
+                          quantity: 1,
+                        });
+                      }
+                      onOpenCart?.();
+                      toast.success(
+                        `Added ${count} ${selectedWorkstation.name} to cart!`
+                      );
+                    }
                   }
-                  toast.success(
-                    "Quote request sent. We'll be in touch shortly."
-                  );
+
                   setQuoteOpen(false);
-                  setSelectedWorkstation(null);
-                } catch (e) {
-                  logger.error("Business quote submit error", {
-                    error: e instanceof Error ? e.message : String(e),
+                  setQuoteForm({
+                    orderType: "bulk-quote",
+                    companyName: "",
+                    companyRegistration: "",
+                    vatNumber: "",
+                    contactName: "",
+                    contactEmail: "",
+                    contactPhone: "",
+                    postcode: "",
+                    os: "Windows 11 Pro",
+                    quantity: 1,
                   });
+                  setSelectedWorkstation(null);
+                } catch (error) {
+                  console.error("Error:", error);
                   toast.error(
-                    e instanceof Error ? e.message : "Failed to submit quote"
+                    "An unexpected error occurred. Please try again."
                   );
                 } finally {
                   setQuoteLoading(false);
                 }
               }}
             >
-              {quoteLoading ? "Sending..." : "Send Request"}
+              {quoteLoading
+                ? "Processing..."
+                : quoteForm.orderType === "bulk-quote"
+                ? "Request Bulk Quote"
+                : "Add to Cart"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -622,58 +714,150 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
 
                 <div className="p-6">
                   {/* Header */}
-                  <div className="text-center mb-6">
-                    <div className="text-5xl mb-3">{workstation.image}</div>
-                    <h3 className="text-xl font-bold text-white mb-2">
-                      {workstation.name}
-                    </h3>
-                    <p className="text-sm text-gray-400 mb-4">
-                      {workstation.tagline}
-                    </p>
-                    <div className="text-3xl font-bold text-sky-400">
-                      £{workstation.price.toLocaleString()}
+                  <div className="mb-6">
+                    <div
+                      className="relative w-full rounded-xl overflow-hidden border border-white/10 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center"
+                      style={{ height: "300px" }}
+                    >
+                      {workstation.image ? (
+                        <img
+                          src={workstation.image}
+                          alt={workstation.name}
+                          className="w-full h-auto object-contain"
+                          onLoad={() => {
+                            logger.debug(`Image loaded: ${workstation.image}`);
+                          }}
+                          onError={(e) => {
+                            logger.error(
+                              `Image failed to load: ${workstation.image}`
+                            );
+                            // Image failed - hide broken image
+                            (e.target as HTMLImageElement).style.display =
+                              "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="text-center space-y-2">
+                          <Monitor className="w-8 h-8 text-gray-400 mx-auto" />
+                          <p className="text-xs text-gray-500">
+                            Image from Contentful
+                          </p>
+                        </div>
+                      )}
+                      {workstation.recommended && (
+                        <div className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full border border-white/10">
+                          Best Choice
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-center mt-4">
+                      <h3 className="text-xl font-bold text-white mb-1">
+                        {workstation.name}
+                      </h3>
+                      <p className="text-sm text-gray-400 mb-2">
+                        {workstation.tagline}
+                      </p>
+                      {workstation.formFactor && (
+                        <p className="text-xs inline-flex px-2 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300 mb-3">
+                          {workstation.formFactor}
+                        </p>
+                      )}
+                      <div className="relative mt-2">
+                        <div
+                          className="absolute inset-0 rounded-xl bg-gradient-to-r from-sky-500/10 via-cyan-500/5 to-blue-500/10 blur-md"
+                          aria-hidden
+                        />
+                        <div className="relative rounded-xl border border-white/10 bg-white/5 px-4 py-3 shadow-[0_12px_40px_-24px_rgba(56,189,248,0.6)] flex items-center justify-center gap-3">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-300 bg-sky-500/10 border border-sky-500/20 rounded-full px-2 py-1">
+                            From
+                          </span>
+                          <div className="text-4xl font-bold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
+                            £{workstation.price.toLocaleString()}
+                          </div>
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 rounded-full px-2 py-1">
+                            Per Unit
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Specs */}
-                  <div className="space-y-3 mb-6">
-                    <div className="flex items-start gap-2 text-sm">
-                      <Cpu className="w-4 h-4 text-sky-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-300">
-                        {workstation.specs.processor}
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm">
-                      <Zap className="w-4 h-4 text-sky-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-300">
-                        {workstation.specs.ram}
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm">
-                      <HardDrive className="w-4 h-4 text-sky-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-300">
-                        {workstation.specs.storage}
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm">
-                      <Monitor className="w-4 h-4 text-sky-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-300">
-                        {workstation.specs.graphics}
-                      </span>
-                    </div>
-                    {workstation.specs.os && (
+                  {/* Specs Container */}
+                  <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-lg p-4 mb-6">
+                    <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wide mb-3">
+                      Specifications
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="flex items-start gap-2 text-sm">
-                        <Settings className="w-4 h-4 text-sky-400 mt-0.5 flex-shrink-0" />
+                        <Cpu className="w-4 h-4 text-sky-400 mt-0.5 flex-shrink-0" />
                         <span className="text-gray-300">
-                          {workstation.specs.os}
+                          Processor: {workstation.specs.processor}
                         </span>
                       </div>
-                    )}
-                    <div className="flex items-start gap-2 text-sm">
-                      <Shield className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-300">
-                        {workstation.specs.warranty}
-                      </span>
+                      <div className="flex items-start gap-2 text-sm">
+                        <BarChart3 className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-300">
+                          RAM: {workstation.specs.ram}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2 text-sm">
+                        <HardDrive className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-300">
+                          Storage: {workstation.specs.storage}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2 text-sm">
+                        <Gamepad2 className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-300">
+                          Graphics: {workstation.specs.graphics}
+                        </span>
+                      </div>
+                      {workstation.specs.cooler && (
+                        <div className="flex items-start gap-2 text-sm">
+                          <Wind className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-300">
+                            Cooler: {workstation.specs.cooler}
+                          </span>
+                        </div>
+                      )}
+                      {workstation.specs.motherboard && (
+                        <div className="flex items-start gap-2 text-sm">
+                          <Layers className="w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-300">
+                            Motherboard: {workstation.specs.motherboard}
+                          </span>
+                        </div>
+                      )}
+                      {workstation.specs.case && (
+                        <div className="flex items-start gap-2 text-sm">
+                          <Box className="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-300">
+                            Case: {workstation.specs.case}
+                          </span>
+                        </div>
+                      )}
+                      {workstation.specs.psu && (
+                        <div className="flex items-start gap-2 text-sm">
+                          <Zap className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-300">
+                            PSU: {workstation.specs.psu}
+                          </span>
+                        </div>
+                      )}
+                      {workstation.specs.os && (
+                        <div className="flex items-start gap-2 text-sm">
+                          <Settings className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-300">
+                            OS: {workstation.specs.os}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-start gap-2 text-sm">
+                        <Shield className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-300">
+                          Warranty: {workstation.specs.warranty}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -738,14 +922,30 @@ export function BusinessSolutions({ setCurrentView }: BusinessSolutionsProps) {
                     </div>
                   </div>
 
-                  {/* CTA */}
-                  <Button
-                    onClick={() => handleAddToCart(workstation)}
-                    className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
-                  >
-                    Request Quote
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
+                  {/* CTA Buttons */}
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => handleAddToCart(workstation)}
+                      className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
+                    >
+                      Request Bulk Buy Quote
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedWorkstation(workstation);
+                        setQuoteForm((prev) => ({
+                          ...prev,
+                          orderType: "cart",
+                        }));
+                        setQuoteOpen(true);
+                      }}
+                      className="w-full border-sky-500 text-sky-400 hover:bg-sky-500/10"
+                    >
+                      Buy Now
+                    </Button>
+                  </div>
 
                   {/* Features (Expandable) */}
                   <details className="mt-4">

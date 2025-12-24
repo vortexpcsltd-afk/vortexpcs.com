@@ -25,13 +25,11 @@ import {
   ProductCardSkeleton,
   GridSkeleton,
 } from "./SkeletonComponents";
+import { useNavigation } from "../contexts/NavigationContext";
 
-interface HomePageProps {
-  setCurrentView: (view: string) => void;
-}
-
-export function HomePage({ setCurrentView }: HomePageProps) {
+export function HomePage() {
   logger.debug("🏠 HomePage component rendered");
+  const { navigate } = useNavigation();
 
   const cmsDisabled =
     (import.meta.env as { VITE_CMS_DISABLED?: string })?.VITE_CMS_DISABLED ===
@@ -193,70 +191,6 @@ export function HomePage({ setCurrentView }: HomePageProps) {
     loadContent();
   }, [cmsDisabled]);
 
-  // Show loading state while fetching data
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black text-white overflow-x-hidden">
-        {/* Animated Background */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-950 via-black to-sky-950 animate-gradient"></div>
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-900/20 via-black to-black"></div>
-        </div>
-
-        {/* Content */}
-        <div className="relative z-10">
-          {/* Hero Skeleton */}
-          <HeroSkeleton />
-
-          {/* Featured Builds Section Skeleton */}
-          <section className="py-20 px-4">
-            <div className="max-w-7xl mx-auto">
-              <div className="text-center mb-12 space-y-4">
-                <div className="h-12 w-64 bg-white/10 rounded mx-auto"></div>
-                <div className="h-6 w-96 bg-white/10 rounded mx-auto"></div>
-              </div>
-              <GridSkeleton
-                count={3}
-                columns={3}
-                SkeletonComponent={FeaturedBuildSkeleton}
-              />
-            </div>
-          </section>
-
-          {/* Features Section Skeleton */}
-          <section className="py-20 px-4 bg-white/5">
-            <div className="max-w-7xl mx-auto">
-              <div className="text-center mb-12 space-y-4">
-                <div className="h-12 w-48 bg-white/10 rounded mx-auto"></div>
-                <div className="h-6 w-80 bg-white/10 rounded mx-auto"></div>
-              </div>
-              <GridSkeleton
-                count={6}
-                columns={3}
-                SkeletonComponent={ProductCardSkeleton}
-              />
-            </div>
-          </section>
-
-          {/* Testimonials Section Skeleton */}
-          <section className="py-20 px-4">
-            <div className="max-w-7xl mx-auto">
-              <div className="text-center mb-12 space-y-4">
-                <div className="h-12 w-56 bg-white/10 rounded mx-auto"></div>
-                <div className="h-6 w-72 bg-white/10 rounded mx-auto"></div>
-              </div>
-              <GridSkeleton
-                count={3}
-                columns={3}
-                SkeletonComponent={TestimonialSkeleton}
-              />
-            </div>
-          </section>
-        </div>
-      </div>
-    );
-  }
-
   const defaultHeroFeatures = [
     {
       icon: "Zap",
@@ -284,60 +218,105 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       productName: "London, UK",
     },
     {
-      customerName: "Sarah Mitchell",
+      customerName: "Sarah Chen",
       review:
-        "Professional service from start to finish. The team really knows their stuff.",
+        "The support team was amazing throughout the entire process. Couldn't be happier!",
       rating: 5,
-      productName: "Manchester, UK",
+      productName: "Toronto, Canada",
     },
     {
-      customerName: "James Wilson",
+      customerName: "Mike Rodriguez",
       review:
-        "Best investment I've made for my streaming setup. Handles everything flawlessly.",
+        "Best investment I've made for gaming. The performance is off the charts!",
       rating: 5,
-      productName: "Birmingham, UK",
+      productName: "Austin, Texas",
     },
   ];
 
   const defaultMainFeatures = [
     {
-      icon: "CheckCircle",
-      title: "Quality Guaranteed",
+      icon: "Zap",
+      title: "Lightning Fast Performance",
       description:
-        "Every component is carefully selected and tested for optimal performance and reliability.",
-    },
-    {
-      icon: "Wrench",
-      title: "Expert Assembly",
-      description:
-        "Our certified technicians ensure every build meets the highest standards.",
+        "Experience unparalleled speed with cutting-edge processors and lightning-fast SSDs.",
     },
     {
       icon: "Shield",
-      title: "Comprehensive Warranty",
+      title: "Built to Last",
       description:
-        "All builds come with full warranty coverage and dedicated technical support.",
-    },
-    {
-      icon: "Zap",
-      title: "Maximum Performance",
-      description:
-        "Optimized configurations to get the most out of every component.",
+        "Premium components and rigorous testing ensure your PC stands the test of time.",
     },
     {
       icon: "Users",
-      title: "Personal Service",
+      title: "Expert Support",
       description:
-        "One-on-one consultation to ensure your PC meets your exact needs.",
-    },
-    {
-      icon: "Settings",
-      title: "Custom Solutions",
-      description:
-        "Tailored builds for gaming, content creation, and professional workloads.",
+        "Our dedicated team of experts is here to help you every step of the way.",
     },
   ];
 
+  // Show loading state while fetching data
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white overflow-x-hidden">
+        {/* Animated Background */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-950 via-black to-sky-950 animate-gradient"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-900/20 via-black to-black"></div>
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10">
+          {/* Hero Skeleton */}
+          <HeroSkeleton />
+
+          {/* Featured Builds Section Skeleton */}
+          <section className="py-20 px-4">
+            <div className="max-w-[1300px] mx-auto">
+              <div className="text-center mb-12 space-y-4">
+                <div className="h-12 w-64 bg-white/10 rounded mx-auto"></div>
+                <div className="h-6 w-96 bg-white/10 rounded mx-auto"></div>
+              </div>
+              <GridSkeleton
+                count={3}
+                columns={3}
+                SkeletonComponent={FeaturedBuildSkeleton}
+              />
+            </div>
+          </section>
+
+          {/* Features Section Skeleton */}
+          <section className="py-20 px-4 bg-white/5">
+            <div className="max-w-[1300px] mx-auto">
+              <div className="text-center mb-12 space-y-4">
+                <div className="h-12 w-48 bg-white/10 rounded mx-auto"></div>
+                <div className="h-6 w-80 bg-white/10 rounded mx-auto"></div>
+              </div>
+              <GridSkeleton
+                count={6}
+                columns={3}
+                SkeletonComponent={ProductCardSkeleton}
+              />
+            </div>
+          </section>
+
+          {/* Testimonials Section Skeleton */}
+          <section className="py-20 px-4">
+            <div className="max-w-[1300px] mx-auto">
+              <div className="text-center mb-12 space-y-4">
+                <div className="h-12 w-56 bg-white/10 rounded mx-auto"></div>
+                <div className="h-6 w-72 bg-white/10 rounded mx-auto"></div>
+              </div>
+              <GridSkeleton
+                count={3}
+                columns={3}
+                SkeletonComponent={TestimonialSkeleton}
+              />
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
   const currentHeroFeatures =
     heroFeatures.length > 0 ? heroFeatures : defaultHeroFeatures;
   const currentTestimonials =
@@ -374,7 +353,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
       ></div>
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 safe-px py-12 sm:py-16">
+      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 safe-px py-12 sm:py-16 pt-32 md:pt-36">
         {/* Hero background image */}
         <img
           src="/gaming-keyboard.webp"
@@ -386,7 +365,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/70"></div>
 
-        <div className="relative z-10 text-center max-w-6xl mx-auto px-4 sm:px-6 w-full mb-0 sm:mb-[100px]">
+        <div className="relative z-10 text-center max-w-[1300px] mx-auto px-4 sm:px-6 w-full mb-0 sm:mb-[100px]">
           <div className="flex justify-center mb-4 sm:mb-6 md:mb-8 w-full px-2">
             <Badge className="bg-transparent border-sky-500/40 text-sky-400 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-[9px] sm:text-xs md:text-sm lg:text-base font-normal flex flex-wrap items-center justify-center gap-1 sm:gap-2 animate-fade-in max-w-[calc(100%-16px)] sm:max-w-full text-center leading-snug">
               <Star
@@ -401,24 +380,24 @@ export function HomePage({ setCurrentView }: HomePageProps) {
             </Badge>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 sm:mb-6 animate-float break-words leading-tight px-2">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 sm:mb-6 break-words leading-tight px-2">
             <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
               {pageContent?.heroTitle || "Build Your Dream PC with Vortex"}
             </span>
           </h1>
 
-          <div className="mb-4 sm:mb-6 animate-float animation-delay-200">
+          <div className="mb-4 sm:mb-6">
             {/* Responsive subtitle with delivery promise */}
             <div className="flex flex-col items-center w-full">
               <span
-                className="block text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-3xl px-2 sm:px-0 break-words text-center"
+                className="block text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 w-full max-w-xs sm:max-w-lg md:max-w-3xl lg:max-w-5xl px-2 sm:px-0 break-words text-center"
                 style={{ wordBreak: "break-word", whiteSpace: "normal" }}
               >
                 {pageContent?.heroSubtitle ||
                   "Custom PCs built for speed, power, and precision."}
               </span>
               <span
-                className="block text-base sm:text-lg md:text-xl lg:text-2xl text-cyan-300 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-3xl px-2 sm:px-0 break-words mt-1 text-center"
+                className="block text-base sm:text-lg md:text-xl lg:text-2xl text-cyan-300 w-full max-w-xs sm:max-w-lg md:max-w-3xl lg:max-w-5xl px-2 sm:px-0 break-words mt-1 text-center"
                 style={{ wordBreak: "break-word", whiteSpace: "normal" }}
               >
                 Delivered within 5 days.
@@ -426,14 +405,14 @@ export function HomePage({ setCurrentView }: HomePageProps) {
             </div>
           </div>
 
-          <p className="text-sm sm:text-base md:text-lg mb-6 sm:mb-8 md:mb-10 text-gray-400 max-w-3xl mx-auto animate-fade-in animation-delay-400 px-4 leading-relaxed">
+          <p className="text-sm sm:text-base md:text-lg mb-6 sm:mb-8 md:mb-10 text-gray-400 max-w-5xl mx-auto animate-fade-in animation-delay-400 px-4 leading-relaxed">
             {pageContent?.heroDescription ||
               "Experience unparalleled performance with our cutting-edge custom PC builds. From budget-friendly builds to extreme gaming rigs, we deliver excellence in every component."}
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-8 sm:mb-12 md:mb-16 animate-fade-in animation-delay-600 px-4 max-w-3xl mx-auto">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-8 sm:mb-12 md:mb-16 animate-fade-in animation-delay-600 px-4 max-w-[1300px] mx-auto">
             <Button
-              onClick={() => setCurrentView("pc-finder")}
+              onClick={() => navigate("pc-finder")}
               variant="primary"
               size="lg"
               className="w-full sm:w-auto text-sm sm:text-base md:text-lg"
@@ -442,7 +421,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
               Find Your Perfect PC
             </Button>
             <Button
-              onClick={() => setCurrentView("visual-configurator")}
+              onClick={() => navigate("visual-configurator")}
               variant="outline"
               size="lg"
               className="w-full sm:w-auto text-sm sm:text-base md:text-lg bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-purple-500/40 text-purple-300 hover:from-purple-500/30 hover:to-pink-500/30"
@@ -451,7 +430,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
               3D Configurator
             </Button>
             <Button
-              onClick={() => setCurrentView("pc-builder")}
+              onClick={() => navigate("pc-builder")}
               variant="outline"
               size="lg"
               className="w-full sm:w-auto text-sm sm:text-base md:text-lg"
@@ -462,7 +441,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
           </div>
 
           {/* Hero Features */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-5xl mx-auto px-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-[1300px] mx-auto px-4">
             {currentHeroFeatures.map((feature, index) => (
               <Card
                 key={index}
@@ -486,14 +465,14 @@ export function HomePage({ setCurrentView }: HomePageProps) {
 
       {/* Features Section */}
       <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1300px] mx-auto">
           <div className="text-center mb-8 sm:mb-12 md:mb-16">
             <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 px-4">
               <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
                 {pageContent?.featuresTitle || "Why Choose Vortex PCs?"}
               </span>
             </h2>
-            <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-3xl mx-auto px-4">
+            <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-5xl mx-auto px-4">
               {pageContent?.featuresDescription ||
                 "We combine cutting-edge technology with expert craftsmanship to deliver the ultimate computing experience"}
             </p>
@@ -524,7 +503,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
 
       {/* Testimonials Section */}
       <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1300px] mx-auto">
           <div className="text-center mb-8 sm:mb-12 md:mb-16">
             <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 px-4">
               <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
@@ -578,7 +557,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
 
       {/* CTA Section */}
       <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-[1300px] mx-auto">
           <Card className="relative bg-gradient-to-br from-blue-950/50 to-sky-950/30 backdrop-blur-xl border-2 border-sky-500/30 hover:border-sky-400/50 transition-all duration-500 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(56,189,248,0.2)] hover:shadow-[0_0_70px_rgba(56,189,248,0.3)] group">
             {/* Subtle shine effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
@@ -600,15 +579,15 @@ export function HomePage({ setCurrentView }: HomePageProps) {
               </h2>
 
               {/* Description */}
-              <p className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-300 mb-6 sm:mb-8 md:mb-12 max-w-3xl mx-auto leading-relaxed px-4">
+              <p className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-300 mb-6 sm:mb-8 md:mb-12 max-w-5xl mx-auto leading-relaxed px-4">
                 {pageContent?.ctaDescription ||
                   "Get started with our AI-powered PC finder or dive into our custom builder"}
               </p>
 
               {/* Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 md:gap-5 justify-center items-center max-w-3xl mx-auto">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 md:gap-5 justify-center items-center max-w-[1300px] mx-auto">
                 <Button
-                  onClick={() => setCurrentView("pc-finder")}
+                  onClick={() => navigate("pc-finder")}
                   variant="primary"
                   size="xl"
                   className="w-full sm:w-auto text-sm sm:text-base md:text-lg"
@@ -618,7 +597,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
                 </Button>
 
                 <Button
-                  onClick={() => setCurrentView("visual-configurator")}
+                  onClick={() => navigate("visual-configurator")}
                   size="xl"
                   className="w-full sm:w-auto text-sm sm:text-base md:text-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50"
                 >
@@ -627,7 +606,7 @@ export function HomePage({ setCurrentView }: HomePageProps) {
                 </Button>
 
                 <Button
-                  onClick={() => setCurrentView("pc-builder")}
+                  onClick={() => navigate("pc-builder")}
                   variant="secondary"
                   size="xl"
                   className="w-full sm:w-auto text-sm sm:text-base md:text-lg"

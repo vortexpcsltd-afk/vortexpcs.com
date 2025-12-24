@@ -5,27 +5,36 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
 import { getCache, setCache } from "../../services/cache.js";
+
+import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET")
-    return res.status(405).json({ error: "Method not allowed" });
+  if (!isFirebaseConfigured()) {
+    console.log("[performance] Firebase not configured");
+    return res.status(503).json({
+      error: "Analytics not configured",
+      message: "Firebase is not configured. Please set environment variables.",
+    });
+  }
 
   try {
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
+    );
+
+    if (req.method === "OPTIONS") return res.status(200).end();
+    if (req.method !== "GET")
+      return res.status(405).json({ error: "Method not allowed" });
     const user = await verifyAdmin(req);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-    const { days = 30 } = req.query;
-    const daysNum = parseInt(days as string, 10);
+    const period = (req.query.days as string) || "30";
+    const daysNum = parseInt(period, 10);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysNum);
     const startTs = admin.firestore.Timestamp.fromDate(startDate);
@@ -115,12 +124,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json(payload);
   } catch (error) {
-    console.error("Performance analytics error:", error);
-    return res
-      .status(500)
-      .json({
-        error: "Failed to fetch performance analytics",
-        details: error instanceof Error ? error.message : "Unknown error",
+    console.error("Error fetching performance analytics:", error);
+    const errorStr = String(error);
+    const errorMsg = error instanceof Error ? error.message : errorStr;
+
+    // Check for Firebase initialization errors
+    if (errorMsg.includes("Firebase") || errorMsg.includes("credentials")) {
+      return res.status(503).json({
+        error: "Firebase not configured on this deployment",
+        message: "Analytics requires Firebase Admin credentials to be set",
+        setupRequired: true,
       });
+    }
+
+    return res.status(500).json({
+      error: "Failed to fetch performance analytics",
+      details: errorMsg,
+    });
   }
 }
+

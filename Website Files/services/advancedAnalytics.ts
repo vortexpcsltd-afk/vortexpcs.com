@@ -18,6 +18,43 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db, firebaseIsConfigured } from "../config/firebase";
+import { logger } from "./logger";
+
+// Cache client IP (fetched from our own API so we don't rely on third parties)
+let CACHED_CLIENT_IP: string | null = null;
+async function getClientIp(): Promise<string | null> {
+  try {
+    if (CACHED_CLIENT_IP) return CACHED_CLIENT_IP;
+    const res = await fetch("/api/analytics/ip", { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { ip?: string };
+    CACHED_CLIENT_IP = data?.ip || null;
+    return CACHED_CLIENT_IP;
+  } catch {
+    return null;
+  }
+}
+
+type ClientGeo = {
+  ip?: string;
+  countryCode?: string;
+  city?: string;
+  region?: string;
+};
+let CACHED_CLIENT_GEO: ClientGeo | null = null;
+async function getClientGeo(): Promise<ClientGeo> {
+  try {
+    if (CACHED_CLIENT_GEO) return CACHED_CLIENT_GEO;
+    const res = await fetch("/api/analytics/geo", { cache: "no-store" });
+    if (!res.ok) return {};
+    const data = (await res.json()) as ClientGeo;
+    CACHED_CLIENT_GEO = data || {};
+    if (data?.ip && !CACHED_CLIENT_IP) CACHED_CLIENT_IP = data.ip;
+    return CACHED_CLIENT_GEO;
+  } catch {
+    return {};
+  }
+}
 
 // Firefox reliability: optionally force API fallback for Firefox UAs, gated by env flag
 const FORCE_API_FOR_FIREFOX = ((): boolean => {
@@ -27,9 +64,10 @@ const FORCE_API_FOR_FIREFOX = ((): boolean => {
     const isFirefox = /Firefox/i.test(ua);
     // Env gating: "true" means enable for Firefox; "false" disables; unset defaults to enabling for Firefox
     // Use a typed-safe access for Vite env
-    const envObj = (import.meta as unknown as { env?: Record<string, string> })
-      .env;
-    const flag = envObj?.VITE_ANALYTICS_FORCE_API_FIREFOX as string | undefined;
+    const metaEnv = import.meta.env as Record<string, string>;
+    const flag = metaEnv?.VITE_ANALYTICS_FORCE_API_FIREFOX as
+      | string
+      | undefined;
     if (flag === "true") return isFirefox;
     if (flag === "false") return false;
     return isFirefox; // default behavior (enabled on Firefox)
@@ -53,7 +91,9 @@ export interface AnalyticsSession {
   ip?: string;
   location?: {
     country?: string;
+    countryCode?: string;
     city?: string;
+    region?: string;
   };
   device: {
     type: "mobile" | "tablet" | "desktop";
@@ -104,6 +144,22 @@ export interface SecurityEvent {
 }
 
 /**
+ * Remove undefined/null values from object to prevent Firestore errors
+ */
+function cleanForFirestore<T extends Record<string, unknown>>(
+  obj: T
+): Partial<T> {
+  const cleaned: Partial<T> = {};
+  for (const key in obj) {
+    const value = obj[key];
+    if (value !== undefined && value !== null) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
+/**
  * Initialize or update analytics session
  */
 export async function trackSession(
@@ -112,7 +168,7 @@ export async function trackSession(
   try {
     if (!firebaseIsConfigured || FORCE_API_FOR_FIREFOX) {
       const sessionId = sessionData.sessionId || generateSessionId();
-      console.log(
+      logger.info(
         "📊 [Analytics] Tracking session via API (Firebase not configured)",
         { sessionId }
       );
@@ -127,13 +183,13 @@ export async function trackSession(
         cache: "no-store",
       });
       if (!response.ok) {
-        console.error(
-          "❌ [Analytics] Session track failed:",
-          response.status,
-          await response.text()
-        );
+        const body = await response.text();
+        logger.error("❌ [Analytics] Session track failed", undefined, {
+          status: response.status,
+          body,
+        });
       } else {
-        console.log("✅ [Analytics] Session tracked successfully via API");
+        logger.success("✅ [Analytics] Session tracked successfully via API");
       }
       return sessionId;
     }
@@ -144,34 +200,86 @@ export async function trackSession(
 
     if (sessionDoc.exists()) {
       // Update existing session
-      console.log("📊 [Analytics] Updating existing session via Firestore", {
+      logger.info("📊 [Analytics] Updating existing session via Firestore", {
         sessionId,
       });
-      await updateDoc(sessionRef, {
+      // Filter out undefined values to prevent Firestore errors
+      const updateData: Record<string, unknown> = {
         lastActivity: Timestamp.now(),
         pageViews: (sessionDoc.data().pageViews || 0) + 1,
-        pages: [
-          ...(sessionDoc.data().pages || []),
-          sessionData.pages?.[0],
-        ].slice(-50),
+        pages: [...(sessionDoc.data().pages || []), sessionData.pages?.[0]]
+          .filter(Boolean)
+          .slice(-50),
         isActive: true,
-      });
-      console.log("✅ [Analytics] Session updated via Firestore");
+      };
+
+      // Only include optional fields if they have valid values
+      if (sessionData.referrer) updateData.referrer = sessionData.referrer;
+      if (sessionData.userAgent) updateData.userAgent = sessionData.userAgent;
+      if (
+        sessionData.location &&
+        Object.keys(sessionData.location).length > 0
+      ) {
+        updateData.location = sessionData.location;
+      }
+      if (sessionData.device && Object.keys(sessionData.device).length > 0) {
+        updateData.device = sessionData.device;
+      }
+
+      // Add IP if the stored doc doesn't have it yet
+      try {
+        if (!sessionDoc.data().ip) {
+          const geo = await getClientGeo();
+          const ip = geo.ip || (await getClientIp());
+          if (ip) (updateData as { ip?: string }).ip = ip;
+        }
+        const currentLoc = sessionDoc.data().location || {};
+        if (!currentLoc?.country && !currentLoc?.countryCode) {
+          const geo = await getClientGeo();
+          if (geo?.countryCode) {
+            (updateData as { location?: Record<string, unknown> }).location = {
+              ...currentLoc,
+              countryCode: geo.countryCode,
+              city: currentLoc.city || geo.city,
+              region: currentLoc.region || geo.region,
+            };
+          }
+        }
+      } catch (e) {
+        // Non-fatal: if IP fetch fails, continue without it
+        logger.debug("[Analytics] Skipping IP backfill on session update", {
+          error: e as unknown,
+        });
+      }
+
+      await updateDoc(sessionRef, updateData);
+      logger.success("✅ [Analytics] Session updated via Firestore");
     } else {
       // Create new session
-      console.log("📊 [Analytics] Creating new session via Firestore", {
+      logger.info("📊 [Analytics] Creating new session via Firestore", {
         sessionId,
       });
-      await setDoc(sessionRef, {
+      const geo = await getClientGeo();
+      const ip = geo.ip || (await getClientIp());
+      const sessionDoc = cleanForFirestore({
         sessionId,
-        userId: sessionData.userId || null,
+        userId: sessionData.userId,
         startTime: Timestamp.now(),
         lastActivity: Timestamp.now(),
         pageViews: 1,
         pages: sessionData.pages || [],
         referrer: sessionData.referrer || "",
+        ip: ip || undefined,
         userAgent: sessionData.userAgent || "",
-        location: sessionData.location || {},
+        location:
+          sessionData.location ||
+          (geo?.countryCode || geo?.city || geo?.region
+            ? {
+                countryCode: geo.countryCode,
+                city: geo.city,
+                region: geo.region,
+              }
+            : {}),
         device: sessionData.device || {
           type: "desktop",
           browser: "unknown",
@@ -179,16 +287,30 @@ export async function trackSession(
         },
         isActive: true,
       });
-      console.log("✅ [Analytics] Session created via Firestore");
+      await setDoc(sessionRef, sessionDoc);
+      logger.success("✅ [Analytics] Session created via Firestore");
     }
 
     return sessionId;
   } catch (error) {
-    console.error("❌ [Analytics] Track session error:", error);
+    // Silently handle permission errors (likely due to Firebase rules propagation)
+    if (error instanceof Error && error.message.includes("permissions")) {
+      logger.warn(
+        "⚠️ [Analytics] Session tracking paused (Firebase rules propagating)"
+      );
+      return sessionData.sessionId || generateSessionId();
+    }
+
+    logger.error("❌ [Analytics] Track session error:", error);
+    logger.info("📊 [Analytics] Session data attempted:", {
+      sessionId: sessionData.sessionId,
+      userId: sessionData.userId,
+      pageViews: sessionData.pageViews,
+      pages: sessionData.pages,
+    });
     // Fallback to API
     try {
       const sessionId = sessionData.sessionId || generateSessionId();
-      console.log("📊 [Analytics] Retrying session via API fallback");
       const response = await fetch("/api/analytics/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -200,16 +322,11 @@ export async function trackSession(
         cache: "no-store",
       });
       if (response.ok) {
-        console.log("✅ [Analytics] Session tracked via API fallback");
-      } else {
-        console.error(
-          "❌ [Analytics] API fallback also failed:",
-          response.status
-        );
+        logger.success("✅ [Analytics] Session tracked via API fallback");
       }
       return sessionId;
-    } catch (fallbackError) {
-      console.error("❌ [Analytics] API fallback error:", fallbackError);
+    } catch {
+      // Silently fail - analytics shouldn't break the app
       return "";
     }
   }
@@ -221,7 +338,7 @@ export async function trackSession(
 export async function trackPageView(pageView: PageView): Promise<void> {
   try {
     if (!firebaseIsConfigured || FORCE_API_FOR_FIREFOX) {
-      console.log(
+      logger.info(
         "📊 [Analytics] Tracking pageview via API (Firebase not configured)",
         { page: pageView.page }
       );
@@ -233,36 +350,47 @@ export async function trackPageView(pageView: PageView): Promise<void> {
         cache: "no-store",
       });
       if (!response.ok) {
-        console.error(
-          "❌ [Analytics] Pageview track failed:",
-          response.status,
-          await response.text()
-        );
+        const body = await response.text();
+        logger.error("❌ [Analytics] Pageview track failed", undefined, {
+          status: response.status,
+          body,
+        });
       } else {
-        console.log("✅ [Analytics] Pageview tracked successfully via API");
+        logger.success("✅ [Analytics] Pageview tracked successfully via API");
       }
       return;
     }
 
-    console.log("📊 [Analytics] Tracking pageview via Firestore client SDK", {
+    logger.info("📊 [Analytics] Tracking pageview via Firestore client SDK", {
       page: pageView.page,
       sessionId: pageView.sessionId,
     });
 
-    const docRef = await addDoc(collection(db, "analytics_pageviews"), {
+    // Clean object to remove all undefined/null values
+    const ip = await getClientIp();
+    const cleanPageView = cleanForFirestore({
       ...pageView,
       timestamp: Timestamp.fromDate(pageView.timestamp),
+      ip: ip || undefined,
     });
 
-    console.log("✅ [Analytics] Pageview tracked successfully via Firestore", {
-      docId: docRef.id,
-      page: pageView.page,
-    });
+    const docRef = await addDoc(
+      collection(db, "analytics_pageviews"),
+      cleanPageView
+    );
+
+    logger.success(
+      "✅ [Analytics] Pageview tracked successfully via Firestore",
+      {
+        docId: docRef.id,
+        page: pageView.page,
+      }
+    );
   } catch (error) {
-    console.error("❌ [Analytics] Track page view error:", error);
+    logger.error("❌ [Analytics] Track page view error:", error);
     // Fallback to API if Firestore write fails
     try {
-      console.log("📊 [Analytics] Retrying pageview via API fallback");
+      logger.info("📊 [Analytics] Retrying pageview via API fallback");
       const response = await fetch("/api/analytics/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -271,15 +399,15 @@ export async function trackPageView(pageView: PageView): Promise<void> {
         cache: "no-store",
       });
       if (response.ok) {
-        console.log("✅ [Analytics] Pageview tracked via API fallback");
+        logger.success("✅ [Analytics] Pageview tracked via API fallback");
       } else {
-        console.error(
-          "❌ [Analytics] API fallback also failed:",
-          response.status
+        logger.warn(
+          "⚠️ [Analytics] API fallback failed (backend not configured)",
+          { status: response.status }
         );
       }
     } catch (fallbackError) {
-      console.error("❌ [Analytics] API fallback error:", fallbackError);
+      logger.warn("⚠️ [Analytics] API not available", { error: fallbackError });
     }
   }
 }
@@ -289,7 +417,7 @@ export async function trackPageView(pageView: PageView): Promise<void> {
  */
 export async function trackUserEvent(event: UserEvent): Promise<void> {
   try {
-    console.log("📊 [Analytics] trackUserEvent called:", {
+    logger.info("📊 [Analytics] trackUserEvent called", {
       eventType: event.eventType,
       sessionId: event.sessionId,
       eventData: event.eventData,
@@ -298,10 +426,9 @@ export async function trackUserEvent(event: UserEvent): Promise<void> {
       forceAPI: FORCE_API_FOR_FIREFOX,
     });
 
-    // Always use API for reliability and to bypass consent checks on backend
-    const useAPI = true; // Force API to ensure tracking always works
-    if (!firebaseIsConfigured || FORCE_API_FOR_FIREFOX || useAPI) {
-      console.log("📊 [Analytics] Tracking event via API", {
+    // Prefer Firestore client SDK when available, only use API if Firebase not configured
+    if (!firebaseIsConfigured || FORCE_API_FOR_FIREFOX) {
+      logger.info("📊 [Analytics] Tracking event via API", {
         eventType: event.eventType,
         sessionId: event.sessionId,
       });
@@ -314,7 +441,7 @@ export async function trackUserEvent(event: UserEvent): Promise<void> {
         },
       };
 
-      console.log("📊 [Analytics] Sending payload:", payload);
+      logger.info("📊 [Analytics] Sending payload", { payload });
 
       const response = await fetch("/api/analytics/track", {
         method: "POST",
@@ -331,37 +458,39 @@ export async function trackUserEvent(event: UserEvent): Promise<void> {
         responseText = "Could not read response";
       }
 
-      console.log("[Analytics] API Response:", response.status, responseText);
+      logger.info("[Analytics] API Response", {
+        status: response.status,
+        body: responseText,
+      });
 
       if (!response.ok) {
-        console.error(
-          "❌ [Analytics] Event track failed:",
-          response.status,
-          responseText
+        logger.warn(
+          "⚠️ [Analytics] Event track via API failed (backend not configured)",
+          { status: response.status }
         );
-        throw new Error(
-          `Analytics API failed: ${response.status} ${responseText}`
-        );
+        // Don't throw - API is optional, fail silently
+        return;
       } else {
-        console.log("✅ [Analytics] Event tracked successfully via API");
+        logger.success("✅ [Analytics] Event tracked successfully via API");
       }
       return;
     }
 
-    console.log(
+    logger.info(
       "📊 [Analytics] Writing event to Firestore analytics_events collection..."
     );
-    const docRef = await addDoc(collection(db, "analytics_events"), {
+    const cleanEvent = cleanForFirestore({
       ...event,
       timestamp: Timestamp.fromDate(event.timestamp),
     });
-    console.log("✅ [Analytics] Event tracked successfully to Firestore:", {
+    const docRef = await addDoc(collection(db, "analytics_events"), cleanEvent);
+    logger.success("✅ [Analytics] Event tracked successfully to Firestore", {
       eventType: event.eventType,
       docId: docRef.id,
       collection: "analytics_events",
     });
   } catch (error) {
-    console.error("❌ [Analytics] Track user event error:", error);
+    logger.error("❌ [Analytics] Track user event error:", error);
     // Don't throw - fail silently but log for debugging
   }
 }
@@ -380,12 +509,13 @@ export async function trackSecurityEvent(event: SecurityEvent): Promise<void> {
       return;
     }
 
-    await addDoc(collection(db, "security_events"), {
+    const cleanEvent = cleanForFirestore({
       ...event,
       timestamp: Timestamp.fromDate(event.timestamp),
     });
+    await addDoc(collection(db, "security_events"), cleanEvent);
   } catch (error) {
-    console.error("Track security event error:", error);
+    logger.error("Track security event error:", error);
   }
 }
 
@@ -414,7 +544,7 @@ export async function getActiveSessions(): Promise<AnalyticsSession[]> {
       } as AnalyticsSession;
     });
   } catch (error) {
-    console.error("Get active sessions error:", error);
+    logger.error("Get active sessions error:", error);
     return [];
   }
 }
@@ -446,7 +576,7 @@ export async function getPageViews(
       } as PageView;
     });
   } catch (error) {
-    console.error("Get page views error:", error);
+    logger.error("Get page views error:", error);
     return [];
   }
 }
@@ -477,7 +607,7 @@ export async function getSecurityEvents(
       } as SecurityEvent;
     });
   } catch (error) {
-    console.error("Get security events error:", error);
+    logger.error("Get security events error:", error);
     return [];
   }
 }
@@ -570,7 +700,7 @@ export async function getAnalyticsSummary(days: number = 30) {
       events: events.slice(0, 100),
     };
   } catch (error) {
-    console.error("Get analytics summary error:", error);
+    logger.error("Get analytics summary error:", error);
     return null;
   }
 }
@@ -602,7 +732,7 @@ async function getSessionsInPeriod(
       } as AnalyticsSession;
     });
   } catch (error) {
-    console.error("Get sessions error:", error);
+    logger.error("Get sessions error:", error);
     return [];
   }
 }
@@ -634,7 +764,7 @@ async function getUserEvents(
       } as UserEvent;
     });
   } catch (error) {
-    console.error("Get user events error:", error);
+    logger.error("Get user events error:", error);
     return [];
   }
 }
@@ -725,5 +855,71 @@ export function parseReferrer(referrerUrl: string): {
     return { source: domain };
   } catch {
     return { source: "Direct" };
+  }
+}
+
+/**
+ * Fetch all visitor sessions for a specific date
+ */
+export async function getSessionsForDate(
+  date: string
+): Promise<AnalyticsSession[]> {
+  try {
+    if (!firebaseIsConfigured) {
+      logger.warn(
+        "⚠️ [Analytics] Firebase not configured, cannot fetch sessions"
+      );
+      return [];
+    }
+
+    // Parse the date and create start/end timestamps for the day
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
+    const startOfDay = Timestamp.fromDate(targetDate);
+
+    const endDate = new Date(targetDate);
+    endDate.setHours(23, 59, 59, 999);
+    const endOfDay = Timestamp.fromDate(endDate);
+
+    const sessionsRef = collection(db, "analytics_sessions");
+    const q = query(
+      sessionsRef,
+      where("startTime", ">=", startOfDay),
+      where("startTime", "<=", endOfDay),
+      orderBy("startTime", "desc")
+    );
+
+    const snapshot = await getDocs(q);
+    const sessions: AnalyticsSession[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        sessionId: data.sessionId,
+        userId: data.userId,
+        startTime: data.startTime?.toDate() || new Date(),
+        lastActivity: data.lastActivity?.toDate() || new Date(),
+        pageViews: data.pageViews || 0,
+        pages: data.pages || [],
+        referrer: data.referrer || "",
+        referrerSource: data.referrerSource || "Direct",
+        referrerTerm: data.referrerTerm,
+        userAgent: data.userAgent || "",
+        ip: data.ip,
+        location: data.location,
+        device: data.device || {
+          type: "desktop",
+          browser: "unknown",
+          os: "unknown",
+        },
+        isActive: data.isActive || false,
+      };
+    });
+
+    logger.info(
+      `📊 [Analytics] Fetched ${sessions.length} sessions for ${date}`
+    );
+    return sessions;
+  } catch (error) {
+    logger.error("❌ [Analytics] Error fetching sessions for date:", error);
+    return [];
   }
 }

@@ -5,6 +5,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
 import { getCache, setCache } from "../../services/cache.js";
+
+import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -19,6 +21,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET")
     return res.status(405).json({ error: "Method not allowed" });
+
+  if (!isFirebaseConfigured()) {
+    console.log("[adoption] Firebase not configured");
+    return res.status(503).json({
+      error: "Analytics not configured",
+      message: "Firebase is not configured. Please set environment variables.",
+    });
+  }
 
   try {
     const user = await verifyAdmin(req);
@@ -120,12 +130,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json(payload);
   } catch (error) {
-    console.error("Feature Adoption analytics error:", error);
-    return res
-      .status(500)
-      .json({
-        error: "Failed to fetch feature adoption analytics",
-        details: error instanceof Error ? error.message : "Unknown error",
+    console.error("Error fetching adoption analytics:", error);
+    const errorStr = String(error);
+    const errorMsg = error instanceof Error ? error.message : errorStr;
+
+    // Check for Firebase initialization errors
+    if (errorMsg.includes("Firebase") || errorMsg.includes("credentials")) {
+      return res.status(503).json({
+        error: "Firebase not configured on this deployment",
+        message: "Analytics requires Firebase Admin credentials to be set",
+        setupRequired: true,
       });
+    }
+
+    return res.status(500).json({
+      error: "Failed to fetch adoption analytics",
+      details: errorMsg,
+    });
   }
 }
+

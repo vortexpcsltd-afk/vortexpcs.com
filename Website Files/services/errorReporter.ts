@@ -4,6 +4,8 @@
  */
 
 import { auth } from "../config/firebase";
+import { logger } from "./logger";
+import { isLocalhost } from "../utils/runtime";
 
 interface ErrorReport {
   message: string;
@@ -18,15 +20,26 @@ interface ErrorReport {
  */
 export async function reportError(error: ErrorReport): Promise<void> {
   try {
+    // Skip reporting in local preview/dev where API routes are unavailable
+    if (isLocalhost()) return;
+
     const user = auth?.currentUser;
     const token = user ? await user.getIdToken() : null;
 
-    await fetch("/api/errors/report", {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    // TODO: Add CSRF token once csrf middleware is implemented
+    // See audit report for CSRF protection implementation
+
+    const resp = await fetch("/api/errors/report", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
+      headers,
       body: JSON.stringify({
         ...error,
         timestamp: new Date().toISOString(),
@@ -34,9 +47,12 @@ export async function reportError(error: ErrorReport): Promise<void> {
         userAgent: navigator.userAgent,
       }),
     });
-  } catch (err) {
+    // Swallow non-2xx without noisy console errors in client
+    if (!resp.ok) return;
+  } catch {
     // Fail silently - don't create error loops
-    console.error("Failed to report error:", err);
+    // Intentionally muted in production; uncomment for debugging
+    // console.error("Failed to report error:", err);
   }
 }
 
@@ -73,7 +89,7 @@ export function setupGlobalErrorHandler(): void {
     });
   });
 
-  console.log("✅ Global error handler initialized");
+  logger.success("✅ Global error handler initialized");
 }
 
 /**

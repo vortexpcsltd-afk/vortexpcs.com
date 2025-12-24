@@ -2,6 +2,7 @@
  * Stripe Payment Service
  * Handles payment processing, checkout sessions, and order confirmations
  * Supports both authenticated and guest checkout flows
+ * Includes retry logic and error recovery for network failures
  */
 
 import {
@@ -9,8 +10,93 @@ import {
   stripeConfig,
   stripeBackendUrl,
 } from "../config/stripe";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { logger } from "./logger";
+
+/**
+ * Retry configuration for payment operations
+ */
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 1000, // 1 second
+  maxDelay: 10000, // 10 seconds
+};
+
+/**
+ * Check if error is retryable (network/timeout issues)
+ */
+function isRetryableError(error: unknown): boolean {
+  // Axios network errors
+  if (axios.isAxiosError(error)) {
+    const axiosErr = error as AxiosError;
+    // Retry on network errors, timeouts, and 5xx server errors
+    return (
+      !axiosErr.response ||
+      axiosErr.code === "ECONNABORTED" ||
+      axiosErr.code === "ETIMEDOUT" ||
+      (axiosErr.response?.status >= 500 && axiosErr.response?.status < 600)
+    );
+  }
+
+  // Generic network errors
+  return (
+    error instanceof Error &&
+    (error.message.includes("network") ||
+      error.message.includes("timeout") ||
+      error.message.includes("fetch") ||
+      error.message.includes("ECONNRESET"))
+  );
+}
+
+/**
+ * Retry operation with exponential backoff
+ */
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  retries = RETRY_CONFIG.maxRetries
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry if not a network error or if we're out of retries
+      if (!isRetryableError(error) || attempt === retries) {
+        throw error;
+      }
+
+      // Calculate delay with exponential backoff and jitter
+      const delay = Math.min(
+        RETRY_CONFIG.baseDelay * Math.pow(2, attempt) + Math.random() * 1000,
+        RETRY_CONFIG.maxDelay
+      );
+
+      logger.warn(
+        `${operationName} failed, retrying in ${Math.round(delay)}ms`,
+        {
+          attempt: attempt + 1,
+          maxRetries: retries,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Check if user is online
+ */
+function isOnline(): boolean {
+  return typeof navigator !== "undefined" ? navigator.onLine : true;
+}
 
 export interface CartItem {
   id: string;
@@ -38,7 +124,11 @@ export const createCheckoutSession = async (
   items: CartItem[],
   customerEmail?: string,
   userId?: string,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  customerName?: string,
+  shippingAddress?: unknown,
+  shippingMethod?: string,
+  shippingCost?: number
 ): Promise<CheckoutSession> => {
   // Use mock for development to avoid CORS issues
   if (
@@ -56,7 +146,11 @@ export const createCheckoutSession = async (
     const response = await axios.post(apiUrl, {
       items,
       customerEmail,
+      customerName,
       userId,
+      shippingAddress,
+      shippingMethod,
+      shippingCost,
       metadata: {
         ...metadata,
         source: "vortex-pcs-website",
@@ -100,8 +194,14 @@ export const redirectToCheckout = async (
     const stripe = await stripePromise;
 
     if (!stripe) {
+      // Check if it's a configuration issue vs loading issue
+      if (!isOnline()) {
+        throw new Error(
+          "No internet connection. Please check your network and try again."
+        );
+      }
       throw new Error(
-        "Stripe failed to load. Please check your internet connection and try again."
+        "Stripe failed to load. This may be due to an ad blocker or network issue. Please disable ad blockers and try again."
       );
     }
 
@@ -156,21 +256,57 @@ export const createPaymentIntent = async (
     return mockCreatePaymentIntent(amount, currency, metadata);
   }
 
+  // Check online status
+  if (!isOnline()) {
+    throw new Error(
+      "No internet connection. Please check your network and try again."
+    );
+  }
+
   try {
     // Use local proxy endpoint that Vite will forward to backend
     const apiUrl = `/api/stripe/create-payment-intent`;
 
-    const response = await axios.post(apiUrl, {
-      amount: Math.round(amount * 100), // Convert to pence
-      currency,
-      metadata,
-    });
+    const response = await retryOperation(
+      () =>
+        axios.post(apiUrl, {
+          amount: Math.round(amount * 100), // Convert to pence
+          currency,
+          metadata,
+        }),
+      "Create payment intent"
+    );
 
     return response.data;
   } catch (error: unknown) {
     logger.error("Create payment intent error:", error);
+
+    // Check if user went offline
+    if (!isOnline()) {
+      throw new Error(
+        "Lost internet connection. Please check your network and try again."
+      );
+    }
+
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError<{ message?: string }>;
+
+      if ((axiosError.response?.status ?? 0) >= 500) {
+        throw new Error(
+          "Payment service temporarily unavailable. Please try again in a moment."
+        );
+      }
+
+      throw new Error(
+        axiosError.response?.data?.message ||
+          "Failed to initialize payment. Please try again."
+      );
+    }
+
     throw new Error(
-      error instanceof Error ? error.message : "Failed to create payment intent"
+      error instanceof Error
+        ? error.message
+        : "Failed to create payment intent. Please try again."
     );
   }
 };
@@ -192,26 +328,47 @@ export const verifyPayment = async (sessionId: string) => {
     // Use local proxy endpoint that Vite will forward to backend
     const apiUrl = `/api/stripe/verify-payment`;
 
-    const response = await axios.get(`${apiUrl}?session_id=${sessionId}`);
+    const response = await retryOperation(
+      () => axios.get(`${apiUrl}?session_id=${sessionId}`),
+      "Verify payment"
+    );
     return response.data;
   } catch (error: unknown) {
     logger.error("Verify payment error:", error);
 
+    // Check if user went offline
+    if (!isOnline()) {
+      throw new Error(
+        "Cannot verify payment - no internet connection. Your payment may still have succeeded. Please check your email for confirmation or contact support."
+      );
+    }
+
     // Type-safe error handling for axios errors
-    if (error && typeof error === "object" && "response" in error) {
-      const axiosError = error as {
-        response?: { data?: { message?: string } };
-        message?: string;
-      };
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError<{ message?: string }>;
+
+      // Handle specific scenarios
+      if (axiosError.response?.status === 404) {
+        throw new Error(
+          "Payment session not found. It may have expired. Please try again or contact support."
+        );
+      } else if ((axiosError.response?.status ?? 0) >= 500) {
+        throw new Error(
+          "Unable to verify payment due to a temporary server issue. Your payment may have succeeded. Please check your email or contact support."
+        );
+      }
+
       throw new Error(
         axiosError.response?.data?.message ||
           axiosError.message ||
-          "Failed to verify payment"
+          "Failed to verify payment. Please check your email for confirmation or contact support."
       );
     }
 
     throw new Error(
-      error instanceof Error ? error.message : "Failed to verify payment"
+      error instanceof Error
+        ? error.message
+        : "Failed to verify payment. Please check your email for confirmation or contact support."
     );
   }
 };
@@ -231,7 +388,9 @@ export const verifyPaymentIntent = async (paymentIntentId: string) => {
 
   try {
     const apiUrl = `/api/stripe/verify-intent`;
-    const response = await axios.get(`${apiUrl}?pi=${paymentIntentId}`);
+    const response = await axios.get(
+      `${apiUrl}?payment_intent=${paymentIntentId}`
+    );
     return response.data;
   } catch (error: unknown) {
     logger.error("Verify payment intent error:", error);

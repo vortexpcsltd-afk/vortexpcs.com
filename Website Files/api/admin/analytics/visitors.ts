@@ -5,6 +5,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
 import { getCache, setCache } from "../../services/cache.js";
+
+import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -190,13 +192,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(payload);
   } catch (error: unknown) {
     console.error("Get visitor analytics error:", error);
+    const errorStr = String(error);
+    const errorMsg = error instanceof Error ? error.message : errorStr;
+
+    // Log error and return 500
+    console.error("[visitors] Analytics error:", errorMsg);
+
+    // Check for Firebase initialization errors
+    if (errorMsg.includes("Firebase") || errorMsg.includes("credentials")) {
+      return res.status(503).json({
+        error: "Firebase not configured on this deployment",
+        message: "Analytics requires Firebase Admin credentials to be set",
+        setupRequired: true,
+      });
+    }
+
     const code = (
       error as { code?: number | string } | Error | unknown as never as {
         code?: number | string;
       }
     )?.code;
-    const msg = error instanceof Error ? error.message : "";
-    if (code === 8 || msg.includes("RESOURCE_EXHAUSTED")) {
+    if (code === 8 || errorMsg.includes("RESOURCE_EXHAUSTED")) {
       return res.status(503).json({
         error: "Firestore quota exhausted",
         quota: true,
@@ -205,7 +221,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(500).json({
       error: "Failed to fetch visitor analytics",
-      details: error instanceof Error ? error.message : "Unknown error",
+      details: errorMsg,
     });
   }
 }
+

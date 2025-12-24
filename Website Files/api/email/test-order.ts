@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { buildBrandedEmailHtml } from "../../services/emailTemplate";
+import { buildBrandedEmailHtml } from "../../services/emailTemplate.js";
 import nodemailer from "nodemailer";
+import type { NodemailerSendInfo, EmailSendResult } from "../../types/api.js";
+import { parseQuery, querySchemas } from "../utils/queryValidation";
+import { sendEmailWithRetry } from "../../services/emailSender.js";
 
 /**
  * Test Order Email Endpoint
@@ -8,7 +11,17 @@ import nodemailer from "nodemailer";
  * Use: GET /api/email/test-order?to=customer@example.com
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const to = (req.query.to as string) || process.env.TEST_EMAIL_TO || "";
+  if (req.method !== "GET") {
+    return res.status(405).json({
+      ok: false,
+      code: "METHOD_NOT_ALLOWED",
+      message: "Method not allowed",
+    });
+  }
+  const query = parseQuery(req, res, querySchemas.emailTestOrder);
+  if (!query) return; // Validation error already sent
+
+  const to = query.to || process.env.TEST_EMAIL_TO || "";
 
   const smtpHost = process.env.VITE_SMTP_HOST || process.env.SMTP_HOST;
   const smtpUser = process.env.VITE_SMTP_USER || process.env.SMTP_USER;
@@ -23,7 +36,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : smtpPort === 465;
 
   if (!smtpHost || !smtpUser || !smtpPass) {
-    return res.status(500).json({ ok: false, message: "SMTP config missing" });
+    console.error("SMTP config missing in test-order endpoint", {
+      hasHost: Boolean(smtpHost),
+      hasUser: Boolean(smtpUser),
+    });
+    return res.status(503).json({
+      ok: false,
+      code: "SERVICE_UNAVAILABLE",
+      message: "Service temporarily unavailable",
+    });
   }
 
   const transporter = nodemailer.createTransport({
@@ -79,18 +100,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Send customer email if 'to' provided
   if (to) {
     try {
-      const info = await transporter.sendMail({
+      const r = await sendEmailWithRetry(transporter, {
         from: `"Vortex PCs" <${smtpUser}>`,
         to,
         subject: `Diagnostic Order Confirmation ${fakeOrderId}`,
         text: `Diagnostic order test (plain text) id: ${fakeOrderId}`,
         html: customerHtml,
       });
+      if (!r.success) throw r.error || new Error("Email failed");
+      const info = r.info as NodemailerSendInfo | undefined;
       results.customer = {
-        messageId: info.messageId,
-        accepted: info.accepted,
-        rejected: info.rejected,
-        response: info.response,
+        messageId: info?.messageId,
+        accepted: info?.accepted,
+        rejected: info?.rejected,
+        response: info?.response,
       };
     } catch (err) {
       results.customer = { error: (err as Error).message };
@@ -103,21 +126,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const businessEmail =
     process.env.VITE_BUSINESS_EMAIL || process.env.BUSINESS_EMAIL || smtpUser;
   try {
-    const info = await transporter.sendMail({
+    const r = await sendEmailWithRetry(transporter, {
       from: `"Vortex PCs Orders" <${smtpUser}>`,
       to: businessEmail,
       subject: `Diagnostic Order Received ${fakeOrderId}`,
       text: `Diagnostic test order received (plain text) id: ${fakeOrderId}`,
       html: businessHtml,
     });
+    if (!r.success) throw r.error || new Error("Email failed");
+    const info = r.info as NodemailerSendInfo | undefined;
     results.business = {
-      messageId: info.messageId,
-      accepted: info.accepted,
-      rejected: info.rejected,
-      response: info.response,
+      messageId: info?.messageId,
+      accepted: info?.accepted,
+      rejected: info?.rejected,
+      response: info?.response,
     };
   } catch (err) {
     results.business = { error: (err as Error).message };
+  }
+
+  if (
+    (results.customer &&
+      "error" in results.customer &&
+      results.customer.error) ||
+    (results.business && "error" in results.business && results.business.error)
+  ) {
+    console.error("Test-order email send failed", {
+      customer: results.customer,
+      business: results.business,
+    });
+    return res.status(502).json({
+      ok: false,
+      code: "EMAIL_DELIVERY_FAILED",
+      message: "Email delivery failed",
+    });
   }
 
   return res.status(200).json(results);

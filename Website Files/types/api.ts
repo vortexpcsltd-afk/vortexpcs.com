@@ -267,6 +267,11 @@ export interface DecodedToken {
   [key: string]: unknown;
 }
 
+// Decoded JWT token with custom role claim
+export interface DecodedTokenWithRole extends DecodedToken {
+  role?: string;
+}
+
 // User profile from Firestore
 export interface UserProfile {
   uid: string;
@@ -277,4 +282,89 @@ export interface UserProfile {
   accountNumber?: string;
   createdAt?: Date | { toDate(): Date };
   [key: string]: unknown;
+}
+
+// IP blocking and security data
+export interface IPBlockData {
+  ip: string;
+  blocked: boolean;
+  whitelisted?: boolean;
+  attempts: number;
+  blockedAt: Date | string | { toDate(): Date } | null;
+  lastEmailTried?: string;
+  lastAttemptAt?: Date | string | { toDate(): Date };
+  reason?: string;
+}
+
+// Login attempt record
+export interface LoginAttemptData {
+  ip: string;
+  email: string;
+  success: boolean;
+  blocked?: boolean;
+  attempts?: number;
+  timestamp: Date | string | { toDate(): Date };
+  userAgent?: string;
+}
+
+// Stripe error with additional metadata
+export interface StripeErrorData extends Error {
+  code?: string;
+  statusCode?: number;
+  requestId?: string;
+  type?: string;
+  raw?: {
+    message: string;
+    type: string;
+    code?: string;
+  };
+}
+
+// Firestore document data for reviews
+export interface ReviewDocumentData {
+  id: string;
+  productId: string;
+  userId: string;
+  userName: string;
+  rating: number;
+  title: string;
+  comment: string;
+  status: "pending" | "approved" | "rejected";
+  verifiedPurchase: boolean;
+  createdAt: Date | string | { toDate(): Date };
+  updatedAt?: Date | string | { toDate(): Date };
+  [key: string]: unknown;
+}
+
+// Firestore document data for orders
+export interface OrderDocumentData {
+  id: string;
+  orderId: string;
+  userId?: string;
+  email: string;
+  status: string;
+  total: number;
+  items: unknown[];
+  createdAt: Date | string | { toDate(): Date };
+  [key: string]: unknown;
+}
+
+// Nodemailer send result info
+export interface NodemailerSendInfo {
+  accepted?: string[];
+  rejected?: string[];
+  response?: string;
+  messageId?: string;
+  envelope?: {
+    from: string;
+    to: string[];
+  };
+}
+
+// Email send result with Nodemailer info
+export interface EmailSendResult {
+  success: boolean;
+  messageId?: string;
+  info?: NodemailerSendInfo;
+  error?: string;
 }

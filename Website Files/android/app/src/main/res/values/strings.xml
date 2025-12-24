@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vortex PCs</string>
+    <string name="title_activity_main">Vortex PCs</string>
+    <string name="package_name">com.vortexpcs.app</string>
+    <string name="custom_url_scheme">com.vortexpcs.app</string>
+</resources>

@@ -3,6 +3,7 @@ import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { contentfulClient, isContentfulEnabled } from "../config/contentful";
+import { logger } from "../services/logger";
 import { CheckCircle, AlertTriangle, Copy, RefreshCw } from "lucide-react";
 
 interface TypeStatus {
@@ -107,15 +108,15 @@ export function CmsDiagnostics() {
     setFlash(true);
     setTimeout(() => setFlash(false), 1500);
 
-    // Console summary for quick copy
-    console.table(
-      results.map((r) => ({
+    // Log summary for quick copy
+    logger.info("CMS diagnostics summary", {
+      table: results.map((r) => ({
         type: r.id,
         exists: r.exists,
         items: r.items ?? 0,
         error: r.error ? r.error.slice(0, 120) : "",
-      }))
-    );
+      })),
+    });
   };
 
   useEffect(() => {

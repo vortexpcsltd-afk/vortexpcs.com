@@ -6,67 +6,14 @@ import {
   ensureBranded,
   buildPlainTextFromHtml,
 } from "../../../services/emailTemplate.js";
+import { sendEmailWithRetry } from "../../../services/emailSender.js";
+import {
+  getFirebaseAdmin,
+  getAuth,
+  getFirestore,
+} from "../../services/auth-admin.js";
 
-// Initialize Firebase Admin once
-type FirebaseAdmin = typeof import("firebase-admin");
-let admin: FirebaseAdmin | null = null;
-
-async function getAdmin() {
-  if (admin) return admin;
-
-  try {
-    const imported = await import("firebase-admin");
-    // Support both ESM namespace and CommonJS default export shapes
-    const candidate = (imported as unknown as { default?: FirebaseAdmin })
-      .default
-      ? (imported as unknown as { default: FirebaseAdmin }).default
-      : (imported as unknown as FirebaseAdmin);
-    admin = candidate;
-
-    if (!admin || typeof admin !== "object") {
-      throw new Error("firebase-admin import returned unexpected shape");
-    }
-
-    const apps = admin.apps;
-    if (Array.isArray(apps) && apps.length > 0) {
-      console.log("Firebase Admin already initialized (apps length)");
-      return admin;
-    }
-
-    if (!apps) {
-      console.warn(
-        "firebase-admin 'apps' collection missing; proceeding to initialize anyway"
-      );
-    }
-
-    // Support base64-encoded service account for Vercel
-    const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
-    if (!serviceAccountBase64) {
-      throw new Error(
-        "FIREBASE_SERVICE_ACCOUNT_BASE64 environment variable not set"
-      );
-    }
-
-    console.log("Initializing Firebase Admin with base64 credentials...");
-    const serviceAccountJson = Buffer.from(
-      serviceAccountBase64,
-      "base64"
-    ).toString("utf-8");
-    const serviceAccount = JSON.parse(serviceAccountJson);
-    console.log("Service account project_id:", serviceAccount.project_id);
-
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
-
-    console.log("✅ Firebase Admin initialized successfully!");
-    return admin;
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : String(error);
-    console.error("❌ Firebase Admin initialization failed:", error);
-    throw error;
-  }
-}
+const admin = getFirebaseAdmin();
 
 type Body = {
   subject?: string;
@@ -76,36 +23,38 @@ type Body = {
   mode?: "all" | "emails";
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
-  }
-
-  const adm = await getAdmin();
-  if (!adm) {
-    return res.status(501).json({
-      message:
-        "Firebase Admin SDK not initialized. Check Vercel logs for details.",
+    return res.status(405).json({
+      ok: false,
+      code: "METHOD_NOT_ALLOWED",
+      message: "Method not allowed",
     });
   }
 
   try {
+    const auth = getAuth();
+    const db = getFirestore();
+
     const authHeader = req.headers.authorization || "";
     const token = authHeader.startsWith("Bearer ")
       ? authHeader.slice("Bearer ".length)
       : null;
     if (!token)
-      return res.status(401).json({ message: "Missing Bearer token" });
+      return res
+        .status(401)
+        .json({ ok: false, code: "UNAUTHORIZED", message: "Unauthorized" });
 
     let decoded: DecodedToken;
     try {
-      decoded = await adm.auth().verifyIdToken(token);
+      decoded = await auth.verifyIdToken(token);
     } catch (e: unknown) {
       const error = e as ApiError;
       console.error("verifyIdToken failed", error?.message || e);
-      return res.status(401).json({ message: "Invalid or expired token" });
+      return res
+        .status(401)
+        .json({ ok: false, code: "UNAUTHORIZED", message: "Unauthorized" });
     }
-    const db = adm.firestore();
     const callerDoc = await db.collection("users").doc(decoded.uid).get();
     const callerProfile = callerDoc.exists ? callerDoc.data() : null;
     const callerEmail = decoded.email || callerProfile?.email;
@@ -115,11 +64,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       callerEmail === "admin@vortexpcs.com" ||
       callerEmail === "info@vortexpcs.com";
     if (!isAdmin)
-      return res.status(403).json({ message: "Admin privileges required" });
+      return res
+        .status(403)
+        .json({ ok: false, code: "FORBIDDEN", message: "Forbidden" });
 
     const { subject, html, preheader, recipients, mode }: Body = req.body || {};
     if (!subject || !html) {
-      return res.status(400).json({ message: "subject and html are required" });
+      return res.status(400).json({
+        ok: false,
+        code: "MISSING_FIELDS",
+        message: "Validation failed",
+      });
     }
 
     // Load SMTP config via centralized helper
@@ -138,8 +93,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!smtpUser) missing.push("VITE_SMTP_USER");
     if (!smtpPass) missing.push("VITE_SMTP_PASS");
     if (missing.length) {
-      return res.status(500).json({
-        message: `Email service not configured: ${missing.join(", ")}`,
+      console.error("Email service not configured; missing:", missing);
+      return res.status(503).json({
+        ok: false,
+        code: "SERVICE_UNAVAILABLE",
+        message: `Email service not configured. Missing: ${missing.join(", ")}`,
+        details: missing,
       });
     }
 
@@ -195,7 +154,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       toList.length
     );
     if (toList.length === 0) {
-      return res.status(400).json({ message: "No recipients found" });
+      return res.status(400).json({
+        ok: false,
+        code: "MISSING_FIELDS",
+        message: "Validation failed",
+      });
     }
 
     const brandedHtml = ensureBranded(html, subject, { preheader });
@@ -207,7 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const chunk = toList.slice(i, i + BATCH);
       // Use BCC to avoid revealing addresses; some providers require at least one 'to'
       try {
-        await transporter.sendMail({
+        const r = await sendEmailWithRetry(transporter, {
           from: `Vortex PCs <${fromAddress}>`,
           to: fromAddress,
           bcc: chunk,
@@ -216,16 +179,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           text: buildPlainTextFromHtml(brandedHtml),
           headers: preheader ? { "X-Preheader": preheader } : undefined,
         });
+        if (!r.success) throw r.error || new Error("Batch email failed");
       } catch (e: unknown) {
         const err = e as ApiError;
-        console.error(
-          "sendMail failed for chunk",
-          i / BATCH,
-          err?.message || e
-        );
+        const errorMsg = err?.message || String(e);
+        console.error("sendMail failed for chunk", i / BATCH, errorMsg);
         return res.status(502).json({
-          message: "SMTP send failed",
-          detail: err?.message || String(e),
+          ok: false,
+          code: "EMAIL_DELIVERY_FAILED",
+          message: `Email delivery failed: ${errorMsg}`,
         });
       }
       sent += chunk.length;
@@ -241,10 +203,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: unknown) {
     const err = error as ApiError;
     console.error("bulk email send error", err);
-    return res
-      .status(500)
-      .json({ message: err?.message || "Internal Server Error" });
+    return res.status(500).json({
+      ok: false,
+      code: "INTERNAL_ERROR",
+      message: "Internal server error",
+    });
   }
 }
+
+export default handler;
 
 // Helpers centralized in services/emailTemplate.ts

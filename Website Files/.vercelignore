@@ -1,9 +1,51 @@
-# Ignore development-only and docs folders
+# Ignore archive and backup directories
 
-archive/ \*_/_.backup.tsx
-components/VisualPCConfigurator.backup.tsx
+archive/
+backups/
 
-# Common local-only
+# Backup files
+
+**/\*.backup.tsx
+**/\*.backup.ts
+
+# Development tools
 
 .vscode/
+
+# Logs
+
 \*.log
+buildlog.txt
+
+# Test files
+
+tests/
+**/\*.test.ts
+**/_.test.tsx
+\*\*/_.spec.ts \*_/_.spec.tsx
+
+# Mobile builds (Android/iOS not needed for web)
+
+android/
+ios/
+
+# Documentation files (keep production docs only)
+
+guidelines/
+COMPREHENSIVE*PROJECT_AUDIT_2025-12-18.md
+ISSUE*_.md
+MOCK_DATA_AUDIT_REPORT.md
+_\_TROUBLESHOOTING.md
+\*\_COMPLETE.md
+ANDROID_BUILD_TROUBLESHOOTING.md
+CAPACITOR_SETUP_GUIDE.md
+
+# Local environment files
+
+.env.local
+.env\*.local
+
+# Git
+
+.git/
+.github/

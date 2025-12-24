@@ -383,33 +383,27 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
 
     return orders;
   } catch (error: unknown) {
-    logger.error("Get user orders error:", error);
-    console.error("getUserOrders detailed error:", error);
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to get user orders"
-    );
-  }
-};
+    const message = error instanceof Error ? error.message : String(error);
+    const isPermissionError = message
+      .toLowerCase()
+      .includes("missing or insufficient permissions");
 
-/**
- * Update order status
- */
-export const updateOrderStatus = async (
-  orderId: string,
-  status: Order["status"],
-  progress: number
-): Promise<void> => {
-  try {
-    const docRef = doc(db, "orders", orderId);
-    await updateDoc(docRef, {
-      status,
-      progress,
-      updatedAt: Timestamp.now(),
-    });
-  } catch (error: unknown) {
-    logger.error("Update order status error:", error);
+    logger.error("Get all orders error:", error);
+
+    if (isPermissionError) {
+      logger.warn("getAllOrders permission denied; returning empty list");
+      return [];
+    }
+
+    if (error instanceof Error) {
+      logger.error("Error details:", {
+        message: error.message,
+        code: (error as { code?: string }).code,
+        stack: error.stack,
+      });
+    }
     throw new Error(
-      error instanceof Error ? error.message : "Failed to update order status"
+      error instanceof Error ? error.message : "Failed to get all orders"
     );
   }
 };
@@ -540,7 +534,18 @@ export const getAllOrders = async (
     });
     return orders;
   } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const isPermissionError = message
+      .toLowerCase()
+      .includes("missing or insufficient permissions");
+
     logger.error("Get all orders error:", error);
+
+    if (isPermissionError) {
+      logger.warn("getAllOrders permission denied; returning empty list");
+      return [];
+    }
+
     if (error instanceof Error) {
       logger.error("Error details:", {
         message: error.message,
@@ -909,7 +914,7 @@ export const getAnalytics = async (days: number = 30) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // Get page views
+    // Get page views from analytics collection (where trackPageView writes data)
     const pageViewsQuery = query(
       collection(db, "analytics"),
       where("event", "==", "page_view"),
@@ -919,11 +924,11 @@ export const getAnalytics = async (days: number = 30) => {
     const pageViewsSnapshot = await getDocs(pageViewsQuery);
     const totalPageViews = pageViewsSnapshot.size;
 
-    // Get unique visitors (count unique userIds)
+    // Get unique visitors (count unique userIds or sessionIds)
     const uniqueUsers = new Set();
     pageViewsSnapshot.forEach((doc) => {
       const data = doc.data();
-      uniqueUsers.add(data.userId);
+      uniqueUsers.add(data.userId || data.sessionId);
     });
     const totalVisitors = uniqueUsers.size;
 
@@ -931,7 +936,8 @@ export const getAnalytics = async (days: number = 30) => {
     const pageStats: Record<string, number> = {};
     pageViewsSnapshot.forEach((doc) => {
       const data = doc.data();
-      pageStats[data.page] = (pageStats[data.page] || 0) + 1;
+      const page = data.page || "unknown";
+      pageStats[page] = (pageStats[page] || 0) + 1;
     });
     const topPages = Object.entries(pageStats)
       .sort((a, b) => b[1] - a[1])
@@ -942,14 +948,24 @@ export const getAnalytics = async (days: number = 30) => {
     const viewsByDay: Record<string, number> = {};
     pageViewsSnapshot.forEach((doc) => {
       const data = doc.data();
-      const date = data.timestamp.toDate().toLocaleDateString();
+      const timestamp = data.timestamp;
+      const date =
+        timestamp instanceof Timestamp
+          ? timestamp.toDate().toLocaleDateString("en-GB")
+          : new Date(timestamp).toLocaleDateString("en-GB");
       viewsByDay[date] = (viewsByDay[date] || 0) + 1;
+    });
+
+    logger.debug("Analytics data loaded", {
+      totalPageViews,
+      totalVisitors,
+      viewsByDay,
     });
 
     return {
       totalPageViews,
       totalVisitors,
-      averagePageViewsPerDay: Math.round(totalPageViews / days),
+      averagePageViewsPerDay: Math.round(totalPageViews / Math.max(days, 1)),
       topPages,
       viewsByDay,
     };
@@ -1097,20 +1113,37 @@ export const getDashboardStats = async () => {
       return sum + val;
     }, 0);
 
+    // Calculate month-over-month change safely
+    const previousMonthRevenue = Math.max(
+      totalRevenue - currentMonthRevenue,
+      0.01
+    ); // Avoid divide by zero
+    const revenueChange =
+      previousMonthRevenue > 0
+        ? (
+            ((currentMonthRevenue - previousMonthRevenue) /
+              previousMonthRevenue) *
+            100
+          ).toFixed(1)
+        : "0.0";
+
+    // Calculate realistic trends for display
+    const revenueChangeNum = parseFloat(revenueChange);
+    const revenueChangeStr =
+      revenueChangeNum >= 0 ? `+${revenueChange}%` : `${revenueChange}%`;
+    const revenueTrend = revenueChangeNum >= 0 ? "up" : "down";
+
     return {
       orders: {
         total: orders.length,
-        change: `+${currentMonthOrders.length}`,
-        trend: "up" as const,
+        change: `+${currentMonthOrders.length} this month`,
+        trend:
+          currentMonthOrders.length > 0 ? ("up" as const) : ("down" as const),
       },
       revenue: {
         total: totalRevenue,
-        change: `+${(
-          (currentMonthRevenue /
-            Math.max(totalRevenue - currentMonthRevenue, 1)) *
-          100
-        ).toFixed(1)}%`,
-        trend: "up" as const,
+        change: revenueChangeStr,
+        trend: revenueTrend as "up" | "down",
       },
       customers: {
         total: totalCustomers,
@@ -1119,8 +1152,8 @@ export const getDashboardStats = async () => {
       },
       builds: {
         total: activeBuilds,
-        change: `+${activeBuilds}`,
-        trend: "up" as const,
+        change: `+${activeBuilds}%`,
+        trend: activeBuilds > 0 ? ("up" as const) : ("down" as const),
       },
     };
   } catch (error: unknown) {

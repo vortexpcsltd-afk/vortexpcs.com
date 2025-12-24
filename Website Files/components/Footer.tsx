@@ -20,13 +20,11 @@ import {
   type ContactInformation,
   type Settings,
 } from "../services/cms";
+import { useNavigation } from "../contexts/NavigationContext";
 const vortexLogo = "/vortexpcs-logo.png";
 
-interface FooterProps {
-  onNavigate: (view: string) => void;
-}
-
-export function Footer({ onNavigate }: FooterProps) {
+export function Footer() {
+  const { navigate } = useNavigation();
   const currentYear = new Date().getFullYear();
   const [contactInfo, setContactInfo] = useState<ContactInformation | null>(
     null
@@ -75,6 +73,7 @@ export function Footer({ onNavigate }: FooterProps) {
     { label: "About Us", view: "about" },
     { label: "Our Process", view: "process" },
     { label: "Quality Standards", view: "quality" },
+    { label: "Vacancies", view: "vacancies" },
     { label: "Member Area", view: "member" },
     { label: "Blog", view: "blog" },
   ];
@@ -87,7 +86,7 @@ export function Footer({ onNavigate }: FooterProps) {
   ];
 
   return (
-    <footer className="relative mt-32 overflow-hidden">
+    <footer className="relative mt-32 overflow-hidden backdrop-blur-xl bg-black/40">
       {/* Premium gradient background with layers */}
       <div className="absolute inset-0 bg-gradient-to-b from-black via-slate-950 to-black"></div>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/30 via-transparent to-transparent"></div>
@@ -209,7 +208,7 @@ export function Footer({ onNavigate }: FooterProps) {
                 {productLinks.map((link) => (
                   <li key={link.label}>
                     <button
-                      onClick={() => onNavigate(link.view)}
+                      onClick={() => navigate(link.view)}
                       className="group flex items-center gap-2 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
                     >
                       <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
@@ -232,7 +231,7 @@ export function Footer({ onNavigate }: FooterProps) {
                 {supportLinks.map((link) => (
                   <li key={link.label}>
                     <button
-                      onClick={() => onNavigate(link.view)}
+                      onClick={() => navigate(link.view)}
                       className="group flex items-center gap-2 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
                     >
                       <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
@@ -255,7 +254,7 @@ export function Footer({ onNavigate }: FooterProps) {
                 {companyLinks.map((link) => (
                   <li key={link.label}>
                     <button
-                      onClick={() => onNavigate(link.view)}
+                      onClick={() => navigate(link.view)}
                       className="group flex items-center gap-2 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
                     >
                       <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
@@ -444,7 +443,7 @@ export function Footer({ onNavigate }: FooterProps) {
               {legalLinks.map((link, index) => (
                 <React.Fragment key={link.label}>
                   <button
-                    onClick={() => onNavigate(link.view)}
+                    onClick={() => navigate(link.view)}
                     className="text-xs text-gray-500 hover:text-sky-400 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded-sm px-1"
                   >
                     {link.label}

@@ -153,9 +153,33 @@
     @apply border-border;
   }
 
+  html {
+    @apply overflow-x-hidden;
+  }
+
   body {
     @apply bg-background text-foreground overflow-x-hidden;
     font-family: var(--font-family);
+  }
+
+  #root {
+    @apply overflow-x-hidden;
+  }
+
+  /* Prevent any element from causing horizontal overflow */
+  * {
+    max-width: 100%;
+  }
+
+  /* Allow specific layouts to use full width properly */
+  html,
+  body,
+  #root,
+  main,
+  section,
+  header,
+  footer {
+    max-width: none;
   }
 }
 
@@ -1118,4 +1142,13 @@ select:-webkit-autofill:focus {
 }
 .hide-native-date-icon {
   position: relative;
+}
+
+/* Utility: hide scrollbar while keeping scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
 }
