@@ -152,6 +152,7 @@ export default function App() {
   const location = useLocation();
   const {
     user,
+    userProfile,
     isAuthenticated,
     isAdmin: isAdminFromContext,
     loading,
@@ -372,10 +373,10 @@ export default function App() {
   useEffect(() => {
     logger.debug("Analytics effect triggered for view", { currentView });
     try {
-      const raw = localStorage.getItem("vortex_user");
-      const user = raw ? JSON.parse(raw) : null;
+      // Get verified role from auth context instead of localStorage
+      // AuthContext provides server-verified role from Firebase Custom Claims
       const uid = user?.uid || null;
-      const isAdmin = user?.role === "admin";
+      const isAdmin = userProfile?.role === "admin";
       const isDev = Boolean(
         (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV
       );
@@ -428,7 +429,7 @@ export default function App() {
     } catch (e) {
       logger.error("❌ [App] Analytics tracking error", e);
     }
-  }, [currentView]);
+  }, [currentView, user?.uid, userProfile?.role]);
 
   // Hydrate document title, standard meta tags, Open Graph and Twitter tags from CMS (Contentful)
   // Only run once on mount to avoid blocking every navigation
@@ -1376,11 +1377,35 @@ export default function App() {
                         );
                       }
 
-                      // Case-insensitive admin check
+                      // CRITICAL: Verify role from server (Firebase Custom Claims)
+                      // Never trust client-side role assignment
+                      try {
+                        const idToken = await firebaseUser.getIdToken();
+                        const { verifyUserRole: verifyRole } = await import(
+                          "./utils/roleVerification"
+                        );
+                        const roleVerification = await verifyRole(idToken);
+                        if (roleVerification.verified) {
+                          userRole = roleVerification.role;
+                          logger.info(
+                            "✅ Role verified from server on login:",
+                            { role: userRole }
+                          );
+                        }
+                      } catch (error) {
+                        logger.warn(
+                          "Failed to verify role from server, using cached value:",
+                          { error }
+                        );
+                        // Keep the cached value if server verification fails
+                      }
+
+                      // Case-insensitive admin check (after server verification)
                       const isAdminUser = userRole.toLowerCase() === "admin";
                       logger.debug("Login - Is Admin?", {
                         isAdminUser,
                         userRole,
+                        verifiedFromServer: true,
                       });
 
                       // Save user data to state and localStorage

@@ -12,6 +12,7 @@ import React, {
 } from "react";
 import { onAuthStateChanged } from "../services/auth";
 import { logger } from "../services/logger";
+import { verifyUserRole } from "../utils/roleVerification";
 
 // Define types without importing from Firebase to avoid initialization issues
 interface User {
@@ -176,7 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (firebaseUser) {
-        // Load user profile from Firestore
+        // Load user profile from Firestore and verify role from server
         import("../services/auth").then(({ getUserProfile }) => {
           getUserProfile(firebaseUser.uid)
             .then(async (profile) => {
@@ -194,15 +195,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     "User",
                   accountType: "general",
                   marketingOptOut: false,
+                  role: "user", // Default non-admin role
                   createdAt: new Date(),
                   lastLogin: new Date(),
                 });
                 return;
               }
 
+              // CRITICAL: Verify role from server (Firebase Custom Claims)
+              // Never trust client-side localStorage role
+              try {
+                const idToken = await firebaseUser.getIdToken();
+                const roleVerification = await verifyUserRole(idToken);
+
+                if (roleVerification.verified) {
+                  // Use server-verified role
+                  profile.role = roleVerification.role;
+                  logger.info("✅ Role verified from server:", {
+                    role: roleVerification.role,
+                    verified: true,
+                  });
+                } else {
+                  // Fallback to user role if verification fails
+                  profile.role = "user";
+                  logger.warn(
+                    "Role verification failed, defaulting to user role"
+                  );
+                }
+              } catch (error) {
+                logger.warn(
+                  "Failed to verify role from server, using default:",
+                  {
+                    error,
+                  }
+                );
+                profile.role = "user";
+              }
+
               setUserProfile(profile);
 
-              // Update localStorage with full profile including role
+              // Update localStorage with profile (WITHOUT trusting it for security)
+              // localStorage is now used ONLY for caching, not security
               try {
                 localStorage.setItem(
                   "vortex_user",
@@ -215,7 +248,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   })
                 );
                 logger.info(
-                  "✅ Saved full profile to localStorage with role:",
+                  "✅ Cached profile to localStorage (not for security):",
                   { role: profile.role }
                 );
               } catch (e) {
