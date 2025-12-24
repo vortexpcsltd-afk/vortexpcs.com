@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "../services/logger";
 import {
   subscribeBanners,
   createBanner,
@@ -151,7 +152,7 @@ export function PromotionalBanners() {
       setShowCreateDialog(false);
       resetForm();
     } catch (error) {
-      console.error("Error saving banner:", error);
+      logger.error("Error saving banner", error);
       toast.error(
         editingBanner
           ? "Failed to update banner. Please try again."

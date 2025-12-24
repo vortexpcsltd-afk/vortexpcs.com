@@ -255,9 +255,11 @@ export function LoginDialog({
 
         logger.success("[LoginDialog] Failed login tracked successfully");
       } catch (trackError: unknown) {
-        console.error(
-          "[LoginDialog] ❌ Failed to track login failure:",
-          trackError
+        logger.error(
+          "Failed to track login failure",
+          trackError instanceof Error
+            ? trackError
+            : new Error(String(trackError))
         );
         logger.warn("Failed to track login failure", {
           error: String(trackError),

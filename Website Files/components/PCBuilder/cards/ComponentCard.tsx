@@ -414,10 +414,9 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
                                       }
                                     }
                                   } catch (error) {
-                                    console.warn(
-                                      "Analytics tracking failed:",
-                                      error
-                                    );
+                                    logger.warn("Analytics tracking failed", {
+                                      error,
+                                    });
                                   }
                                 }}
                               >

@@ -1111,10 +1111,9 @@ export const ComponentDetailModal = ({
                           });
                         }
                       } catch (err) {
-                        console.warn(
-                          "[PCBuilder] Fallback analytics tracking failed",
-                          err
-                        );
+                        logger.warn("Fallback analytics tracking failed", {
+                          error: err,
+                        });
                       }
                     }}
                   >

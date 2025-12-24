@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "../services/logger";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import {
@@ -82,7 +83,10 @@ export function LiveVisitors() {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error("Live visitors API error:", data);
+        logger.error("Live visitors API error", {
+          data,
+          status: response.status,
+        });
 
         // Special handling for 404
         if (response.status === 404) {
@@ -103,7 +107,7 @@ export function LiveVisitors() {
         setError(data.error || "Unknown error");
       }
     } catch (err) {
-      console.error("Failed to fetch live visitors:", err);
+      logger.error("Failed to fetch live visitors", err);
       setError(err instanceof Error ? err.message : "Failed to fetch");
     } finally {
       setLoading(false);

@@ -1,4 +1,5 @@
 import { createClient } from "contentful";
+import { logger } from "../services/logger";
 
 const spaceId = import.meta.env.VITE_CONTENTFUL_SPACE_ID;
 const accessToken = import.meta.env.VITE_CONTENTFUL_ACCESS_TOKEN;
@@ -9,17 +10,17 @@ if (import.meta.env.DEV) {
   const hasToken = !!accessToken;
 
   if (!hasSpaceId || !hasToken) {
-    console.warn(
-      "⚠️ Contentful not configured. To enable brand logos in dev mode:"
+    logger.warn(
+      "Contentful not configured. To enable brand logos in dev mode:"
     );
     if (!hasSpaceId) {
-      console.warn("  - Add VITE_CONTENTFUL_SPACE_ID to .env.local");
+      logger.warn("  - Add VITE_CONTENTFUL_SPACE_ID to .env.local");
     }
     if (!hasToken) {
-      console.warn("  - Add VITE_CONTENTFUL_ACCESS_TOKEN to .env.local");
+      logger.warn("  - Add VITE_CONTENTFUL_ACCESS_TOKEN to .env.local");
     }
-    console.warn("  - See CONTENTFUL_DEV_SETUP.md for detailed instructions");
-    console.warn("  - Once added, restart: npm run dev");
+    logger.warn("  - See CONTENTFUL_DEV_SETUP.md for detailed instructions");
+    logger.warn("  - Once added, restart: npm run dev");
   }
 }
 

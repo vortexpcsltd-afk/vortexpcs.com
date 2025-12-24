@@ -3,6 +3,8 @@
  * Sends periodic updates about user activity to track live visitors
  */
 
+import { logger } from "./logger";
+
 import { db } from "../config/firebase";
 import {
   doc,
@@ -355,7 +357,7 @@ async function updateActivity(
 
     await setDoc(doc(db, "active_visitors", sid), visitorData, { merge: true });
   } catch (error) {
-    console.error("Failed to update visitor activity:", error);
+    logger.error("Failed to update visitor activity:", error);
   }
 }
 
@@ -427,7 +429,7 @@ export async function stopRealtimeTracking() {
     const sid = getSessionId();
     await deleteDoc(doc(db, "active_visitors", sid));
   } catch (error) {
-    console.error("Failed to remove visitor:", error);
+    logger.error("Failed to remove visitor:", error);
   }
 }
 
@@ -446,6 +448,6 @@ export function updateActivityDescription(description: string) {
     },
     { merge: true }
   ).catch((err) => {
-    console.error("Failed to update activity description:", err);
+    logger.error("Failed to update activity description:", err);
   });
 }

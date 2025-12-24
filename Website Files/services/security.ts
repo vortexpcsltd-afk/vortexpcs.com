@@ -1,4 +1,5 @@
 import { isLocalhost } from "../utils/runtime";
+import { logger } from "./logger";
 export async function checkIpBlocked(): Promise<{
   blocked: boolean;
   attempts: number;
@@ -124,7 +125,7 @@ export async function listIpBlocks(
   } = options;
   try {
     if (!idToken || idToken.trim() === "") {
-      console.warn("[listIpBlocks] Missing ID token - cannot authenticate");
+      logger.warn("listIpBlocks: Missing ID token - cannot authenticate");
       return {
         entries: [],
         count: 0,
@@ -147,8 +148,9 @@ export async function listIpBlocks(
       headers: { Authorization: `Bearer ${idToken}` },
     });
     if (!res.ok) {
-      console.error(
-        `[listIpBlocks] Server error: ${res.status} ${res.statusText}`
+      logger.error(
+        "listIpBlocks: Server error",
+        new Error(`${res.status} ${res.statusText}`)
       );
       return {
         entries: [],
@@ -164,7 +166,7 @@ export async function listIpBlocks(
     const json = await res.json();
     return json as IpBlockListResponse;
   } catch (error) {
-    console.error("[listIpBlocks] Fetch error:", error);
+    logger.error("listIpBlocks: Fetch error", error);
     return {
       entries: [],
       count: 0,

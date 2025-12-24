@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, type ReactNode } from "react";
+import { logger } from "../services/logger";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -50,7 +51,6 @@ import {
   SelectValue,
 } from "./ui/select";
 import { toast } from "sonner";
-import { logger } from "../services/logger";
 import { SubscriptionModal } from "./SubscriptionModal";
 import {
   fetchBusinessWorkstations,
@@ -662,7 +662,7 @@ export function BusinessSolutions({
                   });
                   setSelectedWorkstation(null);
                 } catch (error) {
-                  console.error("Error:", error);
+                  logger.error("Business quote error", error);
                   toast.error(
                     "An unexpected error occurred. Please try again."
                   );

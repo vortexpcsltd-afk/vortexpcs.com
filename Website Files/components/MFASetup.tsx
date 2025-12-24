@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { logger } from "../services/logger";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -84,7 +85,7 @@ export function MFASetup({ onComplete }: MFASetupProps) {
 
       toast.success("Scan QR code with your authenticator app");
     } catch (error) {
-      console.error("Failed to generate TOTP secret:", error);
+      logger.error("Failed to generate TOTP secret", error);
       toast.error("Failed to generate authentication code");
     } finally {
       setLoading(false);
@@ -122,7 +123,7 @@ export function MFASetup({ onComplete }: MFASetupProps) {
       setVerificationId(verificationId);
       toast.success("Verification code sent to your phone");
     } catch (error) {
-      console.error("Failed to send SMS:", error);
+      logger.error("Failed to send SMS", error);
       toast.error("Failed to send verification code");
     } finally {
       setLoading(false);
@@ -154,7 +155,7 @@ export function MFASetup({ onComplete }: MFASetupProps) {
       setShowSetup(false);
       onComplete?.();
     } catch (error) {
-      console.error("Failed to verify TOTP:", error);
+      logger.error("Failed to verify TOTP", error);
       toast.error("Invalid verification code. Please try again.");
     } finally {
       setLoading(false);
@@ -183,7 +184,7 @@ export function MFASetup({ onComplete }: MFASetupProps) {
       setShowSetup(false);
       onComplete?.();
     } catch (error) {
-      console.error("Failed to verify SMS:", error);
+      logger.error("Failed to verify SMS", error);
       toast.error("Invalid verification code. Please try again.");
     } finally {
       setLoading(false);

@@ -1800,7 +1800,7 @@ export function AdminPanel() {
       setShowSecurityAlertModal(false);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
-      console.error("Security alert report failed:", e);
+      logger.error("Security alert report failed", e);
 
       // Provide more helpful error messages
       if (
@@ -3543,8 +3543,7 @@ export function AdminPanel() {
                     />
                     <Button
                       onClick={() => {
-                        // eslint-disable-next-line no-console
-                        console.log("🔄 Manual refresh button clicked!");
+                        logger.debug("Manual refresh button clicked");
                         loadCustomers();
                       }}
                       variant="outline"
@@ -4377,7 +4376,7 @@ export function AdminPanel() {
 
                                   toast.success("Order total updated");
                                 } catch (err) {
-                                  console.error("Failed to update total", err);
+                                  logger.error("Failed to update total", err);
                                   alert("Failed to update total");
                                 }
                               }}
@@ -4503,7 +4502,7 @@ export function AdminPanel() {
                                   setAllOrders(updated);
                                   alert("Notes updated successfully");
                                 } catch (err) {
-                                  console.error("Failed to update notes", err);
+                                  logger.error("Failed to update notes", err);
                                   alert("Failed to update notes");
                                 }
                               }
@@ -4676,8 +4675,8 @@ export function AdminPanel() {
                                       );
                                       setAllOrders(updatedOrders);
                                     } catch (error) {
-                                      console.error(
-                                        "Failed to update shipping:",
+                                      logger.error(
+                                        "Failed to update shipping",
                                         error
                                       );
                                     }

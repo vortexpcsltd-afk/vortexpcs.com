@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { logger } from "../services/logger";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -120,7 +121,7 @@ export function CustomerProfile({ customerId, onClose }: CustomerProfileProps) {
       // Fetch support tickets
       setTickets([]);
     } catch (error) {
-      console.error("Error fetching customer data:", error);
+      logger.error("Error fetching customer data", error);
       toast.error("Failed to load customer data");
     } finally {
       setLoading(false);
@@ -149,7 +150,7 @@ export function CustomerProfile({ customerId, onClose }: CustomerProfileProps) {
         setCustomer({ ...customer, notes });
       }
     } catch (error) {
-      console.error("Error saving notes:", error);
+      logger.error("Error saving notes", error);
       toast.error("Failed to save notes");
     } finally {
       setSavingNotes(false);
@@ -174,7 +175,7 @@ export function CustomerProfile({ customerId, onClose }: CustomerProfileProps) {
       setNewTag("");
       toast.success("Tag added");
     } catch (error) {
-      console.error("Error adding tag:", error);
+      logger.error("Error adding tag", error);
       toast.error("Failed to add tag");
     }
   }
@@ -198,7 +199,7 @@ export function CustomerProfile({ customerId, onClose }: CustomerProfileProps) {
       });
       toast.success("Tag removed");
     } catch (error) {
-      console.error("Error removing tag:", error);
+      logger.error("Error removing tag", error);
       toast.error("Failed to remove tag");
     }
   }

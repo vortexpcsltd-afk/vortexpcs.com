@@ -3,6 +3,8 @@
  * Safely tracks searches to Firebase with proper error handling
  */
 
+import { logger } from "./logger";
+
 import { classifySearchIntent } from "../utils/searchIntentClassifier";
 import { getSearchSessionId } from "../utils/searchSessionManager";
 import { generateSearchSuggestions } from "../utils/searchSuggestions";
@@ -190,7 +192,7 @@ export async function trackSearch(
 
     // Early return if Firebase not configured
     if (!db) {
-      console.warn("[trackSearch] Firebase not configured");
+      logger.warn("trackSearch: Firebase not configured");
       return { success: false, error: "Firebase not configured" };
     }
 
@@ -243,7 +245,7 @@ export async function trackSearch(
 
     return { success: true };
   } catch (error) {
-    console.error("[trackSearch] Error:", error);
+    logger.error("trackSearch error", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -311,7 +313,7 @@ export async function trackSearchRefinement(
     const col = collection(db, "searchRefinements");
     await addDoc(col, cleanPayload);
   } catch (error) {
-    console.error("trackSearchRefinement error:", error);
+    logger.error("trackSearchRefinement error:", error);
   }
 }
 
@@ -331,7 +333,7 @@ export async function trackZeroResultSearch(data: {
 
     // Early return if Firebase not configured
     if (!db) {
-      console.warn("[trackZeroResultSearch] Firebase not configured");
+      logger.warn("[trackZeroResultSearch] Firebase not configured");
       return { success: false, error: "Firebase not configured" };
     }
 
@@ -384,7 +386,7 @@ export async function trackZeroResultSearch(data: {
 
     return { success: true };
   } catch (error) {
-    console.error("[trackZeroResultSearch] Error:", error);
+    logger.error("[trackZeroResultSearch] Error:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -407,7 +409,7 @@ export async function trackSearchAddToCart(data: {
   try {
     const { db } = await import("../config/firebase");
     if (!db) {
-      console.warn("[trackSearchAddToCart] Firebase not configured");
+      logger.warn("[trackSearchAddToCart] Firebase not configured");
       return { success: false, error: "Firebase not configured" };
     }
 
@@ -456,7 +458,7 @@ export async function trackSearchAddToCart(data: {
 
     return { success: true };
   } catch (error) {
-    console.error("[trackSearchAddToCart] Error:", error);
+    logger.error("[trackSearchAddToCart] Error:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -479,7 +481,7 @@ export async function trackSearchCheckout(data: {
   try {
     const { db } = await import("../config/firebase");
     if (!db) {
-      console.warn("[trackSearchCheckout] Firebase not configured");
+      logger.warn("[trackSearchCheckout] Firebase not configured");
       return { success: false, error: "Firebase not configured" };
     }
 
@@ -529,7 +531,7 @@ export async function trackSearchCheckout(data: {
 
     return { success: true };
   } catch (error) {
-    console.error("[trackSearchCheckout] Error:", error);
+    logger.error("[trackSearchCheckout] Error:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

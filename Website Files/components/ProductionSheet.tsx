@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import { logger } from "../services/logger";
 import {
   NormalizedOrder,
   normalizeOrder,
@@ -40,7 +41,7 @@ export const ProductionSheet: React.FC<ProductionSheetProps> = ({
     try {
       w = window.open("", "productionSheetPrint", "width=900,height=1100");
     } catch (e) {
-      console.error("Print window blocked", e);
+      logger.error("Print window blocked", e);
     }
     if (w) {
       try {
@@ -48,7 +49,7 @@ export const ProductionSheet: React.FC<ProductionSheetProps> = ({
         w.document.write(htmlDoc);
         w.document.close();
       } catch (e) {
-        console.error("Write to print window failed", e);
+        logger.error("Write to print window failed", e);
       }
       return;
     }
@@ -334,7 +335,7 @@ export const ProductionSheet: React.FC<ProductionSheetProps> = ({
 
       doc.save(`production-sheet-${order.displayId}.pdf`);
     } catch (err) {
-      console.error("PDF export failed", err);
+      logger.error("PDF export failed", err);
       alert("PDF export failed. See console for details.");
     }
   };

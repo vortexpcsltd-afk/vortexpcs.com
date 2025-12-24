@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { logger } from "../services/logger";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -177,7 +178,7 @@ export function InventoryManager() {
         toast.success(`Loaded ${inventoryItems.length} items from Contentful`);
       }
     } catch (error) {
-      console.error("Error fetching inventory:", error);
+      logger.error("Error fetching inventory", error);
       toast.error("Failed to load inventory from Contentful");
     } finally {
       setLoading(false);

@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { logger } from "../services/logger";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -186,7 +187,7 @@ export function MonitoringDashboard() {
         });
       }
     } catch (error) {
-      console.warn("Contentful CMS check failed", error);
+      logger.warn("Contentful CMS check failed", { error });
       checks.push({
         name: "Contentful CMS",
         status: "error",
@@ -214,7 +215,7 @@ export function MonitoringDashboard() {
         });
       }
     } catch (error) {
-      console.warn("Stripe key check failed", error);
+      logger.warn("Stripe key check failed", { error });
       checks.push({
         name: "Stripe Payments",
         status: "error",
@@ -244,7 +245,7 @@ export function MonitoringDashboard() {
         });
       }
     } catch (error) {
-      console.warn("Email service config check failed", error);
+      logger.warn("Email service config check failed", { error });
       checks.push({
         name: "Email Service",
         status: "error",

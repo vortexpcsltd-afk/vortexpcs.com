@@ -23,6 +23,7 @@ import {
   Sparkles,
   Stars,
 } from "@react-three/drei";
+import { logger } from "../../services/logger";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import {
@@ -825,7 +826,7 @@ export function Interactive3DBuilder({
 
   const handleExport = () => {
     // TODO: Implement 360° render export
-    console.warn("Export 360° view functionality to be implemented");
+    logger.warn("Export 360° view functionality to be implemented");
   };
 
   if (!isOpen) return null;
@@ -1097,7 +1098,7 @@ export function Interactive3DBuilder({
                   variant="outline"
                   onClick={() => {
                     // TODO: Implement AR preview
-                    console.warn("Launch AR preview");
+                    logger.warn("Launch AR preview");
                   }}
                   className="w-full border-sky-500/40 text-sky-400 hover:bg-sky-500/10"
                 >

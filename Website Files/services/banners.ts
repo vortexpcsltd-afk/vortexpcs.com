@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 import { db } from "../config/firebase";
 import {
   collection,
@@ -82,7 +83,7 @@ export function subscribeBanners(cb: (banners: Banner[]) => void) {
       cb(list);
     },
     (error) => {
-      console.error("Banner subscription error:", error);
+      logger.error("Banner subscription error:", error);
       // Call callback with empty array on permission error
       // This prevents the app from breaking if user isn't admin
       cb([]);

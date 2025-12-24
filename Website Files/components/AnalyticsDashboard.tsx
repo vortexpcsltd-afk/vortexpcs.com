@@ -332,13 +332,15 @@ export function AnalyticsDashboard() {
       // Check if response is JSON
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
-        console.error(
-          "Monthly summary returned non-JSON:",
-          res.status,
-          contentType
-        );
         const text = await res.text();
-        console.error("Response body:", text.substring(0, 200));
+        logger.error(
+          "Monthly summary returned non-JSON",
+          new Error(
+            `Status: ${
+              res.status
+            }, ContentType: ${contentType}, Body: ${text.substring(0, 200)}`
+          )
+        );
         toast.error(
           `API not available (returned ${res.status}). Deploy to Vercel to enable.`
         );
@@ -351,13 +353,16 @@ export function AnalyticsDashboard() {
         const validatedData = validateMonthlyData(data.data);
         setMonthlyData(validatedData);
       } else {
-        console.error("Monthly summary API error:", data);
+        logger.error(
+          "Monthly summary API error",
+          new Error(JSON.stringify(data))
+        );
         toast.error(
           data.error || data.details || "Failed to load monthly summary"
         );
       }
     } catch (error) {
-      console.error("Failed to fetch monthly summary:", error);
+      logger.error("Failed to fetch monthly summary", error);
       toast.error(
         error instanceof Error
           ? error.message
@@ -382,13 +387,15 @@ export function AnalyticsDashboard() {
       // Check if response is JSON
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
-        console.error(
-          "YTD summary returned non-JSON:",
-          res.status,
-          contentType
-        );
         const text = await res.text();
-        console.error("Response body:", text.substring(0, 200));
+        logger.error(
+          "YTD summary returned non-JSON",
+          new Error(
+            `Status: ${
+              res.status
+            }, ContentType: ${contentType}, Body: ${text.substring(0, 200)}`
+          )
+        );
         toast.error(
           `API not available (returned ${res.status}). Deploy to Vercel to enable.`
         );
@@ -401,11 +408,11 @@ export function AnalyticsDashboard() {
         setYtdData(payload);
         setYtdCache((prev) => ({ ...prev, [targetYear]: payload }));
       } else {
-        console.error("YTD summary API error:", data);
+        logger.error("YTD summary API error", new Error(JSON.stringify(data)));
         toast.error(data.error || data.details || "Failed to load YTD summary");
       }
     } catch (error) {
-      console.error("Failed to fetch YTD summary:", error);
+      logger.error("Failed to fetch YTD summary", error);
       toast.error(
         error instanceof Error ? error.message : "Failed to load YTD summary"
       );
@@ -454,7 +461,7 @@ export function AnalyticsDashboard() {
         toast.error(data.error || "Failed to reset analytics");
       }
     } catch (error) {
-      console.error("Reset error:", error);
+      logger.error("Reset error", error);
       toast.error("Failed to reset analytics");
     } finally {
       setResetting(false);
@@ -788,7 +795,7 @@ export function AnalyticsDashboard() {
       setLoading(false);
       setLastUpdated(new Date());
     } catch (error) {
-      console.error("Fetch analytics error:", error);
+      logger.error("Fetch analytics error", error);
       setErrors([
         {
           endpoint: "all",

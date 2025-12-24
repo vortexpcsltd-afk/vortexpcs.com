@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { logger } from "../services/logger";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -76,7 +77,7 @@ export const RecommendationsTab: React.FC = () => {
           idToken = await auth.currentUser.getIdToken();
         }
       } catch (err) {
-        console.warn("Failed to get Firebase token:", err);
+        logger.warn("Failed to get Firebase token", { error: err });
       }
 
       const headers: Record<string, string> = {};

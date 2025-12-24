@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { logger } from "../services/logger";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -29,7 +30,6 @@ import { format } from "date-fns";
 import { useAuth } from "../contexts/AuthContext";
 import { firebaseIsConfigured } from "../config/firebase";
 import { getIdTokenForAuthenticatedRequest } from "../services/auth";
-import { logger } from "../services/logger";
 
 interface ScheduledReport {
   id?: string;
@@ -215,7 +215,7 @@ export function ReportBuilder() {
 
       toast.success("Report downloaded successfully");
     } catch (error) {
-      console.error("Report generation error:", error);
+      logger.error("Report generation error", error);
       toast.error("Failed to generate report");
     } finally {
       setLoading(false);
@@ -260,7 +260,7 @@ export function ReportBuilder() {
       setScheduleRecipients([]);
       fetchScheduledReports();
     } catch (error) {
-      console.error("Error creating scheduled report:", error);
+      logger.error("Error creating scheduled report", error);
       toast.error("Failed to create scheduled report");
     } finally {
       setLoading(false);
@@ -284,7 +284,7 @@ export function ReportBuilder() {
       toast.success("Scheduled report deleted");
       fetchScheduledReports();
     } catch (error) {
-      console.error("Error deleting scheduled report:", error);
+      logger.error("Error deleting scheduled report", error);
       toast.error("Failed to delete scheduled report");
     }
   }
@@ -307,7 +307,7 @@ export function ReportBuilder() {
       toast.success(`Report ${enabled ? "enabled" : "disabled"}`);
       fetchScheduledReports();
     } catch (error) {
-      console.error("Error updating scheduled report:", error);
+      logger.error("Error updating scheduled report", error);
       toast.error("Failed to update scheduled report");
     }
   }
@@ -374,7 +374,7 @@ export function ReportBuilder() {
         `Report generated! Email functionality requires backend implementation.`
       );
     } catch (error) {
-      console.error("Error sending report:", error);
+      logger.error("Error sending report", error);
       toast.error("Failed to send report");
     } finally {
       setLoading(false);

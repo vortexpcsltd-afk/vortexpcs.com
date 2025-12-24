@@ -4,6 +4,7 @@
  */
 
 import { useState, type FormEvent } from "react";
+import { logger } from "../services/logger";
 import { Star, Send } from "lucide-react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
@@ -86,7 +87,7 @@ export function ReviewForm({
 
       onSuccess?.();
     } catch (error) {
-      console.error("Review submission error:", error);
+      logger.error("Review submission error", error);
       const message =
         error instanceof Error ? error.message : "Failed to submit review";
       toast.error(message);

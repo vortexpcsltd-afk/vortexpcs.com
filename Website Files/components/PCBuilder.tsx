@@ -2191,10 +2191,9 @@ const ComponentDetailModal = ({
                           });
                         }
                       } catch (err) {
-                        console.warn(
-                          "[PCBuilder] Fallback analytics tracking failed",
-                          err
-                        );
+                        logger.warn("Fallback analytics tracking failed", {
+                          error: err,
+                        });
                       }
                     }}
                   >
@@ -2683,10 +2682,9 @@ const OptionalExtraDetailModal = ({
                             });
                           }
                         } catch (err) {
-                          console.warn(
-                            "[PCBuilder] Fallback analytics tracking failed",
-                            err
-                          );
+                          logger.warn("Fallback analytics tracking failed", {
+                            error: err,
+                          });
                         }
                       }}
                     >
@@ -3204,10 +3202,9 @@ const ComponentCard = ({
                                       }
                                     }
                                   } catch (error) {
-                                    console.warn(
-                                      "Analytics tracking failed:",
-                                      error
-                                    );
+                                    logger.warn("Analytics tracking failed", {
+                                      error,
+                                    });
                                   }
                                 }}
                               >
@@ -5220,7 +5217,6 @@ export function PCBuilder({
           }
         }
       } catch (error) {
-        console.error("❌ [PCBuilder] Error loading CMS data:", error);
         logger.error("Error loading CMS data", {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -7564,7 +7560,9 @@ export function PCBuilder({
         });
 
         if (!result.success) {
-          console.warn("[PC Builder] Search tracking failed:", result.error);
+          logger.warn("PC Builder search tracking failed", {
+            error: result.error,
+          });
         } else {
           logger.debug("[PC Builder] Search tracked successfully");
         }
@@ -7577,12 +7575,12 @@ export function PCBuilder({
             userId: user?.uid,
             sessionId: sessionId || undefined,
           }).catch((err) => {
-            console.warn("Zero-result tracking failed:", err);
+            logger.warn("Zero-result tracking failed", { error: err });
           });
         }
       } catch (error) {
         // Catch any synchronous errors
-        console.warn("Search tracking error:", error);
+        logger.warn("Search tracking error", { error });
       }
     }, 2000); // Debounce for 2 seconds - wait for user to finish typing
 
@@ -7627,10 +7625,9 @@ export function PCBuilder({
         });
 
         if (!result.success) {
-          console.warn(
-            "[PC Builder] Global search tracking failed:",
-            result.error
-          );
+          logger.warn("PC Builder global search tracking failed", {
+            error: result.error,
+          });
         } else {
           logger.debug("[PC Builder] Global search tracked successfully");
         }
@@ -7643,11 +7640,11 @@ export function PCBuilder({
             userId: user?.uid,
             sessionId: sessionId || undefined,
           }).catch((err) => {
-            console.warn("Global zero-result tracking failed:", err);
+            logger.warn("Global zero-result tracking failed", { error: err });
           });
         }
       } catch (error) {
-        console.warn("Global search tracking error:", error);
+        logger.warn("Global search tracking error", { error });
       }
     }, 2000); // Debounce for 2 seconds - wait for user to finish typing
 

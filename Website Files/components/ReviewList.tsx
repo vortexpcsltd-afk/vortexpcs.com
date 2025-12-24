@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { logger } from "../services/logger";
 import { Star, Filter, TrendingUp, Calendar, Award } from "lucide-react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
@@ -52,7 +53,7 @@ export function ReviewList({
       setReviews(data.reviews);
       setSummary(data.summary);
     } catch (error) {
-      console.error("Failed to load reviews:", error);
+      logger.error("Failed to load reviews", error);
     } finally {
       setLoading(false);
     }

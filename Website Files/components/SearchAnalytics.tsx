@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { logger } from "../services/logger";
 import {
   Card,
   CardContent,
@@ -187,7 +188,9 @@ export function SearchAnalytics() {
           ...doc.data(),
         })) as SearchQueryData[];
       } catch (e) {
-        console.warn("SearchAnalytics: failed to load recent searches", e);
+        logger.warn("SearchAnalytics: failed to load recent searches", {
+          error: e,
+        });
       }
       setRecentSearches(searches);
 
@@ -242,7 +245,9 @@ export function SearchAnalytics() {
         })) as SearchQueryData[];
         setZeroResultSearches(zeroResults);
       } catch (e) {
-        console.warn("SearchAnalytics: failed to load zero-result searches", e);
+        logger.warn("SearchAnalytics: failed to load zero-result searches", {
+          error: e,
+        });
         setZeroResultSearches([]);
       }
 
@@ -277,7 +282,9 @@ export function SearchAnalytics() {
         })) as ConversionEvent[];
         setConversions(conversionsData);
       } catch (e) {
-        console.warn("SearchAnalytics: failed to load conversions", e);
+        logger.warn("SearchAnalytics: failed to load conversions", {
+          error: e,
+        });
         conversionsData = [];
         setConversions([]);
       }
@@ -315,7 +322,7 @@ export function SearchAnalytics() {
       );
       setConversionTrend(trend);
     } catch (error) {
-      console.error("Error loading search analytics:", error);
+      logger.error("Error loading search analytics", error);
 
       // Enhanced error reporting
       let message = "Failed to load search analytics";
@@ -388,7 +395,7 @@ export function SearchAnalytics() {
       toast.success("Search analytics data cleared successfully");
       setShowClearDialog(false);
     } catch (error) {
-      console.error("Error clearing search data:", error);
+      logger.error("Error clearing search data", error);
       toast.error(
         error instanceof Error ? error.message : "Failed to clear search data"
       );
@@ -770,7 +777,7 @@ export function SearchAnalytics() {
           )
         );
       } catch (err) {
-        console.error("Refinement analysis load error", err);
+        logger.error("Refinement analysis load error", err);
       }
     })();
   }, [dateFilter]);

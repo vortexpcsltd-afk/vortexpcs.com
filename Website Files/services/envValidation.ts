@@ -1,5 +1,6 @@
 // Declare process for serverless environment
 declare const process: { env: Record<string, string | undefined> };
+import { logger } from "./logger";
 
 type EnvCheck = {
   key: string;
@@ -23,11 +24,11 @@ export function logEnvOnce(context: string): void {
     .map((check) => check.key);
 
   if (missing.length) {
-    console.warn(
+    logger.warn(
       `[envValidation:${context}] Missing env vars: ${missing.join(", ")}`
     );
   } else {
     // Use warn to satisfy lint rule allowing only warn/error
-    console.warn(`[envValidation:${context}] Stripe env loaded`);
+    logger.warn(`[envValidation:${context}] Stripe env loaded`);
   }
 }

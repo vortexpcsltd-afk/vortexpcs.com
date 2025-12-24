@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { useGLTF } from "@react-three/drei";
 import { useMemo } from "react";
+import { logger } from "../../../services/logger";
 
 interface PSUGLTFModelProps {
   position?: [number, number, number];
@@ -60,7 +61,7 @@ export function PSUGLTFModel({
     bounds.getSize(size);
     bounds.getCenter(center);
 
-    console.warn("📐 PSU Bounds:", {
+    logger.debug("PSU Bounds:", {
       size: { x: size.x, y: size.y, z: size.z },
       center: { x: center.x, y: center.y, z: center.z },
       min: { x: bounds.min.x, y: bounds.min.y, z: bounds.min.z },

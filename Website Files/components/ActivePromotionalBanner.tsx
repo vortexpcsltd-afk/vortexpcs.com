@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "../services/logger";
 import { X } from "lucide-react";
 import { Button } from "./ui/button";
 import { subscribeBanners, type Banner } from "../services/banners";
@@ -54,7 +55,7 @@ export function ActivePromotionalBanner({
           onBannerVisibilityChange?.(false);
         }
       } catch (e) {
-        console.error("Failed to load banners:", e);
+        logger.error("Failed to load banners", e);
         onBannerVisibilityChange?.(false);
       }
     });

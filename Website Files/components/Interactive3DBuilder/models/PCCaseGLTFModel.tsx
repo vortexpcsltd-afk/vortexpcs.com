@@ -2,6 +2,7 @@ import { forwardRef, useMemo, useState } from "react";
 import * as THREE from "three";
 import { useGLTF } from "@react-three/drei";
 import { PCComponent } from "../types";
+import { logger } from "../../../services/logger";
 
 interface Component3DProps {
   component: PCComponent;
@@ -61,9 +62,9 @@ export const PCCaseGLTFModel = forwardRef<THREE.Group, Component3DProps>(
         onPointerOver={(e: THREE.Event) => {
           setHovered(true);
           onHover?.(true);
-          // Log the hovered mesh name via a permitted console method
+          // Log the hovered mesh name via logger
           const target = e.target as THREE.Object3D;
-          console.warn("Case hover:", target?.name);
+          logger.debug("Case hover:", { name: target?.name });
         }}
         onPointerOut={() => {
           setHovered(false);
