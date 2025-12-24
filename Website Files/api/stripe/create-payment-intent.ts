@@ -8,6 +8,14 @@ import {
   sanitizeName,
   clampAmount,
 } from "../../utils/validation.js";
+import {
+  PaymentIntentSchema,
+  CartItemsSchema,
+  validatePaymentAmount,
+  sanitizeMetadata,
+  toPence,
+  fromPence,
+} from "../../utils/paymentValidation.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { StripeError } from "../../types/api";
 import admin from "firebase-admin";
@@ -140,6 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customerPhone,
       shippingMethod,
       shippingCost,
+      metadata: clientMetadata,
     } = req.body;
 
     // Validate request body exists
@@ -150,53 +159,101 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    // Validate Zod schema
+    try {
+      PaymentIntentSchema.parse({
+        amount,
+        currency,
+        metadata: clientMetadata,
+        customerEmail,
+        description: customerName,
+      });
+    } catch (validationError) {
+      logger.warn("Payment intent validation failed:", validationError);
+      return res.status(400).json({
+        message:
+          validationError instanceof Error
+            ? validationError.message
+            : "Invalid payment data",
+        error: "validation_error",
+      });
+    }
+
+    // Validate cart items if provided
+    if (Array.isArray(cartItems)) {
+      try {
+        CartItemsSchema.parse(cartItems);
+      } catch (cartError) {
+        logger.warn("Cart items validation failed:", cartError);
+        return res.status(400).json({
+          message:
+            cartError instanceof Error ? cartError.message : "Invalid cart items",
+          error: "invalid_cart",
+        });
+      }
+    }
+
     const safeEmail = sanitizeEmail(customerEmail);
     const safeName = sanitizeName(customerName);
-    const normalizedAmount = clampAmount(amount);
+    const sanitizedMetadata = sanitizeMetadata(clientMetadata);
 
-    // Log incoming request for debugging
-    console.log("📥 Payment Intent Request:", {
-      amount: normalizedAmount,
-      currency,
-      hasCartItems: Array.isArray(cartItems),
-      cartItemCount: Array.isArray(cartItems) ? cartItems.length : 0,
-      hasShippingAddress: !!shippingAddress,
-      hasEmail: !!safeEmail,
-      hasName: !!safeName,
-    });
+    // Validate amount using strict validation
+    const normalizedAmount =
+      typeof amount === "number" && Number.isFinite(amount) ? amount : 0;
 
-    // Early validation of amount before logging to prevent crashes
-    if (normalizedAmount === 0 || !Number.isFinite(normalizedAmount)) {
-      console.error("❌ Invalid amount received:", {
+    if (!validatePaymentAmount(normalizedAmount)) {
+      logger.error("Invalid payment amount:", {
         originalAmount: amount,
         normalizedAmount,
         type: typeof amount,
       });
-      return res.status(400).json({ message: "Invalid amount" });
+      return res.status(400).json({
+        message: "Invalid payment amount",
+        error: "invalid_amount",
+      });
     }
 
-    // DIAGNOSTIC: Server-side amount validation
+    // Server-side amount validation against cart items
     if (cartItems && Array.isArray(cartItems)) {
-      const serverCalculatedSubtotal = cartItems.reduce(
-        (sum: number, item: any) => sum + item.price * item.quantity,
-        0
-      );
-      const serverShippingCost =
-        typeof shippingCost === "number" ? shippingCost : 0;
-      const serverCalculatedTotal =
-        serverCalculatedSubtotal + serverShippingCost;
-      const amountDiscrepancy = Math.abs(
-        normalizedAmount - serverCalculatedTotal
-      );
+      try {
+        const validatedItems = CartItemsSchema.parse(cartItems);
+        const serverCalculatedSubtotal = validatedItems.reduce(
+          (sum: number, item) => sum + item.price * item.quantity,
+          0
+        );
+        const serverShippingCost =
+          typeof shippingCost === "number" ? shippingCost : 0;
+        const serverCalculatedTotal =
+          serverCalculatedSubtotal + serverShippingCost;
+        const amountDiscrepancy = Math.abs(
+          normalizedAmount - serverCalculatedTotal
+        );
 
-      console.log("🔍 STRIPE AMOUNT VALIDATION", {
-        clientAmount: normalizedAmount.toFixed(2),
-        serverSubtotal: serverCalculatedSubtotal.toFixed(2),
-        serverShipping: serverShippingCost.toFixed(2),
-        serverTotal: serverCalculatedTotal.toFixed(2),
-        discrepancy: amountDiscrepancy.toFixed(2),
-        shippingMethod: shippingMethod || "free",
-      });
+        logger.info("Server-side amount validation", {
+          clientAmount: normalizedAmount.toFixed(2),
+          serverSubtotal: serverCalculatedSubtotal.toFixed(2),
+          serverShipping: serverShippingCost.toFixed(2),
+          serverTotal: serverCalculatedTotal.toFixed(2),
+          discrepancy: amountDiscrepancy.toFixed(2),
+          shippingMethod: shippingMethod || "free",
+        });
+
+        // Alert on significant discrepancies (> £1 difference)
+        if (amountDiscrepancy > 1) {
+          logger.warn("Price tampering suspected", {
+            clientAmount: normalizedAmount,
+            serverTotal: serverCalculatedTotal,
+            discrepancy: amountDiscrepancy,
+          });
+          return res.status(400).json({
+            message: "Cart total does not match item prices",
+            error: "amount_mismatch",
+          });
+        }
+      } catch (cartValidationError) {
+        logger.error("Cart validation during amount check failed:", cartValidationError);
+      }
+    }
 
       if (amountDiscrepancy > 0.02) {
         console.error("⚠️ STRIPE AMOUNT MISMATCH!", {

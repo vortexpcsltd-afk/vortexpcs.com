@@ -3,6 +3,7 @@
  * Handles payment processing, checkout sessions, and order confirmations
  * Supports both authenticated and guest checkout flows
  * Includes retry logic and error recovery for network failures
+ * Includes payment validation with Zod schemas
  */
 
 import {
@@ -12,6 +13,14 @@ import {
 } from "../config/stripe";
 import axios, { AxiosError } from "axios";
 import { logger } from "./logger";
+import {
+  CartItemsSchema,
+  sanitizeMetadata,
+  validateEmail,
+  validatePaymentAmount,
+  toPence,
+  type CartItem,
+} from "../utils/paymentValidation";
 
 /**
  * Retry configuration for payment operations
@@ -98,13 +107,7 @@ function isOnline(): boolean {
   return typeof navigator !== "undefined" ? navigator.onLine : true;
 }
 
-export interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  image?: string;
-}
+export type { CartItem };
 
 export interface CheckoutSession {
   sessionId: string;
@@ -130,54 +133,96 @@ export const createCheckoutSession = async (
   shippingMethod?: string,
   shippingCost?: number
 ): Promise<CheckoutSession> => {
-  // Use mock for development to avoid CORS issues
-  if (
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1"
-  ) {
-    logger.debug("Using mock checkout session for development");
-    return mockCreateCheckoutSession();
-  }
-
   try {
-    // Call backend API endpoint
-    const apiUrl = `${stripeBackendUrl}/api/stripe/create-checkout-session`;
+    // Validate cart items
+    const validatedItems = CartItemsSchema.parse(items);
 
-    const response = await axios.post(apiUrl, {
-      items,
-      customerEmail,
-      customerName,
-      userId,
-      shippingAddress,
-      shippingMethod,
-      shippingCost,
-      metadata: {
-        ...metadata,
-        source: "vortex-pcs-website",
-      },
-    });
+    // Validate email if provided
+    if (customerEmail && !validateEmail(customerEmail)) {
+      throw new Error("Invalid customer email address");
+    }
 
-    return response.data;
-  } catch (error: unknown) {
-    logger.error("Create checkout session error:", error);
+    // Validate shipping cost if provided
+    if (shippingCost !== undefined && shippingCost < 0) {
+      throw new Error("Shipping cost cannot be negative");
+    }
 
-    // Type-safe error handling for axios errors
-    if (error && typeof error === "object" && "response" in error) {
-      const axiosError = error as {
-        response?: { data?: { message?: string } };
-        message?: string;
-      };
+    // Validate total amount
+    const cartTotal = validatedItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    const totalAmount = cartTotal + (shippingCost || 0);
+
+    if (!validatePaymentAmount(totalAmount)) {
+      throw new Error("Invalid payment amount");
+    }
+
+    // Sanitize metadata
+    const sanitizedMetadata = sanitizeMetadata(metadata);
+
+    // Use mock for development to avoid CORS issues
+    if (
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1"
+    ) {
+      logger.debug("Using mock checkout session for development");
+      return mockCreateCheckoutSession();
+    }
+
+    try {
+      // Call backend API endpoint
+      const apiUrl = `${stripeBackendUrl}/api/stripe/create-checkout-session`;
+
+      const response = await axios.post(apiUrl, {
+        items: validatedItems,
+        customerEmail,
+        customerName,
+        userId,
+        shippingAddress,
+        shippingMethod,
+        shippingCost,
+        metadata: {
+          ...sanitizedMetadata,
+          source: "vortex-pcs-website",
+        },
+      });
+
+      return response.data;
+    } catch (error: unknown) {
+      logger.error("Create checkout session error:", error);
+
+      // Type-safe error handling for axios errors
+      if (error && typeof error === "object" && "response" in error) {
+        const axiosError = error as {
+          response?: { data?: { message?: string } };
+          message?: string;
+        };
+        throw new Error(
+          axiosError.response?.data?.message ||
+            axiosError.message ||
+            "Failed to create checkout session"
+        );
+      }
+
       throw new Error(
-        axiosError.response?.data?.message ||
-          axiosError.message ||
-          "Failed to create checkout session"
+        error instanceof Error
+          ? error.message
+          : "Failed to create checkout session"
       );
+    }
+  } catch (validationError) {
+    logger.error("Checkout session validation error:", validationError);
+
+    if (validationError instanceof Error) {
+      throw validationError;
     }
 
     throw new Error(
-      error instanceof Error
-        ? error.message
-        : "Failed to create checkout session"
+      "Invalid checkout data: " +
+        (validationError instanceof Object
+          ? Object.values(validationError).join(", ")
+          : String(validationError))
     );
   }
 };
@@ -247,66 +292,94 @@ export const createPaymentIntent = async (
   currency: string = "gbp",
   metadata?: Record<string, string>
 ): Promise<PaymentIntent> => {
-  // Use mock for development to avoid CORS issues
-  if (
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1"
-  ) {
-    logger.debug("Using mock payment intent for development");
-    return mockCreatePaymentIntent(amount, currency, metadata);
-  }
-
-  // Check online status
-  if (!isOnline()) {
-    throw new Error(
-      "No internet connection. Please check your network and try again."
-    );
-  }
-
   try {
-    // Use local proxy endpoint that Vite will forward to backend
-    const apiUrl = `/api/stripe/create-payment-intent`;
+    // Validate amount
+    if (!validatePaymentAmount(amount)) {
+      throw new Error("Invalid payment amount");
+    }
 
-    const response = await retryOperation(
-      () =>
-        axios.post(apiUrl, {
-          amount: Math.round(amount * 100), // Convert to pence
-          currency,
-          metadata,
-        }),
-      "Create payment intent"
-    );
+    // Validate currency code
+    if (!/^[A-Z]{3}$/.test(currency.toUpperCase())) {
+      throw new Error("Invalid currency code");
+    }
 
-    return response.data;
-  } catch (error: unknown) {
-    logger.error("Create payment intent error:", error);
+    // Validate and sanitize metadata
+    const sanitizedMetadata = sanitizeMetadata(metadata);
 
-    // Check if user went offline
+    // Use mock for development to avoid CORS issues
+    if (
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1"
+    ) {
+      logger.debug("Using mock payment intent for development");
+      return mockCreatePaymentIntent(amount, currency, sanitizedMetadata);
+    }
+
+    // Check online status
     if (!isOnline()) {
       throw new Error(
-        "Lost internet connection. Please check your network and try again."
+        "No internet connection. Please check your network and try again."
       );
     }
 
-    if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError<{ message?: string }>;
+    try {
+      // Use local proxy endpoint that Vite will forward to backend
+      const apiUrl = `/api/stripe/create-payment-intent`;
 
-      if ((axiosError.response?.status ?? 0) >= 500) {
+      const response = await retryOperation(
+        () =>
+          axios.post(apiUrl, {
+            amount: toPence(amount), // Convert to pence
+            currency: currency.toUpperCase(),
+            metadata: sanitizedMetadata,
+          }),
+        "Create payment intent"
+      );
+
+      return response.data;
+    } catch (error: unknown) {
+      logger.error("Create payment intent error:", error);
+
+      // Check if user went offline
+      if (!isOnline()) {
         throw new Error(
-          "Payment service temporarily unavailable. Please try again in a moment."
+          "Lost internet connection. Please check your network and try again."
+        );
+      }
+
+      if (axios.isAxiosError(error)) {
+        const axiosError = error as AxiosError<{ message?: string }>;
+
+        if ((axiosError.response?.status ?? 0) >= 500) {
+          throw new Error(
+            "Payment service temporarily unavailable. Please try again in a moment."
+          );
+        }
+
+        throw new Error(
+          axiosError.response?.data?.message ||
+            "Failed to initialize payment. Please try again."
         );
       }
 
       throw new Error(
-        axiosError.response?.data?.message ||
-          "Failed to initialize payment. Please try again."
+        error instanceof Error
+          ? error.message
+          : "Failed to create payment intent. Please try again."
       );
+    }
+  } catch (validationError) {
+    logger.error("Payment intent validation error:", validationError);
+
+    if (validationError instanceof Error) {
+      throw validationError;
     }
 
     throw new Error(
-      error instanceof Error
-        ? error.message
-        : "Failed to create payment intent. Please try again."
+      "Invalid payment data: " +
+        (validationError instanceof Object
+          ? Object.values(validationError).join(", ")
+          : String(validationError))
     );
   }
 };
@@ -425,10 +498,21 @@ export const formatPrice = (
 };
 
 /**
- * Calculate cart total
+ * Calculate cart total with validation
  */
 export const calculateCartTotal = (items: CartItem[]): number => {
-  return items.reduce((total, item) => total + item.price * item.quantity, 0);
+  try {
+    // Validate items
+    const validatedItems = CartItemsSchema.parse(items);
+
+    return validatedItems.reduce(
+      (total, item) => total + item.price * item.quantity,
+      0
+    );
+  } catch (error) {
+    logger.error("Cart total calculation validation error:", error);
+    return 0;
+  }
 };
 
 /**

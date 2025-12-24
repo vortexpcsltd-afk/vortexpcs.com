@@ -1,11 +1,17 @@
 /**
  * PayPal Payment Service
  * Handles PayPal payment processing, order creation, and capture
+ * Includes Zod validation for payment security
  */
 
 import axios from "axios";
 import { logger } from "./logger";
 import { paypalBackendUrl, paypalConfig } from "../config/paypal";
+import {
+  PayPalOrderSchema,
+  sanitizeMetadata,
+  validateEmail,
+} from "../utils/paymentValidation";
 
 export interface PayPalOrderItem {
   id: string;
@@ -39,25 +45,42 @@ export const createPayPalOrder = async (
   userId?: string,
   metadata?: Record<string, string>
 ): Promise<PayPalOrderResponse> => {
-  // Use mock for development
-  if (
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1"
-  ) {
-    logger.debug("Using mock PayPal order creation for development");
-    return mockCreatePayPalOrder(items);
-  }
-
   try {
-    const apiUrl = `${paypalBackendUrl}/api/paypal/create-order`;
-
-    const response = await axios.post(apiUrl, {
+    // Validate items
+    const validatedOrder = PayPalOrderSchema.parse({
       items,
       customerEmail,
       userId,
       currency: paypalConfig.currency,
+      metadata,
+    });
+
+    // Validate email if provided
+    if (customerEmail && !validateEmail(customerEmail)) {
+      throw new Error("Invalid customer email address");
+    }
+
+    // Sanitize metadata
+    const sanitizedMetadata = sanitizeMetadata(metadata);
+
+    // Use mock for development
+    if (
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1"
+    ) {
+      logger.debug("Using mock PayPal order creation for development");
+      return mockCreatePayPalOrder(items);
+    }
+
+    const apiUrl = `${paypalBackendUrl}/api/paypal/create-order`;
+
+    const response = await axios.post(apiUrl, {
+      items: validatedOrder.items,
+      customerEmail,
+      userId,
+      currency: validatedOrder.currency,
       metadata: {
-        ...metadata,
+        ...sanitizedMetadata,
         source: "vortex-pcs-website",
       },
     });
@@ -65,6 +88,10 @@ export const createPayPalOrder = async (
     return response.data;
   } catch (error: unknown) {
     logger.error("Create PayPal order error:", error);
+
+    if (error instanceof Error) {
+      throw error;
+    }
 
     if (error && typeof error === "object" && "response" in error) {
       const axiosError = error as {
@@ -78,9 +105,7 @@ export const createPayPalOrder = async (
       );
     }
 
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to create PayPal order"
-    );
+    throw new Error("Failed to create PayPal order");
   }
 };
 
@@ -127,10 +152,23 @@ export const capturePayPalOrder = async (
 };
 
 /**
- * Calculate total from items
+ * Calculate total from items with validation
  */
 export const calculatePayPalTotal = (items: PayPalOrderItem[]): number => {
-  return items.reduce((total, item) => total + item.price * item.quantity, 0);
+  try {
+    const validatedOrder = PayPalOrderSchema.parse({
+      items,
+      currency: paypalConfig.currency,
+    });
+
+    return validatedOrder.items.reduce(
+      (total, item) => total + item.price * item.quantity,
+      0
+    );
+  } catch (error) {
+    logger.error("PayPal total calculation validation error:", error);
+    return 0;
+  }
 };
 
 /**

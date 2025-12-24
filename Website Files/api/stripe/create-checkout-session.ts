@@ -3,6 +3,14 @@ import Stripe from "stripe";
 import admin from "firebase-admin";
 import { logger } from "../../services/logger.js";
 import { generateOrderNumber } from "../utils/orderNumber.js";
+import {
+  CartItemsSchema,
+  validateCartTotal,
+  validateEmail,
+  sanitizeMetadata,
+  toPence,
+  fromPence,
+} from "../../utils/paymentValidation.js";
 
 // Initialize Stripe
 const stripeSecret = process.env.STRIPE_SECRET_KEY || "";
@@ -85,55 +93,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? items
       : [];
 
-    // Validation
-    if (!lineItemInput.length) {
+    // Validation: Validate cart items using Zod schema
+    let validatedItems;
+    try {
+      validatedItems = CartItemsSchema.parse(lineItemInput);
+    } catch (validationError) {
+      logger.warn("Invalid cart items received:", validationError);
+      return res.status(400).json({
+        error:
+          validationError instanceof Error
+            ? validationError.message
+            : "Invalid cart items",
+      });
+    }
+
+    // Validation: Check cart is not empty
+    if (!validatedItems.length) {
       return res.status(400).json({ error: "Cart items are required" });
     }
 
+    // Validation: Check email is provided
     if (!customerEmail) {
       return res.status(400).json({ error: "Customer email is required" });
     }
 
-    const normalizedAmount =
+    // Validation: Validate email format
+    if (!validateEmail(customerEmail)) {
+      return res.status(400).json({ error: "Invalid customer email address" });
+    }
+
+    // Validation: Sanitize metadata
+    const sanitizedMetadata = sanitizeMetadata(clientMetadata);
+
+    // Validation: Calculate and validate amount
+    const calculatedAmount =
       typeof amount === "number" && amount > 0
         ? amount
-        : lineItemInput.reduce(
-            (sum: number, item: { price: number; quantity: number }) =>
-              sum + Number(item.price || 0) * Number(item.quantity || 1),
-            0
+        : fromPence(
+            validatedItems.reduce(
+              (sum: number, item) => sum + toPence(item.price * item.quantity),
+              0
+            )
           ) + (typeof shippingCost === "number" ? shippingCost : 0);
 
-    if (!normalizedAmount || normalizedAmount <= 0) {
-      return res.status(400).json({ error: "Invalid amount" });
+    if (!calculatedAmount || calculatedAmount <= 0) {
+      logger.warn("Invalid cart amount", { amount, calculatedAmount });
+      return res.status(400).json({ error: "Invalid cart amount" });
+    }
+
+    // Validation: Verify cart total hasn't been tampered with
+    if (
+      typeof amount === "number" &&
+      !validateCartTotal(validatedItems, amount, 200)
+    ) {
+      logger.warn("Price tampering attempt detected", {
+        sentAmount: amount,
+        calculatedAmount,
+        items: validatedItems.map((i) => ({ id: i.id, price: i.price })),
+      });
+      return res.status(400).json({
+        error: "Cart total does not match item prices",
+      });
+    }
+
+    // Validation: Check shipping cost is non-negative
+    if (typeof shippingCost === "number" && shippingCost < 0) {
+      logger.warn("Negative shipping cost attempt", { shippingCost });
+      return res.status(400).json({ error: "Invalid shipping cost" });
     }
 
     // Generate order number based on customer type
     const db = admin.apps.length > 0 ? admin.firestore() : undefined;
     const orderNumber = await generateOrderNumber(userId, db);
 
-    // Create Stripe line items
+    // Create Stripe line items from validated data
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
-      lineItemInput.map(
-        (item: {
-          id?: string;
-          name: string;
-          price: number;
-          quantity: number;
-          image?: string;
-          description?: string;
-        }) => ({
-          price_data: {
-            currency: currency.toLowerCase(),
-            product_data: {
-              name: item.name,
-              description: item.description,
-              metadata: item.id ? { productId: item.id } : undefined,
-            },
-            unit_amount: Math.round(Number(item.price || 0) * 100), // Convert to pence
+      validatedItems.map((item) => ({
+        price_data: {
+          currency: currency.toLowerCase(),
+          product_data: {
+            name: item.name,
+            description: item.description,
+            metadata: item.id ? { productId: item.id } : undefined,
           },
-          quantity: Number(item.quantity || 1),
-        })
-      );
+          unit_amount: toPence(item.price), // Convert to pence
+        },
+        quantity: item.quantity,
+      }));
 
     // Create order in Firestore (pending payment)
     let orderId = "";
@@ -145,29 +191,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         customerEmail: customerEmail,
         customerName: customerName || "",
         customerPhone: customerPhone || "",
-        amount: normalizedAmount,
+        amount: calculatedAmount,
         currency: currency.toUpperCase(),
         status: "pending_payment",
         paymentMethod: "stripe",
-        items: lineItemInput.map(
-          (item: {
-            id?: string;
-            name: string;
-            category?: string;
-            price: number;
-            quantity: number;
-            image?: string;
-            ean?: string;
-          }) => ({
-            productId: item.id || "", // optional in subscriptions
-            name: item.name,
-            category: item.category || "",
-            price: item.price,
-            quantity: item.quantity,
-            ean: item.ean || "",
-            image: item.image || "",
-          })
-        ),
+        items: validatedItems.map((item) => ({
+          productId: item.id || "",
+          name: item.name,
+          category: item.category || "",
+          price: item.price,
+          quantity: item.quantity,
+          ean: item.ean || "",
+          image: item.image || "",
+        })),
         shippingAddress: shippingAddress || null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -181,6 +217,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         orderId,
         orderNumber,
         userId,
+        amount: calculatedAmount,
       });
     }
 
@@ -193,7 +230,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const cartSerialized = Buffer.from(
       JSON.stringify(
-        lineItemInput.map((item: any) => ({
+        validatedItems.map((item) => ({
           id: item.id,
           n: item.name,
           p: item.price,
@@ -217,8 +254,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       shippingCost:
         typeof shippingCost === "number" ? String(shippingCost) : "0",
       source: "vortex-pcs-website",
-      ...(clientMetadata && typeof clientMetadata === "object"
-        ? clientMetadata
+      ...(sanitizedMetadata && typeof sanitizedMetadata === "object"
+        ? sanitizedMetadata
         : {}),
       cart: cartSerialized,
     } as Record<string, string>;
