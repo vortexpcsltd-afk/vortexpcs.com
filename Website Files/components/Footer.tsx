@@ -32,6 +32,12 @@ export function Footer() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
 
+  const handleNavigation = (view: string) => {
+    navigate(view);
+    // Scroll to top after navigation
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   useEffect(() => {
     const load = async () => {
       const [ci, s] = await Promise.all([
@@ -209,7 +215,8 @@ export function Footer() {
                 {productLinks.map((link) => (
                   <li key={link.label}>
                     <button
-                      onClick={() => navigate(link.view)}
+                      type="button"
+                      onClick={() => handleNavigation(link.view)}
                       className="group flex items-center gap-2 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
                     >
                       <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
@@ -232,7 +239,8 @@ export function Footer() {
                 {supportLinks.map((link) => (
                   <li key={link.label}>
                     <button
-                      onClick={() => navigate(link.view)}
+                      type="button"
+                      onClick={() => handleNavigation(link.view)}
                       className="group flex items-center gap-2 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
                     >
                       <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
@@ -255,7 +263,8 @@ export function Footer() {
                 {companyLinks.map((link) => (
                   <li key={link.label}>
                     <button
-                      onClick={() => navigate(link.view)}
+                      type="button"
+                      onClick={() => handleNavigation(link.view)}
                       className="group flex items-center gap-2 text-xs sm:text-sm text-gray-400 hover:text-sky-400 transition-all duration-300"
                     >
                       <ChevronRight className="w-3 h-3 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
@@ -444,7 +453,8 @@ export function Footer() {
               {legalLinks.map((link, index) => (
                 <React.Fragment key={link.label}>
                   <button
-                    onClick={() => navigate(link.view)}
+                    type="button"
+                    onClick={() => handleNavigation(link.view)}
                     className="text-xs text-gray-500 hover:text-sky-400 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded-sm px-1"
                   >
                     {link.label}
