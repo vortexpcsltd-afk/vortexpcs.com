@@ -95,11 +95,11 @@ export function Footer() {
   return (
     <footer className="relative mt-32 overflow-hidden backdrop-blur-xl bg-black/40">
       {/* Premium gradient background with layers */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black via-slate-950 to-black"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/30 via-transparent to-transparent"></div>
+      <div className="absolute inset-0 bg-gradient-to-b from-black via-slate-950 to-black pointer-events-none"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/30 via-transparent to-transparent pointer-events-none"></div>
 
       {/* Top border */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/50 to-transparent"></div>
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-sky-500/50 to-transparent pointer-events-none"></div>
 
       <div className="relative z-10">
         {/* Premium hero section */}
