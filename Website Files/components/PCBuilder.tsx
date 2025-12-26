@@ -449,6 +449,7 @@ import {
   Headphones,
   Cable,
   Box,
+  Laptop2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ProductSchema } from "./seo/ProductSchema";
@@ -7844,6 +7845,51 @@ export function PCBuilder({
                       >
                         <Building2 className="w-4 h-4 mr-2" />
                         View Business PCs
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gaming Laptops Banner */}
+              <div className="mt-8 max-w-[1300px] mx-auto px-4">
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-300"></div>
+                  <div className="relative bg-gradient-to-r from-cyan-950/50 to-blue-950/50 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-8 hover:border-cyan-400/50 transition-all duration-300">
+                    <div className="flex flex-col md:flex-row items-center gap-6">
+                      <div className="flex-shrink-0">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 flex items-center justify-center">
+                          <Laptop2 className="w-8 h-8 text-cyan-400" />
+                        </div>
+                      </div>
+                      <div className="flex-1 text-center md:text-left">
+                        <h3 className="text-2xl font-bold mb-2">
+                          <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                            Top-End Gaming Laptops
+                          </span>
+                        </h3>
+                        <p className="text-gray-300 mb-4">
+                          Portable performance monsters with desktop-class GPUs,
+                          premium displays, and advanced cooling.
+                        </p>
+                        <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                          <span className="text-xs px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                            RTX 4080/4090
+                          </span>
+                          <span className="text-xs px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                            240Hz QHD/4K Displays
+                          </span>
+                          <span className="text-xs px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400">
+                            Advanced Thermal Design
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => navigate("/laptops")}
+                        className="flex-shrink-0 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500"
+                      >
+                        <Laptop2 className="w-4 h-4 mr-2" />
+                        Browse Laptops
                       </Button>
                     </div>
                   </div>

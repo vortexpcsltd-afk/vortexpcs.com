@@ -13,13 +13,17 @@ import { OurProcessPage } from "../components/OurProcessPage";
 import { TechnicalSupportPage } from "../components/TechnicalSupportPage";
 import { QualityStandardsPage } from "../components/QualityStandardsPage";
 import { ReturnsRefundsPage } from "../components/ReturnsRefundsPage";
-import { Interactive3DBuilder } from "../components/Interactive3DBuilder";
 import { getDefaultComponentPositions } from "../components/Interactive3DBuilder/utils";
 import type { SelectedComponents } from "../components/Interactive3DBuilder/types";
 import { Mobile3DVisualizerModal } from "../components/Mobile3DVisualizerModal";
 
 const PCBuilder = lazy(() =>
   import("../components/PCBuilder").then((m) => ({ default: m.PCBuilder }))
+);
+const Interactive3DBuilder = lazy(() =>
+  import("../components/Interactive3DBuilder").then((m) => ({
+    default: m.Interactive3DBuilder,
+  }))
 );
 const VacanciesPage = lazy(() =>
   import("../components/Vacancies").then((m) => ({ default: m.VacanciesPage }))
@@ -60,6 +64,9 @@ const CheckoutPage = lazy(() =>
   import("../components/CheckoutPage").then((m) => ({
     default: m.CheckoutPage,
   }))
+);
+const LaptopsPage = lazy(() =>
+  import("../components/LaptopsPage").then((m) => ({ default: m.LaptopsPage }))
 );
 
 type RecommendedBuildSpec = {
@@ -277,6 +284,17 @@ export function AppRoutes({
       />
 
       <Route
+        path="/laptops"
+        element={
+          <PageErrorBoundary pageName="Gaming Laptops">
+            <Suspense fallback={<RouteLoader />}>
+              <LaptopsPage />
+            </Suspense>
+          </PageErrorBoundary>
+        }
+      />
+
+      <Route
         path="/visual-configurator"
         element={
           <PageErrorBoundary pageName="3D Visual Configurator">
@@ -407,14 +425,16 @@ export function AppRoutes({
                       isOpen={showModal}
                       onClose={() => setShowModal(false)}
                     />
-                    <Interactive3DBuilder
-                      components={sampleBuild}
-                      caseType="mid-tower"
-                      isOpen={true}
-                      onClose={() => go("home")}
-                      showCableRouting={true}
-                      rgbPreview={true}
-                    />
+                    <Suspense fallback={<RouteLoader />}>
+                      <Interactive3DBuilder
+                        components={sampleBuild}
+                        caseType="mid-tower"
+                        isOpen={true}
+                        onClose={() => go("home")}
+                        showCableRouting={true}
+                        rgbPreview={true}
+                      />
+                    </Suspense>
                   </>
                 );
               };

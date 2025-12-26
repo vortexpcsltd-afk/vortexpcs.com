@@ -16,6 +16,7 @@ import {
   Truck,
   RotateCcw,
   Sparkles,
+  WifiOff,
 } from "lucide-react";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
@@ -26,10 +27,43 @@ import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { Alert, AlertDescription } from "./ui/alert";
 import { StripePaymentForm } from "./StripePaymentForm";
-import type { CartItem } from "../types";
+import type { CartItem, ShippingAddress } from "../types";
 import { logger } from "../services/logger";
 import { toast } from "sonner";
 import { ButtonWithLoading } from "./util/LoadingComponents";
+import {
+  generateIdempotencyKey,
+  recordIdempotencyResult,
+} from "../utils/idempotencyKey";
+import { offlineQueueManager } from "../services/offlineQueue";
+import { OfflineIndicator } from "./OfflineIndicator";
+import {
+  type ShippingMethodId,
+  validateShippingMethod,
+  getAvailableShippingMethods,
+  validateShippingData,
+} from "../utils/shippingValidation";
+import {
+  validateBuildService,
+  validateDiscountCalculation,
+  validateOrderPricing,
+  sanitizeBuildService,
+  sanitizeCoupon,
+  createPricingAuditEntry,
+} from "../utils/buildServiceValidation";
+import {
+  validateAccountCreation,
+  sanitizeAccountData,
+  storeAccountCreationData,
+  retrieveAccountCreationData,
+  clearAccountCreationData,
+} from "../utils/accountValidation";
+import {
+  performCheckoutCleanup,
+  clearSensitiveCheckoutData,
+  resetFormAfterCheckout,
+  INITIAL_FORM_DATA,
+} from "../utils/checkoutReset";
 
 // Initialize Stripe (module level)
 const stripePromise = loadStripe(
@@ -45,16 +79,14 @@ interface CheckoutPageProps {
 
 type PaymentMethod = "stripe" | "paypal" | "bank_transfer";
 
-interface ShippingAddress {
+/**
+ * Checkout form data - extends ShippingAddress with additional checkout-specific fields
+ * Uses consolidated ShippingAddress type from types/index.ts
+ */
+interface CheckoutFormData extends ShippingAddress {
   fullName: string;
   email: string;
   phone: string;
-  line1: string;
-  line2?: string;
-  city: string;
-  county?: string;
-  postcode: string;
-  country: string;
   password?: string;
 }
 
@@ -69,10 +101,58 @@ export function CheckoutPage({
     useState<PaymentMethod>("stripe");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(
     null
   );
   const [stripeOrderNumber, setStripeOrderNumber] = useState<string>("");
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+
+  // Subscribe to offline status changes
+  useEffect(() => {
+    const unsubscribe = offlineQueueManager.subscribe((online) => {
+      setIsOnline(online);
+      if (!online) {
+        toast.warning(
+          "No internet connection. Payments are temporarily unavailable."
+        );
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Check for pending account creation on mount (retry from previous session)
+  useEffect(() => {
+    const pendingAccount = retrieveAccountCreationData();
+    if (pendingAccount) {
+      logger.info("Found pending account creation, attempting retry");
+
+      // Retry account creation
+      (async () => {
+        try {
+          const { registerUser } = await import("../services/auth");
+          await registerUser(
+            pendingAccount.email,
+            pendingAccount.password,
+            pendingAccount.displayName
+          );
+          logger.info("Pending account created successfully", {
+            email: pendingAccount.email,
+          });
+          toast.success("Your account has been created!");
+        } catch (err) {
+          logger.error("Pending account creation retry failed", { err });
+          // Don't re-store - user can manually create account
+          toast.error(
+            "Unable to create your account. Please contact support or register manually."
+          );
+        }
+      })();
+    }
+  }, []);
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -83,17 +163,16 @@ export function CheckoutPage({
       setTimeout(() => navigate("/"), 100);
     }
   }, [cartHydrated, cartItems, navigate]);
-  const [formData, setFormData] = useState<ShippingAddress>({
-    fullName: "",
-    email: "",
-    phone: "",
-    line1: "",
-    line2: "",
-    city: "",
-    county: "",
-    postcode: "",
-    country: "United Kingdom",
-    password: "",
+
+  // Clear sensitive data on component unmount (privacy protection)
+  useEffect(() => {
+    return () => {
+      clearSensitiveCheckoutData();
+      logger.info("CheckoutPage unmounted, sensitive data cleared");
+    };
+  }, []);
+  const [formData, setFormData] = useState<CheckoutFormData>({
+    ...INITIAL_FORM_DATA,
   });
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
@@ -201,28 +280,8 @@ export function CheckoutPage({
     return hasCore && hasChassisAndPower && hasEnoughLines;
   }, [categorySet, totalLineItems]);
 
-  // Shipping options (Free always available as requested)
-  const shippingOptions = [
-    {
-      id: "free",
-      name: "Free Shipping",
-      estimate: "5–7 working days",
-      cost: 0,
-    },
-    {
-      id: "standard",
-      name: "Standard",
-      estimate: "2–4 working days",
-      cost: 9.99,
-    },
-    {
-      id: "express",
-      name: "Express",
-      estimate: "1–2 working days",
-      cost: 14.99,
-    },
-  ] as const;
-  type ShippingMethodId = (typeof shippingOptions)[number]["id"];
+  // Get available shipping options from validation module
+  const shippingOptions = getAvailableShippingMethods();
   const [selectedShipping, setSelectedShipping] =
     useState<ShippingMethodId>("free");
 
@@ -259,10 +318,32 @@ export function CheckoutPage({
       const savedAddress = localStorage.getItem("vortex_shipping_address");
       if (savedAddress) {
         const parsed = JSON.parse(savedAddress);
-        setFormData((prev) => ({ ...prev, ...parsed }));
+
+        // Validate and sanitize loaded data
+        if (typeof parsed === "object" && parsed !== null) {
+          // Never auto-fill password field (security)
+          delete parsed.password;
+
+          // Only set if essential fields are present
+          if (parsed.email && parsed.postcode) {
+            setFormData((prev) => ({ ...prev, ...parsed }));
+          } else {
+            logger.warn("Saved address missing essential fields, ignoring");
+            localStorage.removeItem("vortex_shipping_address");
+          }
+        } else {
+          logger.warn("Saved address is not a valid object, ignoring");
+          localStorage.removeItem("vortex_shipping_address");
+        }
       }
     } catch (error) {
       logger.warn("Failed to load saved address", { error });
+      // Clear corrupted data
+      try {
+        localStorage.removeItem("vortex_shipping_address");
+      } catch {
+        // Ignore
+      }
     }
   }, []);
 
@@ -308,37 +389,136 @@ export function CheckoutPage({
     }
   };
 
+  // Helper to categorize and persist errors
+  const handleError = (
+    message: string,
+    _type: "validation" | "network" | "payment" | "server"
+  ) => {
+    setError(message);
+
+    // Persist error to sessionStorage
+    try {
+      sessionStorage.setItem(
+        "checkout_error",
+        JSON.stringify({
+          message,
+          type: _type,
+          timestamp: Date.now(),
+        })
+      );
+    } catch (e) {
+      logger.error("Failed to persist error state", e);
+    }
+
+    toast.error(message);
+  };
+
+  // Clear error state
+  const clearError = () => {
+    setError(null);
+    try {
+      sessionStorage.removeItem("checkout_error");
+    } catch (e) {
+      logger.error("Failed to clear error state", e);
+    }
+  };
+
   // Validate form
-  const validateForm = (): boolean => {
+  const validateForm = async (): Promise<boolean> => {
     const errors: Record<string, string> = {};
 
-    if (!formData.fullName.trim()) errors.fullName = "Full name is required";
-    if (!formData.email.trim()) {
-      errors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = "Invalid email address";
-    }
-    if (!formData.phone.trim()) {
-      errors.phone = "Phone number is required";
-    } else if (!/^[\d\s+\-()]+$/.test(formData.phone)) {
-      errors.phone = "Invalid phone number";
-    }
-    if (!formData.line1.trim()) errors.line1 = "Address is required";
-    if (!formData.city.trim()) errors.city = "City is required";
-    if (!formData.postcode.trim()) {
-      errors.postcode = "Postcode is required";
-    } else if (
-      !/^[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}$/i.test(formData.postcode.trim())
-    ) {
-      errors.postcode = "Invalid UK postcode";
+    // Validate full name
+    if (!formData.fullName?.trim()) {
+      errors.fullName = "Full name is required";
+    } else if (formData.fullName.trim().length < 2) {
+      errors.fullName = "Full name must be at least 2 characters";
     }
 
+    // Validate email
+    if (!formData.email?.trim()) {
+      errors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.email = "Invalid email address";
+    }
+
+    // Validate phone
+    if (!formData.phone?.trim()) {
+      errors.phone = "Phone number is required";
+    } else if (
+      !/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/.test(
+        formData.phone.trim()
+      )
+    ) {
+      errors.phone = "Invalid phone number";
+    }
+
+    // Validate address
+    if (!formData.line1?.trim()) {
+      errors.line1 = "Street address is required";
+    } else if (formData.line1.trim().length < 5) {
+      errors.line1 = "Street address must be at least 5 characters";
+    }
+
+    // Validate city
+    if (!formData.city?.trim()) {
+      errors.city = "City is required";
+    } else if (formData.city.trim().length < 2) {
+      errors.city = "City must be at least 2 characters";
+    }
+
+    // Validate postcode (UK format)
+    if (!formData.postcode?.trim()) {
+      errors.postcode = "Postcode is required";
+    } else {
+      const postcodeRegex = /^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/i;
+      if (!postcodeRegex.test(formData.postcode.trim())) {
+        errors.postcode = "Invalid UK postcode (e.g., SW1A 1AA)";
+      }
+    }
+
+    // If creating account, validate password and check if account exists
     if (createAccount) {
       const pwd = (formData.password || "").trim();
+      const email = formData.email.trim();
+      const displayName = formData.fullName.trim();
+
       if (!pwd) {
         errors.password = "Password is required to create an account";
-      } else if (pwd.length < 6) {
-        errors.password = "Use at least 6 characters";
+      } else if (pwd.length < 8) {
+        errors.password = "Password must be at least 8 characters";
+      } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(pwd)) {
+        errors.password =
+          "Password must contain uppercase, lowercase, and numbers";
+      }
+
+      // Pre-validate account creation asynchronously
+      // This check happens during form validation, BEFORE payment
+      if (email && pwd && !errors.email && !errors.password) {
+        try {
+          const accountValidation = await validateAccountCreation(
+            email,
+            pwd,
+            displayName
+          );
+
+          if (!accountValidation.valid) {
+            if (accountValidation.accountExists) {
+              errors.email =
+                accountValidation.error || "Account already exists";
+            } else {
+              errors.password = accountValidation.error || "Invalid password";
+            }
+          } else if (accountValidation.warnings) {
+            // Show warnings but don't block submission
+            accountValidation.warnings.forEach((warning) => {
+              toast.warning(warning);
+            });
+          }
+        } catch (err) {
+          logger.warn("Account validation check failed, continuing", { err });
+          // Don't block checkout if validation check fails
+          // Server will handle duplicate account errors
+        }
       }
     }
 
@@ -347,7 +527,7 @@ export function CheckoutPage({
   };
 
   // Handle input changes
-  const handleInputChange = (field: keyof ShippingAddress, value: string) => {
+  const handleInputChange = (field: keyof CheckoutFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear validation error for this field
     if (validationErrors[field]) {
@@ -361,11 +541,21 @@ export function CheckoutPage({
 
   // Handle payment submission
   const handleSubmit = async () => {
-    setError(null);
+    clearError();
+
+    // Check online status first
+    if (!isOnline) {
+      handleError(
+        "No internet connection. Please check your network and try again.",
+        "network"
+      );
+      toast.error("Offline: Payment temporarily unavailable");
+      return;
+    }
 
     // Validate form
-    if (!validateForm()) {
-      toast.error("Please fill in all required fields correctly");
+    if (!(await validateForm())) {
+      handleError("Please fill in all required fields correctly", "validation");
       return;
     }
 
@@ -404,8 +594,9 @@ export function CheckoutPage({
       );
 
       if (invalidItems.length > 0) {
-        setError(
-          "Some items in your cart are invalid. Please refresh and try again."
+        handleError(
+          "Some items in your cart are invalid. Please refresh and try again.",
+          "validation"
         );
         setIsProcessing(false);
         logger.error("Invalid cart items detected", { invalidItems });
@@ -413,8 +604,88 @@ export function CheckoutPage({
       }
 
       if (cartItems.length === 0 && !buildService) {
-        setError("Your cart is empty");
+        handleError("Your cart is empty", "validation");
         setIsProcessing(false);
+        return;
+      }
+
+      // Validate shipping method and cost
+      const shippingValidation = validateShippingData({
+        method: selectedShipping,
+        cost: shippingCost,
+      });
+
+      if (!shippingValidation.valid) {
+        handleError(
+          shippingValidation.error || "Invalid shipping method or cost",
+          "validation"
+        );
+        setIsProcessing(false);
+        logger.error("Shipping validation failed", {
+          method: selectedShipping,
+          cost: shippingCost,
+          error: shippingValidation.error,
+        });
+        return;
+      }
+
+      // Validate pricing if coupon applied
+      if (appliedCoupon) {
+        const discountValidation = validateDiscountCalculation(
+          componentsSubtotal,
+          appliedCoupon.discountPercent,
+          appliedCoupon.discountAmount
+        );
+
+        if (!discountValidation.valid) {
+          handleError(
+            discountValidation.error ||
+              "Discount calculation mismatch. Please try again.",
+            "validation"
+          );
+          setIsProcessing(false);
+          logger.error("Coupon validation failed", {
+            coupon: appliedCoupon,
+            subtotal: componentsSubtotal,
+            error: discountValidation.error,
+          });
+          return;
+        }
+      }
+
+      // Validate build service if selected
+      if (buildService && !validateBuildService(buildService)) {
+        handleError("Invalid build service selected", "validation");
+        setIsProcessing(false);
+        logger.error("Build service validation failed", {
+          buildService,
+        });
+        return;
+      }
+
+      // Validate complete order pricing
+      const pricingValidation = validateOrderPricing({
+        subtotal: componentsSubtotal,
+        buildServiceCost: buildService?.price ?? 0,
+        discountAmount: appliedCoupon?.discountAmount ?? 0,
+        shippingCost,
+        total,
+      });
+
+      if (!pricingValidation.valid) {
+        handleError(
+          pricingValidation.error || "Order pricing validation failed",
+          "validation"
+        );
+        setIsProcessing(false);
+        logger.error("Order pricing validation failed", {
+          subtotal: componentsSubtotal,
+          buildServiceCost: buildService?.price,
+          discountAmount: appliedCoupon?.discountAmount,
+          shippingCost,
+          total,
+          error: pricingValidation.error,
+        });
         return;
       }
 
@@ -440,16 +711,32 @@ export function CheckoutPage({
         ...(buildServiceItem ? [buildServiceItem] : []),
       ];
 
-      // Prepare order data
+      // Prepare order data with sanitized coupon and build service
+      const sanitizedCoupon = sanitizeCoupon(appliedCoupon ?? null);
+      const sanitizedBuildService = sanitizeBuildService(buildService ?? null);
+
+      // Create pricing audit trail for reconciliation
+      const pricingAudit = createPricingAuditEntry(
+        {
+          subtotal: componentsSubtotal,
+          buildServiceCost: buildService?.price ?? 0,
+          discountAmount: appliedCoupon?.discountAmount ?? 0,
+          shippingCost,
+          total,
+        },
+        buildService?.id,
+        appliedCoupon?.code
+      );
+
       const orderData = {
         amount: total,
         currency: "gbp",
         cartItems: orderItems,
         shippingAddress: {
-          line1: formData.line1,
+          street: formData.line1, // API expects 'street'
           line2: formData.line2,
           city: formData.city,
-          county: formData.county,
+          state: formData.county, // API expects 'state'
           postcode: formData.postcode,
           country: formData.country,
         },
@@ -458,20 +745,10 @@ export function CheckoutPage({
         customerPhone: formData.phone,
         shippingMethod: selectedShipping,
         shippingCost,
-        coupon: appliedCoupon
-          ? {
-              code: appliedCoupon.code,
-              discountPercent: appliedCoupon.discountPercent,
-              discountAmount: appliedCoupon.discountAmount,
-            }
-          : null,
-        buildService: buildService
-          ? {
-              id: buildService.id,
-              name: buildService.name,
-              price: buildService.price,
-            }
-          : null,
+        coupon: sanitizedCoupon,
+        buildService: sanitizedBuildService,
+        // Pricing audit for server-side reconciliation
+        pricingAudit,
         accountRequest: createAccount
           ? {
               create: true,
@@ -522,18 +799,58 @@ export function CheckoutPage({
     const password = (formData.password || "").trim();
     if (!password) return;
 
+    // Sanitize account data
+    const accountData = sanitizeAccountData(
+      formData.email,
+      password,
+      formData.fullName
+    );
+
     try {
       const { registerUser } = await import("../services/auth");
-      const displayName = formData.fullName.trim() || formData.email.trim();
-      await registerUser(formData.email.trim(), password, displayName);
+      await registerUser(
+        accountData.email,
+        accountData.password,
+        accountData.displayName
+      );
       logger.info("Account created from checkout", {
-        email: formData.email,
+        email: accountData.email,
       });
+
+      // Clear any stored account data on success
+      clearAccountCreationData();
+
+      toast.success("Account created successfully!");
     } catch (err) {
-      logger.warn("Checkout account creation failed or skipped", {
-        error: String(err),
+      const errorMessage = err instanceof Error ? err.message : String(err);
+
+      // Check if account already exists error
+      if (
+        errorMessage.includes("already exists") ||
+        errorMessage.includes("email-already-in-use")
+      ) {
+        logger.warn("Account already exists, skipping creation", {
+          email: accountData.email,
+        });
+        toast.info(
+          "Account already exists with this email. Please log in to view your order."
+        );
+        return;
+      }
+
+      // For other errors, store account data for retry after payment success
+      logger.error("Account creation failed, storing for retry", {
+        error: errorMessage,
       });
+      storeAccountCreationData(accountData);
+
+      toast.error(
+        "Account creation failed. Your order was successful, but please contact support to activate your account.",
+        { duration: 6000 }
+      );
+
       // Do not block checkout flow if account creation fails
+      // Payment has already succeeded at this point
     }
   };
 
@@ -542,60 +859,140 @@ export function CheckoutPage({
     orderData: Record<string, unknown>,
     authToken: string | null
   ) => {
-    // Create Payment Intent for embedded form
-    const response = await fetch("/api/stripe/create-payment-intent", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(authToken && { Authorization: `Bearer ${authToken}` }),
-      },
-      body: JSON.stringify(orderData),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorMessage = "Failed to initialize payment";
-      let errorDetails = {};
-
+    try {
+      // Get current user ID for idempotency key
+      let userId: string | undefined;
       try {
-        const errorJson = JSON.parse(errorText);
-        errorDetails = errorJson;
-        if (errorJson.message) {
-          errorMessage = errorJson.message;
-        }
-        if (response.status === 500 && errorJson.error) {
-          errorMessage = `Server error: ${errorJson.error}`;
-        }
+        const { auth } = await import("../config/firebase");
+        userId = auth?.currentUser?.uid;
       } catch {
-        errorDetails = { rawError: errorText };
+        // Guest checkout - no user ID
       }
 
-      logger.error("Payment Intent creation failed", {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorMessage,
-        details: errorDetails,
-        orderAmount: orderData.amount,
+      // Generate idempotency key to prevent duplicate charges
+      const amount = orderData.amount as number;
+      const currency = (orderData.currency as string) || "gbp";
+      const idempotencyKey = generateIdempotencyKey(amount, currency, userId);
+
+      // Create Payment Intent for embedded form
+      const response = await fetch("/api/stripe/create-payment-intent", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+          ...(authToken && { Authorization: `Bearer ${authToken}` }),
+        },
+        body: JSON.stringify(orderData),
       });
-      throw new Error(errorMessage);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = "Failed to initialize payment";
+        let errorDetails = {};
+
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorDetails = errorJson;
+          if (errorJson.message) {
+            errorMessage = errorJson.message;
+          }
+          if (response.status === 403) {
+            errorMessage = "CSRF validation failed";
+          } else if (response.status === 500 && errorJson.error) {
+            errorMessage = `Server error: ${errorJson.error}`;
+          }
+        } catch {
+          errorDetails = { rawError: errorText };
+        }
+
+        logger.error("Payment Intent creation failed", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorMessage,
+          details: errorDetails,
+          orderAmount: orderData.amount,
+        });
+        throw new Error(`${errorMessage} (Status: ${response.status})`);
+      }
+
+      const { clientSecret, orderNumber } = await response.json();
+
+      if (!clientSecret) {
+        logger.error("Missing clientSecret in response", {
+          response: await response.json(),
+        });
+        throw new Error("No client secret returned from server");
+      }
+
+      // Record successful idempotency
+      if (response.ok) {
+        recordIdempotencyResult(idempotencyKey, clientSecret, "success");
+      }
+
+      // Store client secret to trigger embedded payment form
+      setStripeClientSecret(clientSecret);
+      setStripeOrderNumber(orderNumber);
+      setIsProcessing(false);
+      clearError();
+      setRetryCount(0); // Reset retry count on success
+
+      logger.info("Payment Intent created", { orderNumber });
+      toast.success("Ready to process payment");
+    } catch (error) {
+      logger.error("Stripe payment error", error);
+
+      // Categorize error type
+      let errorMessage = "Failed to initialize payment. Please try again.";
+      let errorCategory: "network" | "payment" | "server" | "validation" =
+        "server";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+
+        // CSRF errors (403 Forbidden)
+        if (
+          errorMessage.includes("CSRF") ||
+          errorMessage.includes("Status: 403") ||
+          errorMessage.includes("validation failed")
+        ) {
+          errorCategory = "validation";
+          errorMessage =
+            "Security validation failed. Please refresh the page and try again.";
+        }
+        // Network errors
+        else if (
+          errorMessage.includes("fetch") ||
+          errorMessage.includes("network") ||
+          errorMessage.includes("offline") ||
+          errorMessage.includes("Failed to fetch")
+        ) {
+          errorCategory = "network";
+          errorMessage =
+            "Network error. Please check your connection and try again.";
+        }
+        // Payment/validation errors
+        else if (
+          errorMessage.includes("amount") ||
+          errorMessage.includes("invalid") ||
+          errorMessage.includes("cart") ||
+          errorMessage.includes("mismatch")
+        ) {
+          errorCategory = "payment";
+        }
+      }
+
+      handleError(errorMessage, errorCategory);
+      setIsProcessing(false);
+
+      // Auto-retry for network errors (max 2 retries)
+      if (errorCategory === "network" && retryCount < 2) {
+        setRetryCount(retryCount + 1);
+        toast.info(`Retrying... (Attempt ${retryCount + 1}/2)`);
+        setTimeout(() => {
+          processStripePayment(orderData, authToken);
+        }, 2000);
+      }
     }
-
-    const { clientSecret, orderNumber } = await response.json();
-
-    if (!clientSecret) {
-      logger.error("Missing clientSecret in response", {
-        response: await response.json(),
-      });
-      throw new Error("No client secret returned from server");
-    }
-
-    // Store client secret to trigger embedded payment form
-    setStripeClientSecret(clientSecret);
-    setStripeOrderNumber(orderNumber);
-    setIsProcessing(false);
-
-    logger.info("Payment Intent created", { orderNumber });
-    toast.success("Ready to process payment");
   };
 
   // Handle successful Stripe payment
@@ -606,9 +1003,6 @@ export function CheckoutPage({
     });
 
     await createAccountIfNeeded();
-
-    // Clear cart
-    localStorage.removeItem("vortex_cart");
 
     // Persist latest payment references for success page fallback
     try {
@@ -623,6 +1017,14 @@ export function CheckoutPage({
     // Show success
     toast.success("Payment successful! Your order is confirmed.");
     onSuccess(paymentIntentId, stripeOrderNumber);
+
+    // PRIVACY: Reset form and clear all checkout data
+    setFormData(resetFormAfterCheckout());
+    setValidationErrors({});
+    setCouponCode("");
+    setAppliedCoupon(null);
+    performCheckoutCleanup();
+
     // Include payment intent & order number in query params for reliable verification
     const qs = new URLSearchParams({ pi: paymentIntentId });
     if (stripeOrderNumber) {
@@ -698,30 +1100,6 @@ export function CheckoutPage({
     orderData: Record<string, unknown>,
     authToken: string | null
   ) => {
-    // DIAGNOSTIC: Log exact values being sent
-    const orderItems = Array.isArray(orderData.cartItems)
-      ? (orderData.cartItems as CartItem[])
-      : [];
-    const itemsTotal = orderItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
-    logger.info("🔍 BANK TRANSFER DEBUG", {
-      itemsTotal: itemsTotal.toFixed(2),
-      shippingMethod: selectedShipping,
-      shippingCost: shippingCost.toFixed(2),
-      computedTotal: total.toFixed(2),
-      orderDataAmount: orderData.amount,
-      itemCount: orderItems.length,
-      buildServiceCost: buildServiceCost.toFixed(2),
-      buildServiceName: buildService?.name,
-      items: orderItems.map((i) => ({
-        name: i.name,
-        price: i.price,
-        qty: i.quantity,
-      })),
-    });
-
     const response = await fetch("/api/orders/bank-transfer", {
       method: "POST",
       headers: {
@@ -756,12 +1134,17 @@ export function CheckoutPage({
     localStorage.setItem("latest_order_number", orderNumber);
     localStorage.setItem("bank_order_id", orderId);
 
-    // Clear cart
-    localStorage.removeItem("vortex_cart");
-
     // Show success
     toast.success("Order created! Check your email for bank transfer details.");
     onSuccess(orderId, orderNumber);
+
+    // PRIVACY: Reset form and clear all checkout data
+    setFormData(resetFormAfterCheckout());
+    setValidationErrors({});
+    setCouponCode("");
+    setAppliedCoupon(null);
+    performCheckoutCleanup();
+
     navigate(`/order-success?bank=${orderId}&order=${orderNumber}`);
   };
 
@@ -1367,6 +1750,14 @@ export function CheckoutPage({
                     ))}
                   </div>
 
+                  {/* Offline Indicator */}
+                  {!isOnline && (
+                    <OfflineIndicator
+                      showOnlyOffline={false}
+                      className="mb-4"
+                    />
+                  )}
+
                   {/* Error Message */}
                   {error && (
                     <Alert className="bg-red-500/10 border-red-500/30 text-red-400 mt-4">
@@ -1384,9 +1775,19 @@ export function CheckoutPage({
                       }}
                       isLoading={isProcessing}
                       loadingText="Processing..."
-                      className="w-full h-14 text-lg bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 transition-all duration-300 mt-6"
+                      disabled={!isOnline}
+                      className={`w-full h-14 text-lg text-white shadow-lg transition-all duration-300 mt-6 ${
+                        !isOnline
+                          ? "bg-gray-600 cursor-not-allowed opacity-50"
+                          : "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 shadow-sky-500/30 hover:shadow-sky-500/50"
+                      }`}
                     >
-                      {selectedPayment === "stripe" ? (
+                      {!isOnline ? (
+                        <>
+                          <WifiOff className="w-5 h-5 mr-2" />
+                          Offline - Payment Unavailable
+                        </>
+                      ) : selectedPayment === "stripe" ? (
                         <>
                           <Lock className="w-5 h-5 mr-2" />
                           Continue to Payment - £{total.toFixed(2)}
@@ -1569,7 +1970,17 @@ export function CheckoutPage({
                       key={opt.id}
                       type="button"
                       disabled={isProcessing || !!stripeClientSecret}
-                      onClick={() => setSelectedShipping(opt.id)}
+                      onClick={() => {
+                        // Validate shipping method before setting
+                        if (validateShippingMethod(opt.id)) {
+                          setSelectedShipping(opt.id as ShippingMethodId);
+                        } else {
+                          logger.error("Invalid shipping method selected", {
+                            method: opt.id,
+                          });
+                          toast.error("Invalid shipping method");
+                        }
+                      }}
                       className={`w-full text-left px-3 py-2 rounded-md flex items-center justify-between transition-all duration-200 border ${
                         selectedShipping === opt.id
                           ? "bg-sky-500/20 border-sky-500/40"

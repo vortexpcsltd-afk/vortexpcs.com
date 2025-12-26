@@ -58,6 +58,7 @@ export function Footer() {
     { label: "PC Finder", view: "pc-finder" },
     { label: "Custom PC Builder", view: "pc-builder" },
     { label: "3D Builder", view: "visual-configurator" },
+    { label: "Gaming Laptops", view: "laptops" },
     { label: "Business Solutions", view: "business-solutions" },
   ];
 

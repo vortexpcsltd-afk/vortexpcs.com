@@ -13,6 +13,7 @@ export function getBreadcrumbs(currentView: string): BreadcrumbItem[] {
     about: [{ label: "About Us", current: true }],
     faq: [{ label: "FAQ", current: true }],
     contact: [{ label: "Contact Us", current: true }],
+    laptops: [{ label: "Gaming Laptops", current: true }],
     member: [{ label: "Member Area", current: true }],
     admin: [{ label: "Admin Panel", current: true }],
     "order-success": [

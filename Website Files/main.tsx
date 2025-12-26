@@ -60,10 +60,6 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 
         return event;
       },
-      onError(error) {
-        // Fallback error logging if Sentry fails
-        logger.error("Sentry initialization error:", error);
-      },
     });
   } catch (error) {
     logger.error("Failed to initialize Sentry:", error);
@@ -160,9 +156,12 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
           });
           // Listen for SW messages (activation etc.)
           navigator.serviceWorker.addEventListener("message", (evt) => {
+            // Handle sync messages only - don't return true to avoid async response errors
             if (evt.data && evt.data.type === "SW_ACTIVATED") {
               logger.debug("✅ Service worker activated:", evt.data.version);
+              // Explicitly handle without indicating async response
             }
+            // Never return true from message listener to prevent "message channel closed" errors
           });
         })
         .catch((err) => logger.warn("Service Worker registration failed", err));

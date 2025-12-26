@@ -236,17 +236,6 @@ export interface FeatureItem {
   showOnHomepage: boolean;
 }
 
-export interface CompanyStats {
-  id: number;
-  yearsExperience: number;
-  customersServed: number;
-  pcBuildsCompleted: number;
-  warrantyYears: number;
-  supportResponseTime: string;
-  satisfactionRate: number;
-  partsInStock: number;
-}
-
 export interface NavigationMenu {
   id: number;
   primaryMenu: Array<{
@@ -1273,59 +1262,6 @@ export const fetchFeatureItems = async (params?: {
 };
 
 /**
- * Fetch company stats
- */
-type CompanyStatsFields = Record<string, unknown>;
-export const fetchCompanyStats = async (): Promise<CompanyStats | null> => {
-  // Check cache first
-  const cacheKey = "companyStats";
-  const cached = getCached<CompanyStats>(cacheKey);
-  if (cached) {
-    logger.debug("✅ Company stats loaded from cache");
-    return cached;
-  }
-
-  if (!isContentfulEnabled) {
-    return getMockCompanyStats();
-  }
-
-  try {
-    const response = await fetchFromContentful<CompanyStatsFields>(() =>
-      contentfulClient!.getEntries({
-        content_type: "companyStats",
-        limit: 1,
-      } as Record<string, unknown>)
-    );
-
-    if (response.items.length === 0) {
-      return getMockCompanyStats();
-    }
-
-    const entry = response.items[0];
-    const fields = (entry.fields || {}) as Record<string, unknown>;
-
-    const stats = {
-      id: getNumericId(entry.sys.id),
-      yearsExperience: getNumber(fields.yearsExperience) ?? 0,
-      customersServed: getNumber(fields.customersServed) ?? 0,
-      pcBuildsCompleted: getNumber(fields.pcBuildsCompleted) ?? 0,
-      warrantyYears: getNumber(fields.warrantyYears) ?? 0,
-      supportResponseTime: getString(fields.supportResponseTime) ?? "24 hours",
-      satisfactionRate: getNumber(fields.satisfactionRate) ?? 0,
-      partsInStock: getNumber(fields.partsInStock) ?? 0,
-    };
-
-    // Cache the result
-    setCache(cacheKey, stats);
-
-    return stats;
-  } catch (error: unknown) {
-    logger.error("Fetch company stats error:", error);
-    return getMockCompanyStats();
-  }
-};
-
-/**
  * Fetch blog posts (list)
  */
 type BlogPostFields = Record<string, unknown>;
@@ -2209,19 +2145,6 @@ function getMockFeatureItems(): FeatureItem[] {
       showOnHomepage: true,
     },
   ];
-}
-
-function getMockCompanyStats(): CompanyStats {
-  return {
-    id: 1,
-    yearsExperience: 10,
-    customersServed: 2500,
-    pcBuildsCompleted: 5000,
-    warrantyYears: 1,
-    supportResponseTime: "24 hours",
-    satisfactionRate: 98,
-    partsInStock: 1000,
-  };
 }
 
 function getMockNavigationMenu(): NavigationMenu {
@@ -3545,6 +3468,196 @@ function mapContentfulToOptionalExtra(
     fieldOfView: getNumber(fields.fieldOfView) ?? undefined,
   };
 }
+
+/**
+ * Fetch Gaming Laptops from Contentful and map to PCBuilderComponent
+ */
+export const fetchLaptops = async (): Promise<
+  import("../components/PCBuilder/types").PCBuilderComponent[]
+> => {
+  const cacheKey = "gamingLaptops_all";
+  const cached =
+    getCached<import("../components/PCBuilder/types").PCBuilderComponent[]>(
+      cacheKey
+    );
+  if (cached) {
+    logger.debug("✅ Returning cached laptops", { count: cached.length });
+    return cached;
+  }
+
+  if (!isContentfulEnabled || !contentfulClient) {
+    logger.debug("📦 Contentful not enabled, returning empty laptops array");
+    setCache(cacheKey, []);
+    return [];
+  }
+
+  try {
+    logger.debug("🔍 Fetching laptops from Contentful...");
+    const query: ContentfulQuery = {
+      content_type: "laptop",
+      include: 1,
+      limit: 500,
+    };
+    const response = await contentfulClient.getEntries(
+      query as unknown as Record<string, unknown>
+    );
+    logger.debug(`📦 Found ${response.items.length} laptops from CMS`);
+
+    const includes =
+      response.includes as unknown as ContentfulResponse["includes"];
+
+    const items: import("../components/PCBuilder/types").PCBuilderComponent[] =
+      response.items.map((item) => {
+        const fields = (item.fields || {}) as Record<string, unknown>;
+
+        // Resolve images similar to components
+        let images: string[] = [];
+        if (fields.images && Array.isArray(fields.images)) {
+          images = (fields.images as Array<Record<string, unknown>>)
+            .map((img) => {
+              if (
+                img.sys &&
+                typeof img.sys === "object" &&
+                "linkType" in img.sys &&
+                img.sys.linkType === "Asset" &&
+                includes?.Asset
+              ) {
+                const imgSys = img.sys as { id?: string };
+                const asset = (
+                  includes.Asset as unknown as Array<Record<string, unknown>>
+                ).find(
+                  (a: Record<string, unknown>) =>
+                    a.sys &&
+                    typeof a.sys === "object" &&
+                    "id" in a.sys &&
+                    (a.sys as { id?: string }).id === imgSys.id
+                );
+                if (
+                  asset &&
+                  asset.fields &&
+                  typeof asset.fields === "object" &&
+                  "file" in asset.fields
+                ) {
+                  const assetFields = asset.fields as {
+                    file?: { url?: string };
+                  };
+                  return assetFields.file?.url
+                    ? `https:${assetFields.file.url}`
+                    : null;
+                }
+                return null;
+              }
+              if (
+                img.fields &&
+                typeof img.fields === "object" &&
+                "file" in img.fields
+              ) {
+                const imgFields = img.fields as { file?: { url?: string } };
+                return imgFields.file?.url
+                  ? `https:${imgFields.file.url}`
+                  : null;
+              }
+              return null;
+            })
+            .filter((url): url is string => url !== null);
+        } else if (fields.image && typeof fields.image === "object") {
+          const imgField = fields.image as Record<string, unknown>;
+          if (
+            imgField.fields &&
+            typeof imgField.fields === "object" &&
+            "file" in imgField.fields
+          ) {
+            const imgFields = imgField.fields as { file?: { url?: string } };
+            if (imgFields.file?.url) {
+              images = [`https:${imgFields.file.url}`];
+            }
+          }
+        }
+
+        // Brand logo
+        let brandLogo: string | undefined;
+        const brandLogoField =
+          fields.brandLogo ||
+          fields.BrandLogo ||
+          fields.brand_logo ||
+          fields.logo;
+        if (brandLogoField) {
+          if (typeof brandLogoField === "string") {
+            brandLogo = brandLogoField.startsWith("//")
+              ? `https:${brandLogoField}`
+              : brandLogoField;
+          } else if (typeof brandLogoField === "object") {
+            const logoField = brandLogoField as Record<string, unknown>;
+            if (
+              logoField.fields &&
+              typeof logoField.fields === "object" &&
+              "file" in logoField.fields
+            ) {
+              const logoFields = logoField.fields as {
+                file?: { url?: string };
+              };
+              brandLogo = logoFields.file?.url
+                ? `https:${logoFields.file.url}`
+                : undefined;
+            }
+          }
+        }
+
+        const richDesc =
+          getRichText(fields.mainProductDescription) ??
+          getRichText(fields.description);
+
+        // Map to PCBuilderComponent shape
+        const pcComp: import("../components/PCBuilder/types").PCBuilderComponent =
+          {
+            id: getString(fields.slug) || getString(fields.id) || item.sys.id,
+            name: getString(fields.name) ?? "Gaming Laptop",
+            brand: getString(fields.brand) ?? undefined,
+            brandLogo,
+            model: getString(fields.model) ?? undefined,
+            price: getNumber(fields.price) ?? 0,
+            category: "laptop",
+            featured: getBoolean(fields.featured) ?? false,
+            images,
+            mainProductDescription: richDesc,
+            description: getString(fields.shortDescription) ?? undefined,
+            // Key laptop specs mapped into common fields
+            cpuCompatability: getString(fields.cpu) ?? undefined,
+            graphicsChipset: getString(fields.gpu) ?? undefined,
+            memorySize: getString(fields.ram) ?? undefined,
+            storageCapacity: getString(fields.storage) ?? undefined,
+            display:
+              getString((fields as Record<string, unknown>)["display"]) ??
+              undefined,
+            refreshRate:
+              getNumber((fields as Record<string, unknown>)["refreshRate"]) ??
+              undefined,
+            resolution:
+              getString((fields as Record<string, unknown>)["resolution"]) ??
+              undefined,
+            weight:
+              getNumber((fields as Record<string, unknown>)["weight"]) ??
+              undefined,
+            battery:
+              getString((fields as Record<string, unknown>)["battery"]) ??
+              undefined,
+            inStock: getBoolean(fields.inStock) ?? true,
+            stockLevel: getNumber(fields.stockLevel) ?? undefined,
+          } as unknown as import("../components/PCBuilder/types").PCBuilderComponent;
+
+        return pcComp;
+      });
+
+    setCache(cacheKey, items);
+    return items;
+  } catch (error: unknown) {
+    logger.error("Fetch laptops error:", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    setCache(cacheKey, []);
+    return [];
+  }
+};
 
 /**
  * Vacancy type for job postings

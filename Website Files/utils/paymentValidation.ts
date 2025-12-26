@@ -50,19 +50,25 @@ export type CartItems = z.infer<typeof CartItemsSchema>;
 
 /**
  * Shipping Address Schema
- * Validates shipping address data
+ * Validates shipping address data with UK postcode format
  */
 export const ShippingAddressSchema = z.object({
   street: z.string().min(1, "Street is required").max(200, "Street too long"),
   city: z.string().min(1, "City is required").max(100, "City too long"),
   postcode: z
     .string()
-    .min(1, "Postcode is required")
-    .max(20, "Postcode too long"),
+    .min(6, "Postcode must be at least 6 characters")
+    .max(20, "Postcode too long")
+    .refine(
+      (val) => /^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/i.test(val),
+      "Invalid UK postcode format (e.g., SW1A 1AA)"
+    ),
   country: z
     .string()
-    .length(2, "Country must be 2-character code")
-    .toUpperCase(),
+    .trim()
+    .min(2, "Country must be at least 2 characters")
+    .max(60, "Country too long")
+    .transform((val) => (val.length <= 3 ? val.toUpperCase() : val)),
   state: z.string().max(100, "State too long").optional(),
   line2: z.string().max(200, "Address line 2 too long").optional(),
 });
