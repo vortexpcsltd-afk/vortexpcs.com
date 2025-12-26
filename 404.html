@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/icons/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="96x96"
+      href="/icons/favicon-96x96.png"
+    />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+    />
+
+    <!-- Security Headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- Removed preload for logo (was unused quickly); consider re-adding if used hero-first -->
+
+    <!-- Resource Hints: improve connection setup for third-parties -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Futuristic Fonts for analytics labels -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Rajdhani:wght@500;700&family=Exo+2:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://images.ctfassets.net" crossorigin />
+    <link rel="preconnect" href="https://cdn.contentful.com" crossorigin />
+    <link rel="preconnect" href="https://js.stripe.com" crossorigin />
+    <link rel="preconnect" href="https://www.paypal.com" crossorigin />
+    <link rel="preconnect" href="https://www.paypalobjects.com" crossorigin />
+    <link
+      rel="preconnect"
+      href="https://firestore.googleapis.com"
+      crossorigin
+    />
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+
+    <!-- Meta tags are populated from Contentful at runtime. Leave blank to allow dynamic injection. -->
+    <meta name="description" content="" />
+    <meta name="keywords" content="" />
+    <meta name="author" content="" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Critical CSS for initial paint -->
+    <style>
+      /* Prevent FOUC (Flash of Unstyled Content) */
+      html {
+        background: #000000;
+        color: #ffffff;
+        overflow-x: hidden;
+      }
+      body {
+        background: #000000;
+        color: #ffffff;
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+          "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
+        overflow-x: hidden;
+      }
+      #root {
+        background: #000000;
+        min-height: 100vh;
+      }
+    </style>
+
+    <!-- Cache Control -->
+    <meta
+      http-equiv="Cache-Control"
+      content="no-cache, no-store, must-revalidate, max-age=0"
+    />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <title>Custom PCs Built to Order | Vortex PCs Ltd</title>
+    <!-- Vercel Analytics: only inject on production domain (not localhost/preview) -->
+    <script type="module" crossorigin src="/assets/index-C09NoPC0.js?v=2025-12-26-102511-cf331e0d"></script>
+    <link rel="modulepreload" crossorigin href="/assets/contentful-6-L6ww-u.js?v=2025-12-26-102511-cf331e0d">
+    <link rel="modulepreload" crossorigin href="/assets/three-DYdjUtCm.js?v=2025-12-26-102511-cf331e0d">
+    <link rel="modulepreload" crossorigin href="/assets/firebase-D5dyMTPx.js?v=2025-12-26-102511-cf331e0d">
+    <link rel="stylesheet" crossorigin href="/assets/index-BtsQyA5c.css?v=2025-12-26-102511-cf331e0d">
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Initial loading indicator (shown before JS loads) -->
+    <style>
+      #root::before {
+        content: "";
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(
+          135deg,
+          #000000 0%,
+          #0f172a 50%,
+          #1e3a5f 100%
+        );
+        z-index: 9999;
+        animation: fadeOut 0.3s ease-out 2s forwards;
+      }
+      @keyframes fadeOut {
+        from {
+          opacity: 1;
+          visibility: visible;
+        }
+        to {
+          opacity: 0;
+          visibility: hidden;
+        }
+      }
+      /* Prevent white flash */
+      html,
+      body {
+        background: #000 !important;
+        color: #fff !important;
+      }
+    </style>
+    <noscript>
+      <div
+        style="background: #000; color: #fff; padding: 20px; text-align: center; font-family: system-ui, sans-serif; min-h-screen display: flex; align-items: center; justify-content: center;"
+      >
+        <div>
+          <h1 style="margin-bottom: 10px">JavaScript Required</h1>
+          <p>Please enable JavaScript to use Vortex PCs.</p>
+        </div>
+      </div>
+    </noscript>
+    <!-- Local preview: silence non-critical analytics API calls to avoid 503s -->
+    <script>
+      (function () {
+        try {
+          var isLocal =
+            location.hostname === "localhost" ||
+            location.hostname === "127.0.0.1";
+          if (!isLocal) return;
+          var _fetch = window.fetch.bind(window);
+          window.fetch = function (input, init) {
+            var url =
+              typeof input === "string" ? input : (input && input.url) || "";
+            if (url.indexOf("/api/analytics/track") === 0) {
+              return Promise.resolve(new Response("", { status: 204 }));
+            }
+            return _fetch(input, init);
+          };
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
+  </body>
+</html>
