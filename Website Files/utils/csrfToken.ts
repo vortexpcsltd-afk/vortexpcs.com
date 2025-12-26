@@ -4,7 +4,7 @@
  * Generates, stores, and validates CSRF tokens for state-changing requests
  */
 
-import { logger } from "../services/logger";
+import { logger } from "../api/services/logger.js";
 
 /**
  * CSRF configuration constants
@@ -99,8 +99,11 @@ export function storeCsrfToken(token: string): void {
     // If sessionStorage unavailable, use localStorage
     try {
       localStorage.setItem(CSRF_CONFIG.STORAGE_KEY, token);
-    } catch (error) {
-      logger.warn("Cannot store CSRF token:", error);
+    } catch (error: unknown) {
+      logger.warn(
+        "Cannot store CSRF token:",
+        error instanceof Error ? { error: error.message } : undefined
+      );
     }
   }
 }

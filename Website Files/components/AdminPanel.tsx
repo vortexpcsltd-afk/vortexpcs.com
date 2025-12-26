@@ -290,7 +290,7 @@ const exportCsv = (filename: string, rows: Array<Record<string, unknown>>) => {
 };
 
 export function AdminPanel() {
-  const { isAdmin, user, loading: authLoading } = useAuth();
+  const { isAdmin, user, userProfile, loading: authLoading } = useAuth();
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -1143,82 +1143,42 @@ export function AdminPanel() {
           newMembers,
           newBusinesses,
         });
-
-        // Load inventory count from Contentful
-        try {
-          // Import at runtime to get fresh environment variables
-          const { isContentfulEnabled } = await import("../config/contentful");
-          logger.debug("🔌 Contentful enabled check", {
-            enabled: isContentfulEnabled,
-          });
-
-          if (!isContentfulEnabled) {
-            logger.warn(
-              "⚠️ Contentful not enabled at runtime. Falling back to 0 products."
-            );
-            setTotalProducts(0);
-            logger.debug(
-              "Admin Panel - Contentful disabled, setting products to 0"
-            );
-          } else {
-            const { fetchPCComponents, fetchPCOptionalExtras } = await import(
-              "../services/cms"
-            );
-
-            let components = [];
-            let extras = [];
-
-            try {
-              logger.debug("🔄 Fetching PC components for dashboard...");
-              components = await fetchPCComponents();
-              logger.debug("✅ PC components fetched", {
-                count: components.length,
-              });
-              logger.debug("Admin Panel - PC components fetched", {
-                count: components.length,
-              });
-            } catch (compError) {
-              logger.error("❌ Error fetching PC components:", compError);
-              logger.warn("Admin Panel - Error fetching PC components", {
-                error: compError,
-              });
-            }
-
-            try {
-              logger.debug("🔄 Fetching optional extras for dashboard...");
-              extras = await fetchPCOptionalExtras();
-              logger.debug("✅ Optional extras fetched", {
-                count: extras.length,
-              });
-              logger.debug("Admin Panel - Optional extras fetched", {
-                count: extras.length,
-              });
-            } catch (extrasError) {
-              logger.error("❌ Error fetching optional extras:", extrasError);
-              logger.warn("Admin Panel - Error fetching optional extras", {
-                error: extrasError,
-              });
-            }
-
-            const totalCount = components.length + extras.length;
-            logger.debug("📊 Total products for dashboard", {
-              total: totalCount,
-            });
-            setTotalProducts(totalCount);
-            logger.debug("Admin Panel - Inventory loaded", {
-              components: components.length,
-              extras: extras.length,
-              total: totalCount,
-            });
-          }
-        } catch (error) {
-          logger.error("Admin Panel - Error loading inventory", { error });
-          setTotalProducts(0);
-        }
       } catch (error) {
         logger.error("Admin Panel - Error loading data", { error });
       } finally {
         setLoading(false);
+      }
+    };
+
+    const loadTotalProducts = async () => {
+      try {
+        const { fetchPCComponents, fetchPCOptionalExtras } = await import(
+          "../services/cms"
+        );
+
+        const [components, extras] = await Promise.all([
+          fetchPCComponents().catch((err) => {
+            logger.error("❌ Error fetching PC components", { err });
+            return [] as unknown[];
+          }),
+          fetchPCOptionalExtras().catch((err) => {
+            logger.error("❌ Error fetching optional extras", { err });
+            return [] as unknown[];
+          }),
+        ]);
+
+        const totalCount = (components?.length || 0) + (extras?.length || 0);
+        setTotalProducts(totalCount);
+        logger.debug("📊 Total products for dashboard", {
+          total: totalCount,
+          components: components?.length || 0,
+          extras: extras?.length || 0,
+        });
+      } catch (error) {
+        logger.error("Admin Panel - Error loading total products", {
+          error,
+        });
+        setTotalProducts(0);
       }
     };
 
@@ -1490,6 +1450,7 @@ export function AdminPanel() {
       }
       loadAdminData();
       loadAnalytics();
+      loadTotalProducts();
       loadTicketsAndRefunds();
 
       // Load last admin login time and check for security issues
@@ -1936,7 +1897,10 @@ export function AdminPanel() {
               <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                 <div className="text-right mr-2 hidden sm:block">
                   <p className="text-sm text-white font-medium truncate">
-                    {user?.displayName || user?.email || "Admin"}
+                    {userProfile?.displayName ||
+                      user?.displayName ||
+                      user?.email ||
+                      "Admin"}
                   </p>
                   <p className="text-xs text-gray-400">Administrator</p>
                 </div>

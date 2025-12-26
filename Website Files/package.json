@@ -9,6 +9,8 @@
     "build:analyze": "vite build && vite-bundle-visualizer",
     "preview": "vite preview",
     "lint": "eslint .",
+    "lint:api": "eslint -c eslint.api.config.js \"api/**/*.{ts,js}\"",
+    "lint:api:fix": "eslint -c eslint.api.config.js \"api/**/*.{ts,js}\" --fix",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",

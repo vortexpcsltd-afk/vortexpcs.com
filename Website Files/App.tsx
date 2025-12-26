@@ -21,6 +21,8 @@ import {
 } from "./services/realtimeTracking";
 import { usePageTracking } from "./hooks/usePageTracking";
 import type { CartItem, ContentfulAsset, ContentfulImage } from "./types";
+import { loadCart, saveCart, clearCart } from "./utils/cartStorage";
+import { MAX_CART_ITEM_QUANTITY, clampQuantity } from "./utils/cartConstants";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 // import { PageErrorBoundary } from "./components/ErrorBoundary"; // unused
@@ -603,90 +605,60 @@ export default function App() {
     }
   );
 
-  // Hydrate cart from localStorage on mount with validation
+  // Hydrate cart from localStorage on mount with validation (using lock-based storage)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("vortex_cart");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          // Validate and sanitize cart items
-          const validatedItems = parsed
-            .filter((item): item is CartItem => {
-              // Ensure required fields exist and are valid
-              return (
-                typeof item === "object" &&
-                item !== null &&
-                typeof item.id === "string" &&
-                item.id.trim() !== "" &&
-                typeof item.name === "string" &&
-                item.name.trim() !== "" &&
-                typeof item.price === "number" &&
-                item.price >= 0 &&
-                typeof item.quantity === "number" &&
-                item.quantity > 0 &&
-                typeof item.category === "string" &&
-                item.category.trim() !== ""
-              );
-            })
-            .map((item) => ({
-              ...item,
-              // Ensure quantity is a positive integer
-              quantity: Math.max(1, Math.floor(item.quantity)),
-              // Ensure price is non-negative
-              price: Math.max(0, item.price),
-            }));
-
-          setCartItems(validatedItems);
-
-          // If validation removed items, update localStorage
-          if (validatedItems.length !== parsed.length) {
-            logger.warn(
-              `Cart validation removed ${
-                parsed.length - validatedItems.length
-              } invalid items`
-            );
-            localStorage.setItem("vortex_cart", JSON.stringify(validatedItems));
-          }
-        }
+    const initializeCart = async () => {
+      try {
+        const loadedCart = await loadCart();
+        setCartItems(loadedCart);
+      } catch (e) {
+        logger.error("Failed to load cart from localStorage", { error: e });
+        setCartItems([]);
+      } finally {
+        setCartHydrated(true);
       }
-    } catch (e) {
-      logger.error("Failed to load cart from localStorage", { error: e });
-      // Clear corrupted cart data
-      localStorage.removeItem("vortex_cart");
-    } finally {
-      setCartHydrated(true);
-    }
+    };
+
+    initializeCart();
   }, []);
 
-  // Persist cart to localStorage whenever it changes with error handling
+  // Cross-tab synchronization - listen for cart changes in other tabs
   useEffect(() => {
-    try {
-      if (cartItems.length === 0) {
-        localStorage.removeItem("vortex_cart");
-      } else {
-        localStorage.setItem("vortex_cart", JSON.stringify(cartItems));
-      }
-    } catch (e) {
-      logger.error("Failed to save cart to localStorage", { error: e });
-      // If quota exceeded, try to save a minimal version
-      if (e instanceof DOMException && e.name === "QuotaExceededError") {
+    const handleStorageChange = async (event: StorageEvent) => {
+      if (event.key === "vortex_cart" && event.newValue !== event.oldValue) {
         try {
-          // Keep only essential data
-          const minimalCart = cartItems.map((item) => ({
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            category: item.category,
-          }));
-          localStorage.setItem("vortex_cart", JSON.stringify(minimalCart));
-        } catch {
-          logger.error("Failed to save minimal cart - storage quota exceeded");
+          const updatedCart = await loadCart();
+          setCartItems(updatedCart);
+          logger.info("Cart synchronized from another tab");
+        } catch (e) {
+          logger.error("Failed to sync cart from another tab", { error: e });
         }
       }
-    }
-  }, [cartItems]);
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  // Persist cart to localStorage whenever it changes (using lock-based storage)
+  useEffect(() => {
+    // Skip saving during initial hydration
+    if (!cartHydrated) return;
+
+    const persistCart = async () => {
+      try {
+        if (cartItems.length === 0) {
+          await clearCart();
+        } else {
+          await saveCart(cartItems);
+        }
+      } catch (e) {
+        logger.error("Failed to save cart to localStorage", { error: e });
+      }
+    };
+
+    persistCart();
+  }, [cartItems, cartHydrated]);
 
   // Add item to cart with robust validation and duplicate handling
   const addToCart = (item: CartItem) => {
@@ -714,9 +686,14 @@ export default function App() {
 
         if (existingItem) {
           // Update quantity if item exists (with max limit for safety)
-          const newQuantity = Math.min(existingItem.quantity + 1, 99);
+          const newQuantity = Math.min(
+            existingItem.quantity + 1,
+            MAX_CART_ITEM_QUANTITY
+          );
           if (newQuantity === existingItem.quantity) {
-            toast.error("Maximum quantity reached for this item");
+            toast.error(
+              `Maximum quantity (${MAX_CART_ITEM_QUANTITY}) reached for this item`
+            );
             return prevItems;
           }
 
@@ -1487,10 +1464,16 @@ export default function App() {
                         return;
                       }
 
-                      const validatedQuantity = Math.min(
-                        Math.max(1, Math.floor(quantity)),
-                        99
-                      );
+                      const validatedQuantity = clampQuantity(quantity);
+
+                      // Show feedback if quantity was clamped
+                      if (validatedQuantity !== quantity) {
+                        if (validatedQuantity === MAX_CART_ITEM_QUANTITY) {
+                          toast.error(
+                            `Maximum quantity (${MAX_CART_ITEM_QUANTITY}) reached`
+                          );
+                        }
+                      }
 
                       setCartItems((items) => {
                         const item = items.find((i) => i.id === id);

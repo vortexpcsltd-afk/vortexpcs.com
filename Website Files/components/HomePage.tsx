@@ -73,7 +73,6 @@ export function HomePage() {
           fetchPageContent,
           fetchTestimonials,
           fetchFeatureItems,
-          fetchCompanyStats,
         } = await import("../services/cms");
 
         // Load all content from Contentful CMS
@@ -83,14 +82,12 @@ export function HomePage() {
           contentfulTestimonials,
           contentfulHeroFeatures,
           contentfulMainFeatures,
-          contentfulCompanyStats,
         ] = await Promise.allSettled([
           fetchSettings(),
           fetchPageContent("home"),
           fetchTestimonials(),
           fetchFeatureItems({ showOnHomepage: true }),
           fetchFeatureItems({ category: "why-choose-us" }),
-          fetchCompanyStats(),
         ]);
 
         logger.debug("📊 Contentful API Results:", {
@@ -99,7 +96,6 @@ export function HomePage() {
           testimonials: contentfulTestimonials.status,
           heroFeatures: contentfulHeroFeatures.status,
           mainFeatures: contentfulMainFeatures.status,
-          stats: contentfulCompanyStats.status,
         });
 
         if (

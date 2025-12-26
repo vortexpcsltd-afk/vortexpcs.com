@@ -1,6 +1,7 @@
 // Declare process for serverless environment
 declare const process: { env: Record<string, string | undefined> };
-import { logger } from "./logger";
+// Use server-side logger to avoid missing module in serverless bundles
+import { logger } from "../api/services/logger.js";
 
 type EnvCheck = {
   key: string;

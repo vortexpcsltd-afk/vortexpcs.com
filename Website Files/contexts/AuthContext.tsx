@@ -216,20 +216,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     verified: true,
                   });
                 } else {
-                  // Fallback to user role if verification fails
-                  profile.role = "user";
+                  // Preserve previously known admin role if verification fails
+                  const previousRole = userProfile?.role?.toLowerCase?.();
+                  profile.role =
+                    previousRole === "admin" ? "admin" : profile.role || "user";
                   logger.warn(
-                    "Role verification failed, defaulting to user role"
+                    "Role verification failed; preserving admin if previously set",
+                    { previousRole }
                   );
                 }
               } catch (error) {
+                // Preserve previously known admin role if verification throws
+                const previousRole = userProfile?.role?.toLowerCase?.();
+                profile.role =
+                  previousRole === "admin" ? "admin" : profile.role || "user";
                 logger.warn(
-                  "Failed to verify role from server, using default:",
+                  "Failed to verify role from server; preserving role",
                   {
-                    error,
+                    error: String(error),
+                    previousRole,
                   }
                 );
-                profile.role = "user";
               }
 
               setUserProfile(profile);

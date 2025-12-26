@@ -200,7 +200,9 @@ service cloud.firestore {
     match /security_events/{docId} {
       allow create: if true;
       allow read: if isAdmin();
-      allow update, delete: if false;
+      // Allow admins to delete security events (e.g., resolved alerts)
+      allow delete: if isAdmin();
+      allow update: if false;
     }
 
     // Search tracking: searchQueries (public write; admin read)

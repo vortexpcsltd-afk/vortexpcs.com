@@ -23,7 +23,6 @@ const EXPECTED_TYPES: Array<{ id: string; optional?: boolean }> = [
   { id: "faqItem", optional: true },
   { id: "serviceItem", optional: true },
   { id: "featureItem" },
-  { id: "companyStats" },
   { id: "navigationMenu", optional: true },
   { id: "contactInformation", optional: true },
   { id: "legalPage", optional: true },

@@ -23,6 +23,7 @@ import {
   type CartItem,
 } from "../utils/paymentValidation";
 import { getCsrfToken } from "../utils/csrfToken";
+import { offlineQueueManager } from "./offlineQueue";
 
 /**
  * Retry configuration for payment operations
@@ -103,10 +104,10 @@ async function retryOperation<T>(
 }
 
 /**
- * Check if user is online
+ * Check if user is online using offline queue manager
  */
 function isOnline(): boolean {
-  return typeof navigator !== "undefined" ? navigator.onLine : true;
+  return offlineQueueManager.isOnline();
 }
 
 export type { CartItem };
@@ -176,15 +177,22 @@ export const createCheckoutSession = async (
       // Call backend API endpoint
       const apiUrl = `${stripeBackendUrl}/api/stripe/create-checkout-session`;
 
-      // Add CSRF token to headers
+      // Add CSRF token to headers (required for security)
       const headers: Record<string, string> = {};
       try {
         const csrfToken = getCsrfToken();
-        if (csrfToken) {
+        if (!csrfToken) {
+          logger.warn("CSRF token not available for checkout session");
+        } else {
           headers["X-CSRF-Token"] = csrfToken;
         }
-      } catch {
-        // Ignore CSRF token retrieval failure
+      } catch (csrfError) {
+        logger.error(
+          "Failed to retrieve CSRF token for checkout session",
+          csrfError
+        );
+        // Continue without CSRF token - backend will validate
+        // and reject if CSRF is required
       }
 
       const response = await axios.post(
@@ -343,15 +351,22 @@ export const createPaymentIntent = async (
       // Use local proxy endpoint that Vite will forward to backend
       const apiUrl = `/api/stripe/create-payment-intent`;
 
-      // Add CSRF token to headers
+      // Add CSRF token to headers (required for security)
       const headers: Record<string, string> = {};
       try {
         const csrfToken = getCsrfToken();
-        if (csrfToken) {
+        if (!csrfToken) {
+          logger.warn("CSRF token not available for payment intent");
+        } else {
           headers["X-CSRF-Token"] = csrfToken;
         }
-      } catch {
-        // Ignore CSRF token retrieval failure
+      } catch (csrfError) {
+        logger.error(
+          "Failed to retrieve CSRF token for payment intent",
+          csrfError
+        );
+        // Continue without CSRF token - backend will validate
+        // and reject if CSRF is required
       }
 
       const response = await retryOperation(
@@ -550,10 +565,18 @@ export const calculateCartTotal = (items: CartItem[]): number => {
 /**
  * Mock backend functions for development
  * IMPORTANT: Replace these with real backend API calls in production
+ * NOTE: Mock payments are prevented when offline to simulate real payment behavior
  */
 
 // Simulated backend session creation (DEVELOPMENT ONLY)
 export const mockCreateCheckoutSession = async (): Promise<CheckoutSession> => {
+  // Prevent mock checkout when offline
+  if (!isOnline()) {
+    throw new Error(
+      "No internet connection. Please check your network and try again."
+    );
+  }
+
   logger.warn(
     "Using development checkout - redirecting to success page for testing"
   );
@@ -576,6 +599,13 @@ export const mockCreateCheckoutSession = async (): Promise<CheckoutSession> => {
 
 // Mock payment verification for development
 export const mockVerifyPayment = async () => {
+  // Prevent mock verification when offline
+  if (!isOnline()) {
+    throw new Error(
+      "No internet connection. Please check your network and try again."
+    );
+  }
+
   logger.warn("Using mock payment verification for development");
 
   // Simulate successful payment verification
@@ -595,6 +625,13 @@ export const mockCreatePaymentIntent = async (
   currency: string = "gbp",
   _metadata?: Record<string, string>
 ): Promise<PaymentIntent> => {
+  // Prevent mock payment intent when offline
+  if (!isOnline()) {
+    throw new Error(
+      "No internet connection. Please check your network and try again."
+    );
+  }
+
   logger.warn("Using mock payment intent for development");
 
   // Simulate payment intent creation
@@ -611,6 +648,13 @@ export const mockCreatePaymentIntent = async (
 
 // Development helper to simulate successful payment
 export const simulateSuccessfulPayment = () => {
+  // Prevent simulation when offline
+  if (!isOnline()) {
+    throw new Error(
+      "No internet connection. Please check your network and try again."
+    );
+  }
+
   logger.debug("Payment simulation - redirecting to success page");
   window.location.href = stripeConfig.successUrl;
 };

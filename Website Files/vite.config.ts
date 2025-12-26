@@ -41,19 +41,38 @@ export default defineConfig(({ mode }) => {
       minify: "esbuild",
       cssMinify: true,
       cssCodeSplit: true,
+      // Keep a higher threshold to avoid noisy warnings on purposefully large chunks
       chunkSizeWarningLimit: 1500,
       rollupOptions: {
-        onwarn(warning, defaultHandler) {
+        onwarn(warning: unknown, defaultHandler) {
+          const code = (warning && (warning as { code?: string }).code) || "";
           const msg =
             typeof warning.message === "string" ? warning.message : "";
+          // Ignore noisy Rollup warnings that are safe in our Vite setup
           if (
-            msg.includes("dynamically imported") &&
-            msg.includes("but also statically imported")
-          )
+            // Next.js-style "use client" directives in deps/components
+            code === "MODULE_LEVEL_DIRECTIVE" ||
+            // Sourcemap resolution noise from dependencies during reporting
+            code === "SOURCEMAP_ERROR" ||
+            // Vite sometimes warns when a module is both static and dynamic imported
+            (msg.includes("dynamically imported") &&
+              msg.includes("but also statically imported"))
+          ) {
             return;
+          }
           defaultHandler(warning);
         },
-        output: {},
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules")) {
+              // Split only heavy, independent libraries to avoid circular deps
+              if (id.includes("three")) return "three";
+              if (id.includes("firebase")) return "firebase";
+              if (id.includes("@contentful")) return "contentful";
+              // Let everything else (React, icons, etc.) bundle naturally
+            }
+          },
+        },
       },
     },
     server: {

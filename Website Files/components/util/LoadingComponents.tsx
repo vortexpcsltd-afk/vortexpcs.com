@@ -97,13 +97,13 @@ export function ButtonWithLoading({
   return (
     <button
       disabled={isLoading || disabled}
-      className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-all ${
+      className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-all whitespace-nowrap ${
         isLoading || disabled ? "opacity-70 cursor-not-allowed" : ""
       } ${className}`}
       {...props}
     >
       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-      <span>{isLoading ? loadingText : children}</span>
+      {isLoading ? loadingText : children}
     </button>
   );
 }

@@ -23,7 +23,7 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 function loadCart(): CartItem[] {
   try {
-    const raw = localStorage.getItem("vortex_cart_items");
+    const raw = localStorage.getItem("vortex_cart");
     return raw ? (JSON.parse(raw) as CartItem[]) : [];
   } catch {
     return [];
@@ -32,7 +32,7 @@ function loadCart(): CartItem[] {
 
 function saveCart(items: CartItem[]) {
   try {
-    localStorage.setItem("vortex_cart_items", JSON.stringify(items));
+    localStorage.setItem("vortex_cart", JSON.stringify(items));
   } catch {
     void 0; // ignore localStorage write errors
   }

@@ -18,17 +18,11 @@ import {
 } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import type { CartItem } from "../types";
+import { MAX_CART_ITEM_QUANTITY, clampQuantity } from "../utils/cartConstants";
+import { toast } from "sonner";
 import { Separator } from "./ui/separator";
 import { Alert, AlertDescription } from "./ui/alert";
-
-interface CartItem {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  quantity: number;
-  image?: string;
-}
 
 interface ShoppingCartModalProps {
   isOpen: boolean;
@@ -60,8 +54,26 @@ export function ShoppingCartModal({
   const handleUpdateQuantity = (id: string, delta: number) => {
     const item = cartItems.find((i) => i.id === id);
     if (item && onUpdateQuantity) {
-      const newQuantity = Math.max(1, item.quantity + delta);
-      onUpdateQuantity(id, newQuantity);
+      const targetQuantity = item.quantity + delta;
+      const newQuantity = clampQuantity(targetQuantity);
+
+      // Show feedback if limit reached
+      if (newQuantity !== targetQuantity) {
+        if (newQuantity === MAX_CART_ITEM_QUANTITY && delta > 0) {
+          toast.error(
+            `Maximum quantity (${MAX_CART_ITEM_QUANTITY}) reached for this item`
+          );
+        } else if (newQuantity === 1 && delta < 0) {
+          toast.info(
+            "Minimum quantity is 1. Use the remove button to delete this item."
+          );
+        }
+      }
+
+      // Only update if quantity actually changed
+      if (newQuantity !== item.quantity) {
+        onUpdateQuantity(id, newQuantity);
+      }
     }
   };
 
@@ -247,9 +259,16 @@ export function ShoppingCartModal({
 
               <Separator className="bg-white/10" />
 
-              {/* Total */}
-              <div className="flex justify-between">
-                <span className="text-white text-base sm:text-lg">Total</span>
+              {/* Total (cart items only) */}
+              <div className="flex justify-between items-start">
+                <div className="flex flex-col">
+                  <span className="text-white text-base sm:text-lg">
+                    Cart Total
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    Shipping calculated at checkout
+                  </span>
+                </div>
                 <span className="text-lg sm:text-xl text-white font-semibold">
                   £{total.toFixed(2)}
                 </span>

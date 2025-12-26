@@ -13,6 +13,9 @@ export default [
       "build",
       ".vite",
       "backups/**",
+      "project-backups/**",
+      "BACKUP_*/**",
+      "backup-*/**",
       "api/**",
       "backend-examples/**",
       "scripts/**",
@@ -51,6 +54,8 @@ export default [
       "no-console": ["warn", { allow: ["warn", "error"] }],
       ...js.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
+      "no-empty": ["warn", { allowEmptyCatch: true }],
+      "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": [
         "warn",
