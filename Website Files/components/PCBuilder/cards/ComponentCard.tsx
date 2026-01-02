@@ -1,17 +1,20 @@
 import React, { useState, ReactNode } from "react";
 import { Card } from "../../ui/card";
 import { Badge } from "../../ui/badge";
+import { PriceTag } from "../../ui/PriceTag";
 import { Button } from "../../ui/button";
 import { Heart, Star } from "lucide-react";
 import { ComponentDetailModal } from "../modals";
 import { ComponentImageGallery } from "../ComponentImageGallery";
 import { BrandLogo } from "../../ui/brand-logo";
 import { FeaturedTag } from "../FeaturedTag";
+import { PointsBadge } from "../../PointsBadge";
 import { PCBuilderComponent } from "../types";
 import { trackClick } from "../../../services/sessionTracker";
 import { logger } from "../../../services/logger";
 import { PLACEHOLDER_IMAGE } from "../../data/pcBuilderComponents";
 import type { Document } from "@contentful/rich-text-types";
+import type { CartItem } from "../../../types";
 
 export interface ComponentCardProps {
   component: PCBuilderComponent;
@@ -20,6 +23,7 @@ export interface ComponentCardProps {
   onSelect: (category: string, componentId: string) => void;
   viewMode?: string;
   renderRichText: (content?: string | Document) => ReactNode;
+  onAddToCart?: (item: CartItem) => void;
 }
 
 export const ComponentCard: React.FC<ComponentCardProps> = ({
@@ -29,6 +33,7 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
   onSelect,
   viewMode = "grid",
   renderRichText,
+  onAddToCart,
 }) => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -222,7 +227,19 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
     }
   }
 
-  const priceToDisplay = displayPrice ?? component.price ?? 0;
+  const optionPrice = displayPrice ?? component.price ?? 0;
+  const salePrice =
+    typeof component.reducedPrice === "number"
+      ? component.reducedPrice
+      : undefined;
+
+  // Treat as sale only when there's an explicit reducedPrice below the current price
+  const isOnSale = salePrice !== undefined && salePrice < optionPrice;
+  const priceToDisplay = isOnSale ? salePrice : optionPrice;
+
+  // For tag: original price (higher) and reduced price (lower)
+  const priceForTag = optionPrice;
+  const reducedForTag = isOnSale ? salePrice : undefined;
   const hasOptionsAvailable =
     hasMultiplePrices || uniqueOptions.length > 0 || !!component.pricesByOption;
 
@@ -253,12 +270,13 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
             setShowDetailModal(true);
           }}
         >
-          {/* Featured Tag */}
-          {component.featured && (
-            <div className="absolute top-2 right-2 z-20">
-              <FeaturedTag />
-            </div>
-          )}
+          {/* Featured Tag & Points Badge */}
+          <div className="absolute top-2 right-2 z-20 flex items-start gap-2">
+            {component.featured && <FeaturedTag />}
+            {priceToDisplay && priceToDisplay > 0 && (
+              <PointsBadge price={priceToDisplay} variant="compact" />
+            )}
+          </div>
           <div className="p-4 sm:p-6">
             <div className="flex flex-col sm:grid sm:grid-cols-12 gap-4 sm:gap-6 items-start sm:items-center">
               {/* Image */}
@@ -271,6 +289,7 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
                   }
                   productName={component.name ?? ""}
                   isCompact={true}
+                  price={priceForTag ?? 0}
                 />
               </div>
 
@@ -295,25 +314,25 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
                   {/* Options dropdowns for list view */}
                   {uniqueOptions.length > 0 && (
                     <div
-                      className="bg-gradient-to-r from-slate-900/40 to-slate-800/40 rounded-lg p-3 mb-3 border border-sky-500/10"
+                      className="bg-gradient-to-r from-slate-900/40 to-slate-800/40 rounded-lg p-4 mb-4 border border-sky-500/10"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center gap-1.5 mb-2">
+                      <div className="flex items-center gap-1.5 mb-3">
                         <div className="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
                         <span className="text-xs font-medium text-sky-300 uppercase tracking-wider">
                           Options
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {uniqueOptions.map((opt) => (
                           <div key={opt.key} className="min-w-0">
-                            <label className="block text-xs text-gray-400 mb-1 font-medium">
+                            <label className="block text-xs text-gray-400 mb-2 font-medium">
                               {opt.key.charAt(0).toUpperCase() +
                                 opt.key.slice(1)}
                             </label>
                             <div className="relative">
                               <select
-                                className="w-full bg-slate-800/60 border border-white/10 rounded-md px-2 py-1.5 text-white text-xs font-medium appearance-none cursor-pointer transition-all duration-200 hover:border-sky-400/40 focus:border-sky-400 focus:outline-none backdrop-blur-sm"
+                                className="w-full bg-slate-800/60 border border-white/10 rounded-md px-3 py-2 text-white text-xs font-medium appearance-none cursor-pointer transition-all duration-200 hover:border-sky-400/40 focus:border-sky-400 focus:outline-none backdrop-blur-sm"
                                 value={
                                   selectedOptions[opt.key] || opt.values[0]
                                 }
@@ -414,10 +433,9 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
                                       }
                                     }
                                   } catch (error) {
-                                    console.warn(
-                                      "Analytics tracking failed:",
-                                      error
-                                    );
+                                    logger.warn("Analytics tracking failed", {
+                                      error,
+                                    });
                                   }
                                 }}
                               >
@@ -567,10 +585,13 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
               {/* Price & Actions */}
               <div className="col-span-3 text-right space-y-3">
                 <div>
-                  <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                    £{(component.price ?? 0).toFixed(2)}
-                  </div>
-                  <div className="flex items-center justify-end gap-1 text-yellow-400">
+                  <PriceTag
+                    price={priceForTag}
+                    reducedPrice={reducedForTag}
+                    size="md"
+                    align="right"
+                  />
+                  <div className="flex items-center justify-end gap-1 text-yellow-400 mt-2">
                     {[...Array(5)].map((_, i) => {
                       const ratingValue = component.rating ?? 0;
                       return (
@@ -619,7 +640,7 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
   return (
     <>
       <Card
-        className={`h-full cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group relative overflow-hidden ${
+        className={`h-full cursor-pointer transition-all duration-300 transform hover:scale-[1.02] group relative overflow-visible ${
           isSelected
             ? "ring-2 ring-green-500 bg-green-500/10 border-green-500/50"
             : "bg-white/5 border-white/10 hover:bg-white/10"
@@ -643,18 +664,20 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
           setShowDetailModal(true);
         }}
       >
-        {/* Featured Tag */}
-        {component.featured && (
-          <div className="absolute top-2 right-2 z-20">
-            <FeaturedTag />
-          </div>
-        )}
+        {/* Featured Tag & Points Badge */}
+        <div className="absolute top-2 right-2 z-20 flex items-start gap-2">
+          {component.featured && <FeaturedTag />}
+          {priceToDisplay && priceToDisplay > 0 && (
+            <PointsBadge price={priceToDisplay} variant="compact" />
+          )}
+        </div>
         <div className="p-6 space-y-4">
           {/* Image Gallery */}
           <ComponentImageGallery
             isCompact={true}
             images={componentWithImages.images}
             productName={component.name ?? "Product"}
+            price={priceForTag ?? 0}
           />
 
           {/* Content */}
@@ -762,8 +785,13 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <div className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                £{priceToDisplay.toFixed(2)}
+              <div className="flex-1">
+                <PriceTag
+                  price={priceForTag}
+                  reducedPrice={reducedForTag}
+                  size="lg"
+                  align="left"
+                />
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -779,15 +807,51 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
                 </Button>
                 <Button
                   size="sm"
-                  className={`min-w-[110px] bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white ${
+                  className={`min-w-[110px] text-white ${
+                    category === "laptop"
+                      ? "bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-500 hover:to-green-400"
+                      : "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                  } ${
                     isSelected ? "shadow-[0_0_15px_rgba(34,197,94,0.35)]" : ""
                   }`}
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
-                    onSelect(category, component.id);
+                    if (category === "laptop" && onAddToCart) {
+                      const firstImage = Array.isArray(cardImages)
+                        ? cardImages[0]
+                        : undefined;
+                      const resolvedImage =
+                        typeof firstImage === "string"
+                          ? firstImage
+                          : (firstImage as { url?: string; src?: string })
+                              ?.url ||
+                            (firstImage as { url?: string; src?: string })?.src;
+
+                      onAddToCart({
+                        id: component.id,
+                        name: component.name ?? "Laptop",
+                        price: priceToDisplay ?? component.price ?? 0,
+                        quantity: 1,
+                        category: "laptop",
+                        image: resolvedImage,
+                        ean: displayEan || component.ean, // Use option-specific EAN if available, otherwise base EAN
+                        description:
+                          typeof component.description === "string"
+                            ? component.description
+                            : undefined,
+                        originalPrice: priceForTag, // Pass original price for savings calculation
+                        reducedPrice: reducedForTag, // Pass reduced price if on sale
+                      });
+                    } else {
+                      onSelect(category, component.id);
+                    }
                   }}
                 >
-                  {isSelected ? "Selected" : "Add to Build"}
+                  {category === "laptop"
+                    ? "Add to Cart"
+                    : isSelected
+                    ? "Selected"
+                    : "Add to Build"}
                 </Button>
               </div>
             </div>
@@ -804,6 +868,7 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({
         onSelect={onSelect}
         isSelected={isSelected}
         renderRichText={renderRichText}
+        onAddToCart={onAddToCart}
       />
     </>
   );

@@ -1,0 +1,47 @@
+# Ignore archive and backup directories
+
+archive/
+backups/
+
+# Backup files
+
+**/\*.backup.tsx
+**/\*.backup.ts
+
+# Development tools
+
+.vscode/
+
+# Logs
+
+\*.log
+buildlog.txt
+
+# Test files
+
+tests/
+**/\*.test.ts
+**/_.test.tsx
+\*\*/_.spec.ts \*_/_.spec.tsx
+
+# Mobile builds (Android/iOS not needed for web)
+
+android/
+ios/
+
+# Documentation (all archived, no individual patterns needed)
+
+guidelines/
+_.md
+!README.md
+!api/_/README.md
+
+# Local environment files
+
+.env.local
+.env\*.local
+
+# Git
+
+.git/
+.github/

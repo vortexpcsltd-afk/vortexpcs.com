@@ -1,0 +1,84 @@
+name: Build and Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        working-directory: ./website-files
+        run: npm ci
+
+      - name: Build
+        working-directory: ./Website Files
+        run: npm run build --if-present
+
+      - name: Fetch CMS meta and inject into dist/index.html
+        working-directory: ./Website Files
+        # This step will use Contentful credentials stored in repository secrets to fetch
+        # site settings and the homepage content, then inject meta/OG/Twitter tags into dist/index.html
+        # Optional: Configure these secrets in GitHub if using Contentful
+        env:
+          CONTENTFUL_SPACE_ID: ${{ secrets.CONTENTFUL_SPACE_ID }}
+          CONTENTFUL_DELIVERY_TOKEN: ${{ secrets.CONTENTFUL_DELIVERY_TOKEN }}
+          CONTENTFUL_ACCESS_TOKEN: ${{ secrets.CONTENTFUL_ACCESS_TOKEN }}
+          CONTENTFUL_ENV: ${{ secrets.CONTENTFUL_ENV }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+        continue-on-error: true
+        run: |
+          node scripts/inject-meta.js || echo "Meta injection skipped (Contentful not configured)"
+
+      - name: Inject version into built files
+        working-directory: ./Website Files
+        # Update dist/version.json and patch dist/index.html meta/script/fav links so clients fetch new assets
+        run: |
+          set -e
+          # Generate a short version string using UTC time + git sha
+          VERSION="$(date -u +%Y-%m-%d-%H%M%S)-${GITHUB_SHA:0:8}"
+          TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          echo "{\"version\":\"$VERSION\",\"timestamp\":\"$TIMESTAMP\",\"build\":\"github-actions\"}" > dist/version.json
+
+          if [ -f dist/index.html ]; then
+            # Replace cache-version meta if present
+            sed -i -E "s/(<meta name=\"cache-version\" content=\")[^\"]+(\")/\1$VERSION\2/" dist/index.html || true
+
+            # Replace script query param if pattern matches (best-effort)
+            sed -i -E "s|(src=\"/src/main.tsx\?v=)[^\"]+(\")|\1$VERSION\2|g" dist/index.html || true
+
+            # Replace favicon version query param if present
+            sed -i -E "s|(href=\"https://www.vortexpcs.com/vortexpcs-logo.png\?v=)[^\"]+(\")|\1$VERSION\2|g" dist/index.html || true
+          fi
+
+      - name: SPA fallback (copy index.html to 404.html)
+        working-directory: ./Website Files
+        run: |
+          cp dist/index.html dist/404.html || echo "404 fallback copy skipped"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./Website Files/dist
+
+      - name: Display deployed version
+        working-directory: ./Website Files
+        if: success()
+        run: |
+          echo "Deployed version:"
+          cat dist/version.json || true

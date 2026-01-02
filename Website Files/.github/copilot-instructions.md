@@ -48,10 +48,10 @@ A React TypeScript e-commerce website for custom PC builds using Vite, shadcn/ui
 ### Build & Dev Commands
 
 ```bash
-npm run dev        # Start dev server on :3000
-npm run build      # Production build
-npm run preview    # Test production build
-npm run lint       # ESLint check
+pnpm dev           # Start dev server on :3000
+pnpm build         # Production build
+pnpm preview       # Test production build
+pnpm lint          # ESLint check
 ```
 
 ### File Organization

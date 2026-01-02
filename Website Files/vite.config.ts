@@ -34,6 +34,34 @@ export default defineConfig(({ mode }) => {
         "@/styles": path.resolve(__dirname, "./styles"),
       },
     },
+    optimizeDeps: {
+      include: [
+        "react",
+        "react-dom",
+        "react-router-dom",
+        "firebase/app",
+        "firebase/auth",
+        "firebase/firestore",
+        "contentful",
+        "@stripe/stripe-js",
+        "@stripe/react-stripe-js",
+        "lucide-react",
+        "recharts",
+        "three",
+        "@react-three/fiber",
+        "@react-three/drei",
+        "date-fns",
+        "zod",
+        "react-hook-form",
+      ],
+      exclude: ["firebase-admin", "@sentry/vite-plugin"],
+      esbuildOptions: {
+        target: "esnext",
+      },
+    },
+    worker: {
+      format: "es",
+    },
     build: {
       outDir: "dist",
       assetsDir: "assets",
@@ -41,145 +69,49 @@ export default defineConfig(({ mode }) => {
       minify: "esbuild",
       cssMinify: true,
       cssCodeSplit: true,
+      // Keep a higher threshold to avoid noisy warnings on purposefully large chunks
       chunkSizeWarningLimit: 1500,
       rollupOptions: {
-        onwarn(warning, defaultHandler) {
+        onwarn(warning: unknown, defaultHandler) {
+          const code = (warning && (warning as { code?: string }).code) || "";
           const msg =
             typeof warning.message === "string" ? warning.message : "";
+          // Ignore noisy Rollup warnings that are safe in our Vite setup
           if (
-            msg.includes("dynamically imported") &&
-            msg.includes("but also statically imported")
-          )
+            // Next.js-style "use client" directives in deps/components
+            code === "MODULE_LEVEL_DIRECTIVE" ||
+            // Sourcemap resolution noise from dependencies during reporting
+            code === "SOURCEMAP_ERROR" ||
+            // Vite sometimes warns when a module is both static and dynamic imported
+            (msg.includes("dynamically imported") &&
+              msg.includes("but also statically imported"))
+          ) {
             return;
+          }
           defaultHandler(warning);
         },
         output: {
           manualChunks(id) {
-            // Node modules chunking strategy
             if (id.includes("node_modules")) {
-              // React core - loaded on every page
-              if (
-                /react[/\\](index|react|dom)/.test(id) ||
-                id.includes("react-router-dom") ||
-                id.includes("recharts") ||
-                id.includes("contentful")
-              ) {
-                return "react-vendor";
-              }
-
-              // Firebase - only needed for auth/database features
-              if (id.includes("firebase")) {
-                return "firebase-vendor";
-              }
-
-              // Stripe & payment - only for checkout
-              if (id.includes("@stripe") || id.includes("stripe-js")) {
-                return "stripe-vendor";
-              }
-
-              // UI components - shared across most pages
-              if (
-                id.includes("@radix-ui") ||
-                id.includes("sonner") ||
-                id.includes("next-themes")
-              ) {
-                return "ui-vendor";
-              }
-
-              // Three.js ecosystem - heavy 3D library, only for 3D visualizer
-              if (
-                id.includes("three") ||
-                id.includes("@react-three") ||
-                id.includes("cannon-es")
-              ) {
-                return "three-vendor";
-              }
-
-              // PDF generation - only for build exports
-              if (id.includes("jspdf") || id.includes("html2canvas")) {
-                return "pdf-vendor";
-              }
-
-              // Utilities - common helpers
-              if (
-                id.includes("dompurify") ||
-                id.includes("date-fns") ||
-                id.includes("clsx") ||
-                id.includes("tailwind-merge")
-              ) {
-                return "utils-vendor";
-              }
-
-              // Animation libraries
-              if (id.includes("framer-motion")) {
-                return "animation-vendor";
-              }
-            }
-
-            // Source code chunking - split large feature areas
-            if (
-              id.includes("components/PCBuilder") ||
-              id.includes("components/AdminPanel")
-            ) {
-              return "builder";
-            }
-
-            if (
-              id.includes("components/Interactive3DBuilder") ||
-              id.includes("components/Mobile3DVisualizerModal")
-            ) {
-              return "visualizer";
-            }
-
-            if (
-              id.includes("components/BlogList") ||
-              id.includes("components/BlogPost")
-            ) {
-              return "blog";
-            }
-
-            if (id.includes("services")) {
-              return "services";
-            }
-
-            if (id.includes("hooks")) {
-              return "hooks";
+              // Split only heavy, independent libraries to avoid circular deps
+              if (id.includes("three")) return "three";
+              if (id.includes("firebase")) return "firebase";
+              if (id.includes("@contentful")) return "contentful";
+              // Let everything else (React, icons, etc.) bundle naturally
             }
           },
         },
       },
     },
-    optimizeDeps: {
-      exclude: [
-        "firebase/analytics",
-        "firebase/functions",
-        "firebase/performance",
-        "firebase/remote-config",
-        "firebase/messaging",
-      ],
-    },
     server: {
-      port: 3000,
-      host: true,
-      strictPort: false,
-      hmr: { protocol: "ws", host: "localhost" },
-      proxy: process.env.VERCEL
-        ? undefined
-        : {
-            "/api/ai": {
-              // AI endpoint always uses production Vercel
-              target: "https://vortexpcs.com",
-              changeOrigin: true,
-              secure: true,
-              rewrite: (p) => p,
-            },
-            "/api": {
-              target: env.VITE_STRIPE_BACKEND_URL || "https://vortexpcs.com",
-              changeOrigin: true,
-              secure: true,
-              rewrite: (p) => p,
-            },
-          },
+      proxy: {
+        "/api": {
+          target: env.VITE_STRIPE_BACKEND_URL || "https://vortexpcs.com",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (p) => p,
+        },
+      },
     },
   };
 });

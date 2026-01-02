@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Test Page</title>
+    <style>
+      body {
+        background: black;
+        color: white;
+        font-family: Arial;
+        padding: 20px;
+      }
+      .container {
+        border: 2px solid cyan;
+        padding: 20px;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>✅ Servers are Running!</h1>
+      <p>
+        If you can see this page, both the Vite dev server and Node.js servers
+        are working.
+      </p>
+      <hr />
+      <h2>Status:</h2>
+      <ul>
+        <li>Vite Dev Server: <span id="vite-status">checking...</span></li>
+        <li>API Server: <span id="api-status">checking...</span></li>
+      </ul>
+      <hr />
+      <h2>Next Steps:</h2>
+      <ol>
+        <li>Open http://localhost:5173 in your browser</li>
+        <li>Press F12 to open Developer Tools</li>
+        <li>Check the Console tab for any JavaScript errors</li>
+        <li>Share the error messages with me</li>
+      </ol>
+    </div>
+
+    <script>
+      // Check Vite
+      fetch("http://localhost:5173/version.json")
+        .then(
+          (r) => (document.getElementById("vite-status").textContent = "✅ OK")
+        )
+        .catch(
+          (e) =>
+            (document.getElementById("vite-status").textContent =
+              "❌ " + e.message)
+        );
+
+      // Check API
+      fetch("http://localhost:3001/api/health")
+        .then(
+          (r) => (document.getElementById("api-status").textContent = "✅ OK")
+        )
+        .catch(
+          (e) =>
+            (document.getElementById("api-status").textContent =
+              "❌ " + e.message)
+        );
+    </script>
+  </body>
+</html>

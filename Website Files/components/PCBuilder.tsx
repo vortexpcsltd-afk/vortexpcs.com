@@ -1,4 +1,4 @@
-import React, {
+import {
   useState,
   useEffect,
   useRef,
@@ -8,12 +8,8 @@ import React, {
   lazy,
   Suspense,
 } from "react";
-import {
-  documentToReactComponents,
-  Options,
-} from "@contentful/rich-text-react-renderer";
-import { BLOCKS, INLINES, Document } from "@contentful/rich-text-types";
-import DOMPurify from "dompurify";
+import { Document } from "@contentful/rich-text-types";
+
 import { buildFullShareUrl, decodeFullBuild } from "../services/buildSharing";
 import { toast } from "sonner";
 import { logger } from "../services/logger";
@@ -24,6 +20,7 @@ const ProductComparison = lazy(() =>
   import("./ProductComparison").then((m) => ({ default: m.ProductComparison }))
 );
 import { BuildsCompletedToday } from "./SocialProof";
+import { SimilarComponentsSection } from "./PCBuilder/SimilarComponentsSection";
 import {
   trackSearch,
   trackZeroResultSearch,
@@ -31,8 +28,11 @@ import {
 } from "../services/searchTracking";
 import { getSessionId, trackClick } from "../services/sessionTracker";
 import { getSearchSessionId } from "../utils/searchSessionManager";
-import { componentData, PLACEHOLDER_IMAGE } from "./data/pcBuilderComponents";
-import { peripheralsData } from "./data/pcBuilderPeripherals";
+import { PLACEHOLDER_IMAGE } from "./data/pcBuilderComponents";
+import {
+  toComparisonComponent,
+  renderRichText,
+} from "./PCBuilder/pcBuilderUtils";
 
 // Lazy load heavy analysis modules - only loaded when needed for "Kevin's Insight"
 const loadInsightModules = async () => {
@@ -93,87 +93,15 @@ const loadInsightModules = async () => {
   };
 };
 
-// Rich Text rendering options for Contentful Rich Text fields
-const richTextRenderOptions: Options = {
-  renderNode: {
-    [BLOCKS.PARAGRAPH]: (_node, children) => (
-      <p className="mb-4 last:mb-0 leading-relaxed">{children}</p>
-    ),
-    [BLOCKS.UL_LIST]: (_node, children) => (
-      <ul className="list-disc list-inside mb-4 space-y-2 pl-4">{children}</ul>
-    ),
-    [BLOCKS.OL_LIST]: (_node, children) => (
-      <ol className="list-decimal list-inside mb-4 space-y-2 pl-4">
-        {children}
-      </ol>
-    ),
-    [BLOCKS.LIST_ITEM]: (_node, children) => (
-      <li className="mb-1">{children}</li>
-    ),
-    [INLINES.HYPERLINK]: (node, children) => (
-      <a
-        href={node.data.uri}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-sky-400 hover:text-sky-300 underline transition-colors"
-      >
-        {children}
-      </a>
-    ),
-  },
-  renderText: (text) => {
-    // Preserve line breaks in text nodes
-    return text
-      .split("\n")
-      .reduce((children: React.ReactNode[], textSegment, index) => {
-        return [...children, index > 0 && <br key={index} />, textSegment];
-      }, []);
-  },
-};
-
 // Helper to render Rich Text from Contentful or plain text fallback
-const renderRichText = (content?: string | Document): React.ReactNode => {
-  if (!content) return null;
-
-  // If it's a Contentful Rich Text Document object
-  if (
-    typeof content === "object" &&
-    "nodeType" in content &&
-    content.nodeType === "document"
-  ) {
-    return documentToReactComponents(
-      content as Document,
-      richTextRenderOptions
-    );
-  }
-
-  // Fallback: plain text with basic markdown-style link conversion
-  if (typeof content === "string") {
-    // Convert markdown-style links to HTML
-    const withLinks = content.replace(
-      /\[([^\]]+)\]\((https?:[^)]+)\)/g,
-      (_m, text, url) => {
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">${text}</a>`;
-      }
-    );
-
-    // Sanitize with DOMPurify (allows only safe tags and links)
-    const sanitized = DOMPurify.sanitize(withLinks, {
-      ALLOWED_TAGS: ["a", "br", "p", "strong", "em", "span"],
-      ALLOWED_ATTR: ["href", "target", "rel", "class"],
-      ALLOW_DATA_ATTR: false,
-    });
-
-    return <span dangerouslySetInnerHTML={{ __html: sanitized }} />;
-  }
-
-  return null;
-};
+// renderRichText is now imported from pcBuilderUtils
+// Handles both Contentful Rich Text Documents and plain strings with sanitization
 
 // --- Typed Interfaces to replace implicit any usage ---
 export interface PCBuilderComponent {
   id: string;
   name?: string;
+  reducedPrice?: number;
   price?: number | null;
   brand?: string;
   brandLogo?: string; // URL to brand/manufacturer logo image
@@ -198,6 +126,9 @@ export interface PCBuilderComponent {
   processorCache?: string;
   integratedGraphics?: boolean;
   coolerIncluded?: boolean;
+  // Product identification fields
+  ean?: string; // European Article Number (barcode)
+  // Extended GPU and other component fields
   efficientCores?: number;
   performanceCores?: number;
   processorBasePower?: string;
@@ -314,7 +245,7 @@ export interface SelectedComponentIds {
   caseFans?: string;
 }
 
-type CategoryKey = keyof SelectedComponentIds;
+export type CategoryKey = keyof SelectedComponentIds;
 type AnyComponent = PCBuilderComponent | PCComponent;
 
 export interface ComponentDataMap {
@@ -333,7 +264,16 @@ import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
-import { ProgressiveImage } from "./ProgressiveImage";
+import { PriceTag } from "./ui/PriceTag";
+import { PointsBadge } from "./PointsBadge";
+import { PageHero } from "./PageHero";
+import { CategoryNav } from "./PCBuilder/CategoryNav";
+import { SelectedBuildDisplay } from "./PCBuilder/SelectedBuildDisplay";
+import FilterPanel from "./PCBuilder/FilterPanel";
+import {
+  CATEGORY_OPTION_FILTERS,
+  CATEGORY_RANGE_FILTERS,
+} from "./PCBuilder/filterConstants";
 import {
   fetchPCComponents,
   fetchPCOptionalExtras,
@@ -362,16 +302,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { Separator } from "./ui/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-  SheetFooter,
-  SheetClose,
-} from "./ui/sheet";
-import { Slider } from "./ui/slider";
 import { Checkbox } from "./ui/checkbox";
 import { Switch } from "./ui/switch";
 import type { SavedBuild } from "./BuildComparisonModal";
@@ -415,7 +345,6 @@ import {
   Package,
   Settings,
   ShoppingCart,
-  Bookmark,
   Info,
   ChevronLeft,
   ChevronRight,
@@ -425,18 +354,12 @@ import {
   Heart,
   Star,
   Plus,
-  Grid,
-  List,
-  Server,
   AlertCircle,
   Sparkles,
-  Trash2,
   ArrowLeftRight,
   Download,
   RefreshCw,
-  Share2,
   X,
-  TrendingUp,
   Building2,
   Shield,
   Search,
@@ -449,6 +372,10 @@ import {
   Headphones,
   Cable,
   Box,
+  Laptop2,
+  MemoryStick,
+  Video,
+  Gamepad,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ProductSchema } from "./seo/ProductSchema";
@@ -456,77 +383,9 @@ import { getStorageInsight } from "../utils/storageInsights";
 import type { TCOContext } from "./data/competitiveContext";
 import { useOptionSelectionsMap } from "../hooks/useOptionSelectionsMap";
 
-// Strict adapter to match expected Component-like inputs for insight helpers
-type ComparisonComponent = {
-  name?: string;
-  price?: number;
-  cores?: number;
-  tdp?: number;
-  vram?: number;
-};
-
-const toComparisonComponent = (
-  c: AnyComponent | undefined
-): ComparisonComponent => {
-  const cc = c as PCBuilderComponent | undefined;
-  const hasMsrp = cc && "msrp" in cc;
-  const priceCandidate =
-    typeof cc?.price === "number"
-      ? cc?.price
-      : hasMsrp && typeof (cc as { msrp?: number }).msrp === "number"
-      ? (cc as { msrp?: number }).msrp
-      : undefined;
-  return {
-    name: cc?.name,
-    price: typeof priceCandidate === "number" ? priceCandidate : 0,
-    cores: cc?.cores,
-    tdp: cc?.tdp,
-    vram: cc?.vram,
-  };
-};
-
-// ⚡ PERFORMANCE OPTIMIZATION: Old insight imports removed - now lazy loaded
+// ⚡ PERFORMANCE OPTIMISATION: Old insight imports removed - now lazy loaded
 // These modules totaled ~363KB and are now loaded on-demand when build comments are shown
 // See loadInsightModules() function at top of file
-
-// Category-specific simple filters (options and ranges)
-const CATEGORY_OPTION_FILTERS: Record<
-  string,
-  { key: string; label: string }[]
-> = {
-  cpu: [{ key: "socket", label: "Socket" }],
-  motherboard: [
-    { key: "socket", label: "Socket" },
-    { key: "formFactor", label: "Form Factor" },
-  ],
-  ram: [{ key: "type", label: "Type" }],
-  storage: [{ key: "type", label: "Type" }],
-  psu: [
-    { key: "efficiency", label: "Efficiency" },
-    { key: "modular", label: "Modular" },
-  ],
-  cooling: [{ key: "type", label: "Type" }],
-  case: [{ key: "formFactor", label: "Form Factor" }],
-};
-
-const CATEGORY_RANGE_FILTERS: Record<string, { key: string; label: string }[]> =
-  {
-    gpu: [{ key: "vram", label: "VRAM (GB)" }],
-    psu: [{ key: "wattage", label: "Wattage" }],
-    ram: [
-      { key: "capacity", label: "Capacity (GB)" },
-      { key: "speed", label: "Speed (MHz)" },
-    ],
-    storage: [{ key: "capacity", label: "Capacity (GB)" }],
-    cpu: [
-      { key: "cores", label: "Cores" },
-      { key: "tdp", label: "TDP (W)" },
-    ],
-    cooling: [
-      { key: "height", label: "Height (mm)" },
-      { key: "radiatorSize", label: "Radiator (mm)" },
-    ],
-  };
 
 // Compact corner tag for "Featured" items (gold outline, slightly larger)
 const FeaturedTag = ({ label = "Featured" }: { label?: string }) => (
@@ -690,15 +549,15 @@ const BuildDetailsModal = ({
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case "case":
-        return Package;
+        return Monitor;
       case "motherboard":
-        return Server;
+        return Activity;
       case "cpu":
         return Cpu;
       case "gpu":
-        return Monitor;
+        return Video;
       case "ram":
-        return HardDrive;
+        return MemoryStick;
       case "storage":
         return HardDrive;
       case "psu":
@@ -706,7 +565,7 @@ const BuildDetailsModal = ({
       case "cooling":
         return Fan;
       case "caseFans":
-        return Fan;
+        return Wind;
       default:
         return Package;
     }
@@ -741,8 +600,33 @@ const BuildDetailsModal = ({
         </DialogHeader>
 
         <div className="space-y-6 mt-6">
+          {/* Build Overview */}
+          <div className="p-6 rounded-xl bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/20">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-white mb-2">
+                  Recommended Build
+                </h3>
+                <p className="text-gray-300 mb-3">
+                  {recommendedBuild.description ||
+                    "Custom configuration optimised for your needs"}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-gray-400 mb-1">Total Price</div>
+                <div className="text-3xl font-bold text-green-400">
+                  £{totalPrice.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Components List */}
           <div className="space-y-4">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <Settings className="w-5 h-5 text-sky-400" />
+              Build Components
+            </h3>
             {buildComponents.map((item) => {
               const Icon = getCategoryIcon(item.category);
               return (
@@ -885,6 +769,7 @@ const ComponentImageGallery = ({
               src={productImages[currentImageIndex]}
               alt={productName}
               loading="lazy"
+              decoding="async"
               className="w-full h-auto transition-transform duration-500 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -1109,6 +994,7 @@ const ComponentDetailModal = ({
   onClose,
   onSelect,
   isSelected,
+  allComponents,
 }: {
   component: PCBuilderComponent;
   category: string;
@@ -1116,6 +1002,7 @@ const ComponentDetailModal = ({
   onClose: () => void;
   onSelect: (category: string, componentId: string) => void;
   isSelected: boolean;
+  allComponents?: PCBuilderComponent[];
 }) => {
   // Option state
   const [selectedOptions, setSelectedOptions] = useState<{
@@ -1754,16 +1641,25 @@ const ComponentDetailModal = ({
               <img
                 src={detailImages[currentImageIndex]}
                 alt={component.name}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-auto object-contain"
                 style={{ minHeight: "300px", maxHeight: "min(400px, 50vh)" }}
               />
 
-              {/* Featured tag in Modal */}
-              {component.featured && (
-                <div className="absolute top-3 right-3 z-30">
-                  <FeaturedTag />
-                </div>
-              )}
+              {/* Featured tag & Points Badge in Modal */}
+              <div className="absolute top-3 right-3 z-30 flex items-start gap-2">
+                {component.featured && <FeaturedTag />}
+                {component.price && component.price > 0 && (
+                  <PointsBadge
+                    price={
+                      (component as { reducedPrice?: number }).reducedPrice ??
+                      component.price
+                    }
+                    variant="badge"
+                  />
+                )}
+              </div>
 
               {/* Prev/Next Controls */}
               {detailImages.length > 1 && (
@@ -1827,6 +1723,8 @@ const ComponentDetailModal = ({
                     <img
                       src={img}
                       alt={`${component.name} ${idx + 1}`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   </button>
@@ -1846,6 +1744,8 @@ const ComponentDetailModal = ({
                     <img
                       src={component.brandLogo}
                       alt={component.brand || "Brand"}
+                      loading="lazy"
+                      decoding="async"
                       className="h-12 w-auto object-contain"
                       onError={(e) => {
                         e.currentTarget.style.display = "none";
@@ -2070,22 +1970,15 @@ const ComponentDetailModal = ({
 
               {/* LARGE PRICE DISPLAY */}
               <div className="text-right bg-gradient-to-br from-sky-500/20 to-blue-500/20 px-4 sm:px-6 lg:px-8 py-4 sm:py-6 rounded-xl border-2 border-sky-400/40 w-full sm:w-auto">
-                <div className="text-xs text-sky-400 uppercase tracking-wider mb-2">
+                <div className="text-xs text-sky-400 uppercase tracking-wider mb-3">
                   Price
                 </div>
-                <div className="flex items-start justify-end gap-1">
-                  <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white break-all">
-                    £{Math.floor((displayPrice ?? component.price) || 0)}
-                  </span>
-                  <span className="text-xl sm:text-2xl font-bold text-sky-300 mt-1">
-                    .
-                    {
-                      ((displayPrice ?? component.price) || 0)
-                        .toFixed(2)
-                        .split(".")[1]
-                    }
-                  </span>
-                </div>
+                <PriceTag
+                  price={displayPrice ?? component.price ?? 0}
+                  reducedPrice={component.reducedPrice}
+                  size="lg"
+                  align="right"
+                />
                 {!component.brandLogo && component.brand && (
                   <Badge className="mt-3 bg-sky-500/30 text-sky-300 border-sky-400/50">
                     {component.brand}
@@ -2191,10 +2084,9 @@ const ComponentDetailModal = ({
                           });
                         }
                       } catch (err) {
-                        console.warn(
-                          "[PCBuilder] Fallback analytics tracking failed",
-                          err
-                        );
+                        logger.warn("Fallback analytics tracking failed", {
+                          error: err,
+                        });
                       }
                     }}
                   >
@@ -2263,6 +2155,18 @@ const ComponentDetailModal = ({
                   ))}
                 </ul>
               </div>
+            )}
+
+            {/* Similar Components Section */}
+            {allComponents && allComponents.length > 0 && (
+              <SimilarComponentsSection
+                component={component}
+                allComponents={allComponents}
+                onSelectComponent={(selected) => {
+                  onSelect(category, selected.id);
+                  onClose();
+                }}
+              />
             )}
 
             {/* Action Buttons */}
@@ -2334,8 +2238,7 @@ const OptionalExtraDetailModal = ({
     // Common specs
     if (extra.name) specs.push({ label: "Name", value: extra.name });
     if (extra.brand) specs.push({ label: "Brand", value: extra.brand });
-    if (extra.price)
-      specs.push({ label: "Price", value: `£${extra.price.toFixed(2)}` });
+    // Price is displayed separately with PriceTag component to support reducedPrice
     if (extra.rating)
       specs.push({ label: "Rating", value: `${extra.rating}/5` });
 
@@ -2449,15 +2352,25 @@ const OptionalExtraDetailModal = ({
               <img
                 src={detailImages[currentImageIndex]}
                 alt={extra.name}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-auto object-contain"
                 style={{ minHeight: "300px", maxHeight: "min(400px, 50vh)" }}
               />
 
-              {extra.featured && (
-                <div className="absolute top-3 right-3 z-30">
-                  <FeaturedTag />
-                </div>
-              )}
+              {/* Featured tag & Points Badge in Modal */}
+              <div className="absolute top-3 right-3 z-30 flex items-start gap-2">
+                {extra.featured && <FeaturedTag />}
+                {extra.price && extra.price > 0 && (
+                  <PointsBadge
+                    price={
+                      (extra as { reducedPrice?: number }).reducedPrice ??
+                      extra.price
+                    }
+                    variant="badge"
+                  />
+                )}
+              </div>
 
               {detailImages.length > 1 && (
                 <>
@@ -2518,6 +2431,8 @@ const OptionalExtraDetailModal = ({
                     <img
                       src={img}
                       alt={`${extra.name} ${idx + 1}`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   </button>
@@ -2535,6 +2450,8 @@ const OptionalExtraDetailModal = ({
                     <img
                       src={extra.brandLogo}
                       alt={extra.brand || "Brand"}
+                      loading="lazy"
+                      decoding="async"
                       className="h-12 w-auto object-contain"
                       onError={(e) => {
                         e.currentTarget.style.display = "none";
@@ -2580,17 +2497,15 @@ const OptionalExtraDetailModal = ({
               </div>
 
               <div className="text-right bg-gradient-to-br from-green-500/20 to-emerald-500/20 px-4 sm:px-6 lg:px-8 py-4 sm:py-6 rounded-xl border-2 border-green-400/40 w-full sm:w-auto">
-                <div className="text-xs text-green-400 uppercase tracking-wider mb-2">
+                <div className="text-xs text-green-400 uppercase tracking-wider mb-3">
                   Price
                 </div>
-                <div className="flex items-start justify-end gap-1">
-                  <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white break-all">
-                    £{Math.floor(extra.price ?? 0)}
-                  </span>
-                  <span className="text-xl sm:text-2xl font-bold text-green-300 mt-1">
-                    .{(extra.price ?? 0).toFixed(2).split(".")[1]}
-                  </span>
-                </div>
+                <PriceTag
+                  price={extra.price ?? 0}
+                  reducedPrice={extra.reducedPrice}
+                  size="lg"
+                  align="right"
+                />
                 {!extra.brandLogo && extra.brand && (
                   <Badge className="mt-3 bg-green-500/30 text-green-300 border-green-400/50">
                     {extra.brand}
@@ -2683,10 +2598,9 @@ const OptionalExtraDetailModal = ({
                             });
                           }
                         } catch (err) {
-                          console.warn(
-                            "[PCBuilder] Fallback analytics tracking failed",
-                            err
-                          );
+                          logger.warn("Fallback analytics tracking failed", {
+                            error: err,
+                          });
                         }
                       }}
                     >
@@ -2794,12 +2708,16 @@ const ComponentCard = ({
   isSelected,
   onSelect,
   viewMode = "grid",
+  allComponents = [],
+  userEmail,
 }: {
   component: PCBuilderComponent;
   category: string;
   isSelected: boolean;
   onSelect: (category: string, componentId: string) => void;
   viewMode?: string;
+  allComponents?: PCBuilderComponent[];
+  userEmail?: string;
 }) => {
   const [showDetailModal, setShowDetailModal] = useState(false);
 
@@ -3037,12 +2955,19 @@ const ComponentCard = ({
             setShowDetailModal(true);
           }}
         >
-          {/* Featured Tag */}
-          {component.featured && (
-            <div className="absolute top-2 right-2 z-20">
-              <FeaturedTag />
-            </div>
-          )}
+          {/* Featured Tag & Points Badge */}
+          <div className="absolute top-2 right-2 z-20 flex items-start gap-2">
+            {component.featured && <FeaturedTag />}
+            {component.price && component.price > 0 && (
+              <PointsBadge
+                price={
+                  (component as { reducedPrice?: number }).reducedPrice ??
+                  component.price
+                }
+                variant="compact"
+              />
+            )}
+          </div>
           <div className="p-4 sm:p-6">
             <div className="flex flex-col sm:grid sm:grid-cols-12 gap-4 sm:gap-6 items-start sm:items-center">
               {/* Image */}
@@ -3204,10 +3129,9 @@ const ComponentCard = ({
                                       }
                                     }
                                   } catch (error) {
-                                    console.warn(
-                                      "Analytics tracking failed:",
-                                      error
-                                    );
+                                    logger.warn("Analytics tracking failed", {
+                                      error,
+                                    });
                                   }
                                 }}
                               >
@@ -3428,6 +3352,8 @@ const ComponentCard = ({
           onClose={() => setShowDetailModal(false)}
           onSelect={onSelect}
           isSelected={isSelected}
+          allComponents={allComponents}
+          userEmail={userEmail}
         />
       </>
     );
@@ -3460,12 +3386,19 @@ const ComponentCard = ({
           setShowDetailModal(true);
         }}
       >
-        {/* Featured Tag */}
-        {component.featured && (
-          <div className="absolute top-2 right-2 z-20">
-            <FeaturedTag />
-          </div>
-        )}
+        {/* Featured Tag & Points Badge */}
+        <div className="absolute top-2 right-2 z-20 flex items-start gap-2">
+          {component.featured && <FeaturedTag />}
+          {component.price && component.price > 0 && (
+            <PointsBadge
+              price={
+                (component as { reducedPrice?: number }).reducedPrice ??
+                component.price
+              }
+              variant="compact"
+            />
+          )}
+        </div>
         <div className="p-6 space-y-4">
           {/* Image Gallery - updates based on selected option */}
           <ComponentImageGallery
@@ -3489,6 +3422,7 @@ const ComponentCard = ({
                     alt={component.brand || "Brand"}
                     className="h-5 mb-2 object-contain"
                     loading="lazy"
+                    decoding="async"
                     onError={(e) => {
                       e.currentTarget.style.display = "none";
                     }}
@@ -3582,17 +3516,22 @@ const ComponentCard = ({
             </div>
 
             {/* Price */}
-            <div className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent mb-3">
+            <div className="mb-3">
               {hasMultiplePrices && (
-                <span className="text-sm font-normal text-gray-400 mr-1">
+                <span className="block text-sm font-normal text-gray-400 mb-1">
                   From
                 </span>
               )}
-              £
-              {(hasMultiplePrices
-                ? lowestPrice
-                : displayPrice ?? component.price ?? 0
-              ).toFixed(2)}
+              <PriceTag
+                price={
+                  hasMultiplePrices
+                    ? lowestPrice
+                    : displayPrice ?? component.price ?? 0
+                }
+                reducedPrice={component.reducedPrice}
+                size="lg"
+                align="left"
+              />
             </div>
 
             {/* Action Buttons */}
@@ -3637,6 +3576,8 @@ const ComponentCard = ({
         onClose={() => setShowDetailModal(false)}
         onSelect={onSelect}
         isSelected={isSelected}
+        allComponents={allComponents}
+        userEmail={userEmail}
       />
     </>
   );
@@ -3838,12 +3779,16 @@ const PeripheralCard = ({
             setShowDetailModal(true);
           }}
         >
-          {/* Featured Tag */}
-          {peripheral.featured && (
-            <div className="absolute top-2 right-2 z-20">
-              <FeaturedTag />
-            </div>
-          )}
+          {/* Featured Tag & Points Badge */}
+          <div className="absolute top-2 right-2 z-20 flex items-start gap-2">
+            {peripheral.featured && <FeaturedTag />}
+            {peripheral.price && peripheral.price > 0 && (
+              <PointsBadge
+                price={peripheral.reducedPrice ?? peripheral.price}
+                variant="compact"
+              />
+            )}
+          </div>
           <div className="p-4 sm:p-6">
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6 items-center">
               {/* Image */}
@@ -3922,9 +3867,13 @@ const PeripheralCard = ({
               {/* Price & Actions */}
               <div className="col-span-3 text-right space-y-3">
                 <div>
-                  <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                    £{peripheral.price.toFixed(2)}
-                  </div>
+                  {/* Use PriceTag to reflect reduced price when available */}
+                  <PriceTag
+                    price={peripheral.price}
+                    reducedPrice={peripheral.reducedPrice}
+                    size="md"
+                    align="right"
+                  />
                   <div className="flex items-center justify-end gap-1 text-yellow-400">
                     {[...Array(5)].map((_, i) => {
                       const ratingValue = peripheral.rating ?? 0;
@@ -3998,12 +3947,16 @@ const PeripheralCard = ({
           setShowDetailModal(true);
         }}
       >
-        {/* Featured Tag */}
-        {peripheral.featured && (
-          <div className="absolute top-2 right-2 z-20">
-            <FeaturedTag />
-          </div>
-        )}
+        {/* Featured Tag & Points Badge */}
+        <div className="absolute top-2 right-2 z-20 flex items-start gap-2">
+          {peripheral.featured && <FeaturedTag />}
+          {peripheral.price && peripheral.price > 0 && (
+            <PointsBadge
+              price={peripheral.reducedPrice ?? peripheral.price}
+              variant="compact"
+            />
+          )}
+        </div>
         <div className="p-6 space-y-4">
           {/* Image Gallery */}
           <ComponentImageGallery
@@ -4097,9 +4050,13 @@ const PeripheralCard = ({
 
             {/* Price */}
             <div className="flex justify-between items-center pt-2">
-              <div className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                £{peripheral.price.toFixed(2)}
-              </div>
+              {/* Use PriceTag to reflect reduced price when available */}
+              <PriceTag
+                price={peripheral.price}
+                reducedPrice={peripheral.reducedPrice}
+                size="lg"
+                align="left"
+              />
               <div
                 className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
                   isSelected
@@ -4145,7 +4102,8 @@ const MemoComponentCard = memo(
     prev.component.price === next.component.price &&
     prev.isSelected === next.isSelected &&
     prev.viewMode === next.viewMode &&
-    prev.category === next.category
+    prev.category === next.category &&
+    prev.allComponents?.length === next.allComponents?.length
 );
 
 const MemoPeripheralCard = memo(
@@ -4636,7 +4594,6 @@ export function PCBuilder({
     cable: [],
   });
   const [isLoadingCms, setIsLoadingCms] = useState(true);
-  const [useCmsData, setUseCmsData] = useState(false);
 
   // Ref to scroll into the build section when clicking CTA
   const buildSectionRef = useRef<HTMLDivElement | null>(null);
@@ -4754,11 +4711,9 @@ export function PCBuilder({
     const { components: compDecoded, peripherals: periphDecoded } = decoded;
     if (!compDecoded || Object.keys(compDecoded).length === 0) return;
 
-    // Pick the right dataset (CMS or fallback)
-    const data = useCmsData ? cmsComponents : componentData;
-    const extrasData: Record<string, Array<{ id: string }>> = useCmsData
-      ? cmsOptionalExtras
-      : {};
+    // Use CMS data
+    const data = cmsComponents;
+    const extrasData: Record<string, Array<{ id: string }>> = cmsOptionalExtras;
 
     // Filter components to only IDs that exist in current data
     const filtered: SelectedComponentIds = {} as SelectedComponentIds;
@@ -4778,7 +4733,9 @@ export function PCBuilder({
     const filteredPeripherals: Record<string, string[]> = {};
     Object.entries(periphDecoded).forEach(([category, ids]) => {
       if (!Array.isArray(ids) || ids.length === 0) return;
-      const list = extrasData[category as keyof typeof cmsOptionalExtras] || [];
+      const list = Array.isArray(extrasData)
+        ? extrasData.filter((e) => (e as PCOptionalExtra).category === category)
+        : [];
       if (Array.isArray(list)) {
         const validIds = ids.filter((id) => list.find((c) => c.id === id));
         if (validIds.length > 0) filteredPeripherals[category] = validIds;
@@ -4799,7 +4756,7 @@ export function PCBuilder({
         filteredPeripherals,
       });
     }
-  }, [isLoadingCms, useCmsData, cmsComponents, cmsOptionalExtras]);
+  }, [isLoadingCms, cmsComponents, cmsOptionalExtras]);
 
   // Fetch components from CMS on mount
   useEffect(() => {
@@ -4895,19 +4852,14 @@ export function PCBuilder({
             `📦 CMS returned ${extras.length} items for category: ${category}`
           );
 
-          if (category === "software") {
-            // If CMS has data, use it; otherwise fallback to hardcoded
-            if (!Array.isArray(extras) || extras.length === 0) {
-              logger.debug(
-                "⚠️ No CMS data for software, using fallback peripheralsData"
-              );
-              extras = peripheralsData.software as unknown as PCOptionalExtra[];
-            } else {
-              logger.debug(
-                `✅ Using ${extras.length} software items from CMS`,
-                { items: extras.map((e) => e.name) }
-              );
-            }
+          if (
+            category === "software" &&
+            Array.isArray(extras) &&
+            extras.length > 0
+          ) {
+            logger.debug(`✅ Using ${extras.length} software items from CMS`, {
+              items: extras.map((e) => e.name),
+            });
           }
           extraResults[category] = extras;
           logger.debug(
@@ -4918,19 +4870,18 @@ export function PCBuilder({
         setCmsComponents(componentResults);
         setCmsOptionalExtras(extraResults);
 
-        // Use CMS data if any components or extras were loaded
+        // Always use CMS data (mock data removed)
         const hasComponents = Object.values(componentResults).some(
           (arr) => arr.length > 0
         );
         const hasExtras = Object.values(extraResults).some(
           (arr) => arr.length > 0
         );
-        setUseCmsData(hasComponents || hasExtras);
 
         if (hasComponents || hasExtras) {
           logger.info("✅ Using CMS data for PC Builder");
         } else {
-          logger.info("ℹ️ No CMS data found, using fallback hardcoded data");
+          logger.warn("⚠️ No CMS data found - check your Contentful setup");
         }
 
         // Process pending PC Finder recommendations if available
@@ -5220,11 +5171,10 @@ export function PCBuilder({
           }
         }
       } catch (error) {
-        console.error("❌ [PCBuilder] Error loading CMS data:", error);
         logger.error("Error loading CMS data", {
           error: error instanceof Error ? error.message : String(error),
         });
-        setUseCmsData(false);
+        // Continue without CMS data - app should still work but no components available
       } finally {
         setIsLoadingCms(false);
       }
@@ -5316,9 +5266,8 @@ export function PCBuilder({
 
       // Helper function to find best matching component by name/specs
       const findComponentBySpec = (category: string, specString: string) => {
-        const components = (useCmsData ? cmsComponents : componentData)[
-          category as keyof typeof componentData
-        ];
+        const components =
+          cmsComponents[category as keyof typeof cmsComponents];
         if (!components || !Array.isArray(components)) return null;
 
         // Try exact name match first (case-insensitive)
@@ -5527,8 +5476,7 @@ export function PCBuilder({
           );
 
           // Auto-select compatible motherboard
-          const motherboards = (useCmsData ? cmsComponents : componentData)
-            .motherboard;
+          const motherboards = cmsComponents.motherboard;
           const compatibleMB = motherboards?.find(
             (mb) => mb.socket === (cpu as PCBuilderComponent).socket
           );
@@ -5599,7 +5547,7 @@ export function PCBuilder({
 
       // Auto-select case if not specified
       if (!importedComponents.case) {
-        const cases = (useCmsData ? cmsComponents : componentData).case;
+        const cases = cmsComponents.case;
         if (cases && cases.length > 0) {
           importedComponents.case = cases[0].id;
           logger.debug(`✅ Auto-selected case: ${cases[0].name}`);
@@ -5611,34 +5559,17 @@ export function PCBuilder({
         importedComponents,
       });
     }
-  }, [recommendedBuild, useCmsData, cmsComponents]);
+  }, [recommendedBuild, cmsComponents]);
 
-  // Merge CMS data with fallback componentData
-  const activeComponentData = (
-    useCmsData ? (cmsComponents as unknown as ComponentDataMap) : componentData
-  ) as ComponentDataMap;
+  // Use only CMS data (mock data removed)
+  const activeComponentData =
+    cmsComponents as unknown as ComponentDataMap as ComponentDataMap;
 
-  // Merge CMS optional extras with fallback peripheralsData per category
+  // Use only CMS optional extras (mock data removed)
   const activeOptionalExtrasData = useMemo(() => {
-    const categories = Object.keys(peripheralsData) as Array<
-      keyof typeof peripheralsData
-    >;
-
-    const merged: Record<string, PCOptionalExtra[]> = {};
-    categories.forEach((category) => {
-      const cmsList = (cmsOptionalExtras as Record<string, PCOptionalExtra[]>)[
-        category
-      ];
-      const fallbackList = peripheralsData[category] || [];
-
-      merged[category] =
-        useCmsData && Array.isArray(cmsList) && cmsList.length > 0
-          ? cmsList
-          : fallbackList;
-    });
-
-    return merged as typeof peripheralsData;
-  }, [useCmsData, cmsOptionalExtras]);
+    // cmsOptionalExtras is already a keyed object, just return it directly
+    return cmsOptionalExtras;
+  }, [cmsOptionalExtras]);
 
   // Index maps for O(1) id lookups per category
   const componentIdMaps = useMemo(() => {
@@ -6033,56 +5964,74 @@ export function PCBuilder({
     {
       id: "case",
       label: "Case",
-      icon: Package,
+      icon: Monitor,
       count: activeComponentData.case?.length || 0,
+      description:
+        "The chassis that houses all components, provides mounting points, and manages airflow and cable routing.",
     },
     {
       id: "motherboard",
       label: "Motherboard",
-      icon: Server,
+      icon: Activity,
       count: activeComponentData.motherboard?.length || 0,
+      description:
+        "The main circuit board that connects the CPU, memory, storage, GPU, and peripherals while defining compatibility and expansion options.",
     },
     {
       id: "cpu",
       label: "CPU",
       icon: Cpu,
       count: activeComponentData.cpu?.length || 0,
+      description:
+        'The central processing unit; the system\'s primary "brain" that executes instructions and runs applications.',
     },
     {
       id: "gpu",
       label: "GPU",
-      icon: Monitor,
+      icon: Video,
       count: activeComponentData.gpu?.length || 0,
+      description:
+        "The graphics processing unit; a specialised processor that renders images, video, and parallel workloads for gaming and content creation.",
     },
     {
       id: "ram",
       label: "RAM",
-      icon: HardDrive,
+      icon: MemoryStick,
       count: activeComponentData.ram?.length || 0,
+      description:
+        "Volatile system memory used for active data and program storage to enable fast read/write access while the PC is running.",
     },
     {
       id: "storage",
       label: "Storage",
       icon: HardDrive,
       count: activeComponentData.storage?.length || 0,
+      description:
+        "Persistent data storage (SSDs/HDDs and M.2 drives) that holds the operating system, applications, and files.",
     },
     {
       id: "psu",
       label: "PSU",
       icon: Zap,
       count: activeComponentData.psu?.length || 0,
+      description:
+        "The power supply unit that converts AC mains power to regulated DC voltages and supplies power to every component.",
     },
     {
       id: "cooling",
       label: "Cooling",
       icon: Fan,
       count: activeComponentData.cooling?.length || 0,
+      description:
+        "The CPU and system cooling solutions (air or liquid) that remove heat from hot components to maintain safe operating temperatures.",
     },
     {
       id: "caseFans",
       label: "Case Fans",
-      icon: Fan,
+      icon: Wind,
       count: activeComponentData.caseFans?.length || 0,
+      description:
+        "Dedicated fans mounted in the case to move air through the chassis, supporting component cooling and airflow balance.",
     },
   ];
 
@@ -6123,6 +6072,13 @@ export function PCBuilder({
       });
     }
   };
+
+  // Memoize current category components for Similar Components feature
+  const allComponentsForCategory = useMemo(() => {
+    const list = (activeComponentData[activeCategory] ||
+      []) as PCBuilderComponent[];
+    return list;
+  }, [activeComponentData, activeCategory]);
 
   // Memoize total price calculation to avoid recalculation on every render
   const getTotalPrice = useMemo(() => {
@@ -6953,6 +6909,80 @@ export function PCBuilder({
           logger.warn(`Component not found: ${category} - ${componentId}`);
           return null;
         }
+
+        // DEBUG: Log component structure for build add
+        logger.debug(`[PCBuilder] Component from list for ${category}:`, {
+          componentId,
+          hasEan: "ean" in component,
+          ean: (component as { ean?: string }).ean,
+          allKeys: Object.keys(component),
+        });
+
+        // Determine effective base price (consider option overrides persisted in session)
+        const getEffectiveBasePrice = (comp: AnyComponent): number => {
+          const base = typeof comp.price === "number" ? comp.price : 0;
+          const pricesByOpt = (
+            comp as {
+              pricesByOption?: Record<
+                string,
+                Record<string, number | { price: number; ean?: string }>
+              >;
+            }
+          ).pricesByOption;
+          try {
+            if (pricesByOpt && comp.id) {
+              const raw = sessionStorage.getItem(`optionSelections_${comp.id}`);
+              const selections = raw
+                ? (JSON.parse(raw) as Record<string, string>)
+                : undefined;
+              const precedence = [
+                "size",
+                "storage",
+                "colour",
+                "color",
+                "type",
+                "style",
+              ];
+              for (const key of precedence) {
+                const sel = selections?.[key];
+                if (
+                  sel &&
+                  pricesByOpt[key] &&
+                  pricesByOpt[key][sel] !== undefined
+                ) {
+                  const pd = pricesByOpt[key][sel];
+                  return typeof pd === "number" ? pd : pd.price;
+                }
+                const alt =
+                  key === "colour"
+                    ? "color"
+                    : key === "color"
+                    ? "colour"
+                    : null;
+                if (
+                  alt &&
+                  sel &&
+                  pricesByOpt[alt] &&
+                  pricesByOpt[alt][sel] !== undefined
+                ) {
+                  const pd = pricesByOpt[alt][sel];
+                  return typeof pd === "number" ? pd : pd.price;
+                }
+              }
+            }
+          } catch {
+            // ignore parse/access errors
+          }
+          return base;
+        };
+
+        const basePrice = getEffectiveBasePrice(component as AnyComponent);
+        const reduced = (component as { reducedPrice?: number }).reducedPrice;
+        const effectivePrice =
+          typeof reduced === "number" && reduced > 0
+            ? Math.min(basePrice, reduced)
+            : basePrice;
+
         // Include id for downstream order item persistence and inventory
         let image: string | undefined;
         const imgs = (
@@ -6966,13 +6996,20 @@ export function PCBuilder({
             | { url?: string; src?: string };
           image = typeof first === "string" ? first : first.url || first.src;
         }
-        return {
+        const builtComponent = {
           id: component.id,
           name: component.name,
-          price: component.price || 0,
+          price: effectivePrice,
+          originalPrice: basePrice,
+          reducedPrice: reduced,
           category: category,
           image,
+          ean: (component as { ean?: string }).ean, // Include EAN for cart
         };
+
+        logger.debug(`[PCBuilder] Built component for cart:`, builtComponent);
+
+        return builtComponent;
       })
       .filter((comp) => comp !== null);
 
@@ -6983,13 +7020,26 @@ export function PCBuilder({
     // Add each selected component as an individual cart line item
     for (const comp of buildComponents) {
       if (!comp) continue;
-      onAddToCart({
+      const itemToAdd = {
         id: comp.id,
         name: comp.name,
         price: comp.price,
         category: comp.category,
+        ean: comp.ean,
         image: (comp as { image?: string }).image,
-      } as unknown as PCBuilderComponent);
+        originalPrice: (comp as { originalPrice?: number }).originalPrice,
+        reducedPrice: (comp as { reducedPrice?: number }).reducedPrice,
+      } as unknown as PCBuilderComponent;
+
+      logger.debug(`[PCBuilder] About to call onAddToCart with:`, {
+        id: itemToAdd.id,
+        name: itemToAdd.name,
+        ean: itemToAdd.ean,
+        hasEan: "ean" in itemToAdd,
+        allKeys: Object.keys(itemToAdd),
+      });
+
+      onAddToCart(itemToAdd);
     }
     onOpenCart();
   };
@@ -7499,7 +7549,11 @@ export function PCBuilder({
         sessionId,
         previousResultsCount: previousCount,
         newResultsCount: currentCount,
-      }).catch(() => {});
+      }).catch((error) => {
+        logger.warn("Failed to track global search refinement", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
       prevGlobalQueryRef.current = newQuery;
       prevFiltersRef.current = newFilters;
       prevResultsCountGlobalRef.current = currentCount;
@@ -7526,7 +7580,11 @@ export function PCBuilder({
         sessionId,
         previousResultsCount: previousCount,
         newResultsCount: currentCount,
-      }).catch(() => {});
+      }).catch((error) => {
+        logger.warn("Failed to track category search refinement", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
       prevCategoryQueryRef.current = newQuery;
       prevFiltersRef.current = newFilters;
       prevResultsCountCategoryRef.current = currentCount;
@@ -7564,7 +7622,9 @@ export function PCBuilder({
         });
 
         if (!result.success) {
-          console.warn("[PC Builder] Search tracking failed:", result.error);
+          logger.warn("PC Builder search tracking failed", {
+            error: result.error,
+          });
         } else {
           logger.debug("[PC Builder] Search tracked successfully");
         }
@@ -7577,12 +7637,12 @@ export function PCBuilder({
             userId: user?.uid,
             sessionId: sessionId || undefined,
           }).catch((err) => {
-            console.warn("Zero-result tracking failed:", err);
+            logger.warn("Zero-result tracking failed", { error: err });
           });
         }
       } catch (error) {
         // Catch any synchronous errors
-        console.warn("Search tracking error:", error);
+        logger.warn("Search tracking error", { error });
       }
     }, 2000); // Debounce for 2 seconds - wait for user to finish typing
 
@@ -7627,10 +7687,9 @@ export function PCBuilder({
         });
 
         if (!result.success) {
-          console.warn(
-            "[PC Builder] Global search tracking failed:",
-            result.error
-          );
+          logger.warn("PC Builder global search tracking failed", {
+            error: result.error,
+          });
         } else {
           logger.debug("[PC Builder] Global search tracked successfully");
         }
@@ -7643,11 +7702,11 @@ export function PCBuilder({
             userId: user?.uid,
             sessionId: sessionId || undefined,
           }).catch((err) => {
-            console.warn("Global zero-result tracking failed:", err);
+            logger.warn("Global zero-result tracking failed", { error: err });
           });
         }
       } catch (error) {
-        console.warn("Global search tracking error:", error);
+        logger.warn("Global search tracking error", { error });
       }
     }, 2000); // Debounce for 2 seconds - wait for user to finish typing
 
@@ -7712,194 +7771,210 @@ export function PCBuilder({
 
   return (
     <ComponentErrorBoundary componentName="PCBuilder">
-      <div className="min-h-screen py-20">
+      <div className="min-h-screen pb-20">
         <div className="container mx-auto px-4">
-          {/* Stunning Hero Section */}
-          <div className="relative mb-20 overflow-visible max-w-[1300px] mx-auto">
-            {/* Removed decorative background to ensure full transparency under the menu bar */}
+          <PageHero
+            badge="CUSTOM PC BUILDER"
+            badgeIcon={<Settings className="w-5 h-5 animate-spin-slow" />}
+            title="Build Your Dream PC"
+            subtitle="Power Without Limits"
+            description="Choose your build experience. Dial in every component for total control, request bespoke parts through the Enthusiast Builder, or bring your rig to life with immersive 3D visualisation. Whether you're crafting a gaming powerhouse, a workstation monster, or something uniquely yours, Vortex PCs gives you the freedom to build without limits."
+          >
+            {/* CTA Buttons - Primary CTAs with prominence */}
+            <div className="flex flex-col lg:flex-row gap-4 justify-center mb-16 px-4 max-w-5xl mx-auto">
+              <Button
+                onClick={handleStartBuildingCta}
+                className="flex-1 h-[68px] min-h-[68px] border-2 border-transparent bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 text-lg lg:text-xl font-semibold rounded-2xl shadow-[0_0_40px_rgba(14,165,233,0.5)] hover:shadow-[0_0_60px_rgba(14,165,233,0.7)] transition-all duration-300 transform hover:scale-105"
+              >
+                <Settings className="w-6 h-6 mr-3" />
+                Start Building
+              </Button>
+              <Button
+                onClick={() => setShowEnthusiastBuilder(true)}
+                className="flex-1 h-[68px] min-h-[68px] border-2 border-blue-500/60 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 hover:text-white px-8 text-lg lg:text-xl font-semibold rounded-2xl transition-all duration-300 transform hover:scale-105 hover:border-blue-400/80"
+              >
+                <Sparkles className="w-6 h-6 mr-3" />
+                Enthusiast Builder
+              </Button>
+              <Button
+                onClick={() => navigate("/visual-configurator")}
+                className="flex-1 h-[68px] min-h-[68px] border-2 border-cyan-500/60 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 hover:text-white px-8 text-lg lg:text-xl font-semibold rounded-2xl transition-all duration-300 transform hover:scale-105 hover:border-cyan-400/80"
+              >
+                <Box className="w-6 h-6 mr-3" />
+                3D Builder
+                <Badge className="ml-3 bg-cyan-500/30 border-cyan-500/50 text-cyan-200 text-xs">
+                  Visualization
+                </Badge>
+              </Button>
+            </div>
 
-            <div className="relative">
-              {/* Top Badge */}
-              <div className="flex justify-center mb-8">
-                <div className="inline-flex items-center px-6 py-3 rounded-full bg-transparent border border-sky-500/30">
-                  <Settings className="w-5 h-5 text-sky-400 mr-3 animate-spin-slow" />
-                  <span className="text-sm font-semibold text-sky-300 tracking-wide">
-                    CUSTOM PC BUILDER
-                  </span>
-                </div>
-              </div>
-
-              {/* Main Heading */}
-              <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl xl:text-8xl font-black text-center mb-6 leading-tight px-4">
-                <span className="block bg-gradient-to-r from-white via-sky-100 to-blue-200 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(14,165,233,0.5)]">
-                  Build Your
+            {/* Feature Pills */}
+            <div className="flex flex-wrap justify-center gap-3 mb-12">
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
+                <CheckCircle className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
+                <span className="text-sm text-gray-300">
+                  Real-time Compatibility Check
                 </span>
-                <span className="block bg-gradient-to-r from-sky-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent animate-gradient drop-shadow-[0_0_50px_rgba(14,165,233,0.8)]">
-                  Dream PC
+              </div>
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
+                <Cpu className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+                <span className="text-sm text-gray-300">
+                  Premium Components
                 </span>
-              </h1>
-
-              {/* Subtitle */}
-              <p className="text-base sm:text-lg md:text-2xl text-gray-300 text-center max-w-5xl mx-auto mb-12 leading-relaxed px-4">
-                Choose your build experience. Dial in every component for total
-                control, request bespoke parts through the Enthusiast Builder,
-                or bring your rig to life with immersive 3D visualisation.
-                Whether you're crafting a gaming powerhouse, a workstation
-                monster, or something uniquely yours, Vortex PCs gives you the
-                freedom to build without limits.
-              </p>
-
-              {/* CTA Buttons - Primary CTAs with prominence */}
-              <div className="flex flex-col lg:flex-row gap-4 justify-center mb-16 px-4 max-w-5xl mx-auto">
-                <Button
-                  onClick={handleStartBuildingCta}
-                  className="flex-1 h-[68px] min-h-[68px] border-2 border-transparent bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-8 text-lg lg:text-xl font-semibold rounded-2xl shadow-[0_0_40px_rgba(14,165,233,0.5)] hover:shadow-[0_0_60px_rgba(14,165,233,0.7)] transition-all duration-300 transform hover:scale-105"
-                >
-                  <Settings className="w-6 h-6 mr-3" />
-                  Start Building
-                </Button>
-                <Button
-                  onClick={() => setShowEnthusiastBuilder(true)}
-                  className="flex-1 h-[68px] min-h-[68px] border-2 border-blue-500/60 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 hover:text-white px-8 text-lg lg:text-xl font-semibold rounded-2xl transition-all duration-300 transform hover:scale-105 hover:border-blue-400/80"
-                >
-                  <Sparkles className="w-6 h-6 mr-3" />
-                  Enthusiast Builder
-                </Button>
-                <Button
-                  onClick={() => navigate("/visual-configurator")}
-                  className="flex-1 h-[68px] min-h-[68px] border-2 border-cyan-500/60 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 hover:text-white px-8 text-lg lg:text-xl font-semibold rounded-2xl transition-all duration-300 transform hover:scale-105 hover:border-cyan-400/80"
-                >
-                  <Box className="w-6 h-6 mr-3" />
-                  3D Builder
-                  <Badge className="ml-3 bg-cyan-500/30 border-cyan-500/50 text-cyan-200 text-xs">
-                    Visualization
-                  </Badge>
-                </Button>
               </div>
-
-              {/* Feature Pills */}
-              <div className="flex flex-wrap justify-center gap-3 mb-12">
-                <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
-                  <CheckCircle className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
-                  <span className="text-sm text-gray-300">
-                    Real-time Compatibility Check
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
-                  <Cpu className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-                  <span className="text-sm text-gray-300">
-                    Premium Components
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
-                  <Zap className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-                  <span className="text-sm text-gray-300">
-                    Performance Optimised
-                  </span>
-                </div>
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-sky-500/50 transition-all duration-300 group">
+                <Zap className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+                <span className="text-sm text-gray-300">
+                  Performance Optimised
+                </span>
               </div>
+            </div>
 
-              {/* Social Proof - Builds Completed Today */}
-              <div className="flex justify-center px-4">
-                <BuildsCompletedToday
-                  className="max-w-md w-full animate-fade-in"
-                  showTrending={true}
-                />
-              </div>
+            {/* Social Proof - Builds Completed Today */}
+            <div className="flex justify-center px-4">
+              <BuildsCompletedToday
+                className="max-w-md w-full animate-fade-in"
+                showTrending={true}
+              />
+            </div>
 
-              {/* Business Solutions Banner */}
-              <div className="mt-12 max-w-[1300px] mx-auto px-4">
-                <div className="relative group">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-sky-500 to-blue-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-300"></div>
-                  <div className="relative bg-gradient-to-r from-sky-950/50 to-blue-950/50 backdrop-blur-xl border border-sky-500/30 rounded-2xl p-8 hover:border-sky-400/50 transition-all duration-300">
-                    <div className="flex flex-col md:flex-row items-center gap-6">
-                      <div className="flex-shrink-0">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/40 flex items-center justify-center">
-                          <Building2 className="w-8 h-8 text-sky-400" />
-                        </div>
+            {/* Business Solutions Banner */}
+            <div className="mt-12 max-w-[1300px] mx-auto px-4">
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-sky-500 to-blue-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-300"></div>
+                <div className="relative bg-gradient-to-r from-sky-950/50 to-blue-950/50 backdrop-blur-xl border border-sky-500/30 rounded-2xl p-8 hover:border-sky-400/50 transition-all duration-300">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex-shrink-0">
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-500/20 to-blue-500/20 border border-sky-500/40 flex items-center justify-center">
+                        <Building2 className="w-8 h-8 text-sky-400" />
                       </div>
-                      <div className="flex-1 text-center md:text-left">
-                        <h3 className="text-2xl font-bold mb-2">
-                          <span className="bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
-                            Business Solutions
-                          </span>
-                        </h3>
-                        <p className="text-gray-300 mb-4">
-                          Need workstations for your team? Explore our
-                          pre-configured business PCs with priority support
-                          packages.
-                        </p>
-                        <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                          <span className="text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
-                            Volume Discounts
-                          </span>
-                          <span className="text-xs px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400">
-                            3-5 Year Warranties
-                          </span>
-                          <span className="text-xs px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400">
-                            On-Site Support
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        onClick={() => navigate("/business-solutions")}
-                        className="flex-shrink-0 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
-                      >
-                        <Building2 className="w-4 h-4 mr-2" />
-                        View Business PCs
-                      </Button>
                     </div>
+                    <div className="flex-1 text-center md:text-left">
+                      <h3 className="text-2xl font-bold mb-2">
+                        <span className="bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+                          Business Solutions
+                        </span>
+                      </h3>
+                      <p className="text-gray-300 mb-4">
+                        Need workstations for your team? Explore our
+                        pre-configured business PCs with priority support
+                        packages.
+                      </p>
+                      <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                        <span className="text-xs px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
+                          Volume Discounts
+                        </span>
+                        <span className="text-xs px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                          3-5 Year Warranties
+                        </span>
+                        <span className="text-xs px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400">
+                          On-Site Support
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => navigate("/business-solutions")}
+                      className="flex-shrink-0 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
+                    >
+                      <Building2 className="w-4 h-4 mr-2" />
+                      View Business PCs
+                    </Button>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Loading CMS Data */}
-            {isLoadingCms && (
-              <div className="grid lg:grid-cols-4 gap-8 mt-8">
-                {/* Sidebar Skeletons */}
-                <div className="lg:col-span-1 space-y-6">
-                  <BuildSummarySkeleton />
-                  <CategoryNavSkeleton />
-                </div>
-
-                {/* Main Content Skeletons */}
-                <div className="lg:col-span-3 space-y-6">
-                  <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6 animate-pulse">
-                    <div className="h-8 bg-white/10 rounded w-48 mb-4"></div>
-                    <div className="h-12 bg-white/10 rounded mb-4"></div>
-                    <div className="flex gap-4 mb-6">
-                      <div className="h-10 bg-white/10 rounded flex-1"></div>
-                      <div className="h-10 bg-white/10 rounded w-32"></div>
+            {/* Gaming Laptops Banner */}
+            <div className="mt-8 max-w-[1300px] mx-auto px-4">
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-300"></div>
+                <div className="relative bg-gradient-to-r from-cyan-950/50 to-blue-950/50 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-8 hover:border-cyan-400/50 transition-all duration-300">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex-shrink-0">
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 flex items-center justify-center">
+                        <Laptop2 className="w-8 h-8 text-cyan-400" />
+                      </div>
                     </div>
-                  </Card>
-
-                  <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {[...Array(6)].map((_, i) => (
-                      <ComponentCardSkeleton key={i} viewMode={viewMode} />
-                    ))}
+                    <div className="flex-1 text-center md:text-left">
+                      <h3 className="text-2xl font-bold mb-2">
+                        <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                          Top-End Gaming Laptops
+                        </span>
+                      </h3>
+                      <p className="text-gray-300 mb-4">
+                        Portable performance monsters with desktop-class GPUs,
+                        premium displays, and advanced cooling.
+                      </p>
+                      <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                        <span className="text-xs px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                          RTX 4080/4090
+                        </span>
+                        <span className="text-xs px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                          240Hz QHD/4K Displays
+                        </span>
+                        <span className="text-xs px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400">
+                          Advanced Thermal Design
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => navigate("/laptops")}
+                      className="flex-shrink-0 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500"
+                    >
+                      <Laptop2 className="w-4 h-4 mr-2" />
+                      Browse Laptops
+                    </Button>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          </PageHero>
 
-            {/* Import notification */}
-            {recommendedBuild && (
-              <div className="mt-8 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 max-w-2xl mx-auto">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-400" />
-                  <div>
-                    <p className="text-green-300 font-medium">
-                      PC Finder Recommendation Imported
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      Starting with {recommendedBuild.name} configuration
-                    </p>
+          {/* Loading CMS Data */}
+          {isLoadingCms && (
+            <div className="grid lg:grid-cols-4 gap-8 mt-8">
+              {/* Sidebar Skeletons */}
+              <div className="lg:col-span-1 space-y-6">
+                <BuildSummarySkeleton />
+                <CategoryNavSkeleton />
+              </div>
+
+              {/* Main Content Skeletons */}
+              <div className="lg:col-span-3 space-y-6">
+                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6 animate-pulse">
+                  <div className="h-8 bg-white/10 rounded w-48 mb-4"></div>
+                  <div className="h-12 bg-white/10 rounded mb-4"></div>
+                  <div className="flex gap-4 mb-6">
+                    <div className="h-10 bg-white/10 rounded flex-1"></div>
+                    <div className="h-10 bg-white/10 rounded w-32"></div>
                   </div>
+                </Card>
+
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {[...Array(6)].map((_, i) => (
+                    <ComponentCardSkeleton key={i} viewMode={viewMode} />
+                  ))}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* Import notification */}
+          {recommendedBuild && (
+            <div className="mt-8 p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 max-w-2xl mx-auto">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="w-5 h-5 text-green-400" />
+                <div>
+                  <p className="text-green-300 font-medium">
+                    PC Finder Recommendation Imported
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    Starting with {recommendedBuild.name} configuration
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid lg:grid-cols-4 gap-8">
             {/* Sidebar */}
@@ -9012,7 +9087,7 @@ export function PCBuilder({
                                           <p className="text-xs">
                                             {showAdvancedInsights
                                               ? "Hide in-depth technical diagnostics (memory channels, PCIe lanes, thermal predictions, etc.)"
-                                              : "View detailed technical analysis including component compatibility checks, upgrade paths, and performance optimization tips"}
+                                              : "View detailed technical analysis including component compatibility checks, upgrade paths, and performance optimisation tips"}
                                           </p>
                                         </TooltipContent>
                                       </Tooltip>
@@ -9120,57 +9195,20 @@ export function PCBuilder({
               </Card>
 
               {/* Category Navigation */}
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-4 sm:p-6 lg:block">
-                <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4">
-                  Components
-                </h3>
-                <div className="space-y-2">
-                  {categories.map((category) => {
-                    const Icon = category.icon;
-                    const isSelected = activeCategory === category.id;
-                    const hasComponent =
-                      selectedComponents[
-                        category.id as keyof SelectedComponentIds
-                      ];
-
-                    return (
-                      <button
-                        key={category.id}
-                        onClick={() => {
-                          setCategoryPages((prev) => ({
-                            ...prev,
-                            [activeCategory]: currentPage,
-                          }));
-                          setActiveCategory(
-                            category.id as keyof SelectedComponentIds
-                          );
-                        }}
-                        className={`w-full flex items-center justify-between p-2.5 sm:p-3 rounded-lg transition-all duration-300 text-sm sm:text-base ${
-                          isSelected
-                            ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
-                            : "hover:bg-white/10 text-gray-300 hover:text-white"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                          <Icon className="w-4 h-4 flex-shrink-0" />
-                          <span className="font-medium truncate">
-                            {category.label}
-                          </span>
-                          {hasComponent && (
-                            <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
-                          )}
-                        </div>
-                        <Badge
-                          variant="secondary"
-                          className="text-xs flex-shrink-0"
-                        >
-                          {category.count}
-                        </Badge>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
+              <CategoryNav
+                categories={categories}
+                activeCategory={activeCategory}
+                selectedComponents={
+                  selectedComponents as Record<string, unknown>
+                }
+                onCategoryChange={(categoryId) => {
+                  setCategoryPages((prev) => ({
+                    ...prev,
+                    [activeCategory]: currentPage,
+                  }));
+                  setActiveCategory(categoryId as keyof SelectedComponentIds);
+                }}
+              />
             </div>
 
             {/* Main Content */}
@@ -9283,344 +9321,95 @@ export function PCBuilder({
               </Card>
 
               {/* Build Overview - Selected Components Display */}
-              {Object.keys(selectedComponents).length > 0 && (
-                <Card className="bg-white/5 border-white/10 backdrop-blur-xl p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <CheckCircle className="w-6 h-6 text-green-400" />
-                        Your Build Components
-                      </h2>
-                      <p className="text-gray-400 mt-1">
-                        Review your selections and swap components as needed
-                      </p>
-                    </div>
-                    <Badge className="bg-sky-500/20 border-sky-500/40 text-sky-300">
-                      {Object.keys(selectedComponents).length}/8 Components
-                    </Badge>
-                  </div>
+              <SelectedBuildDisplay
+                selectedComponents={selectedComponents}
+                selectedPeripherals={selectedPeripherals}
+                activeComponentData={activeComponentData}
+                getTotalPrice={getTotalPrice}
+                getSelectedComponentsCount={getSelectedComponentsCount}
+                getCategoryLabel={getCategoryLabel}
+                getComponentImage={getComponentImage}
+                renderRichText={renderRichText}
+                onComponentSwap={(category) => {
+                  setCategoryPages((prev) => ({
+                    ...prev,
+                    [activeCategory]: currentPage,
+                  }));
+                  setActiveCategory(category as keyof SelectedComponentIds);
+                  // Scroll to build section
+                  requestAnimationFrame(() => {
+                    buildSectionRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    });
+                  });
+                }}
+                onComponentRemove={(category) => {
+                  const newComponents = {
+                    ...selectedComponents,
+                  };
+                  delete newComponents[category as keyof SelectedComponentIds];
+                  setSelectedComponents(newComponents);
+                }}
+                onCheckoutWithCompatibility={handleCheckoutWithCompatibility}
+                onClearBuild={handleClearBuild}
+                onShareBuild={async () => {
+                  logger.debug("Share Build button clicked");
+                  try {
+                    const base = window.location.href.split("?")[0];
+                    const shareUrl = buildFullShareUrl(
+                      base,
+                      selectedComponents,
+                      selectedPeripherals
+                    );
 
-                  <div className="grid gap-4">
-                    {Object.entries(selectedComponents).map(
-                      ([category, componentId]) => {
-                        const component = (
-                          activeComponentData as ComponentDataMap
-                        )[category as keyof ComponentDataMap]?.find(
-                          (c) => c.id === componentId
+                    if (shareUrl === base) {
+                      toast.warning("Select parts to share your build.");
+                      return;
+                    }
+
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                      await navigator.clipboard.writeText(shareUrl);
+                      toast.success("Build link copied to clipboard! 🎉");
+
+                      try {
+                        const userId = sessionStorage.getItem("vortex_user_id");
+                        const buildTotalPrice = getTotalPrice;
+                        trackClick(
+                          "build_share",
+                          {
+                            shareUrl,
+                            totalPrice: buildTotalPrice,
+                            componentsCount:
+                              Object.keys(selectedComponents).length,
+                          },
+                          userId || undefined
                         );
-
-                        if (!component) return null;
-
-                        const categoryLabel = getCategoryLabel(category);
-                        const image = getComponentImage(component);
-
-                        return (
-                          <Card
-                            key={category}
-                            className="bg-white/5 border-white/10 p-4 hover:border-sky-500/30 transition-all"
-                          >
-                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-                              {/* Image */}
-                              <div className="sm:col-span-2">
-                                <div className="relative aspect-square w-full max-w-[120px] rounded-lg overflow-hidden bg-white/5 border border-white/10">
-                                  <ProgressiveImage
-                                    src={image}
-                                    alt={component.name || "Component"}
-                                    className="w-full h-full p-2"
-                                    shimmer
-                                    lazy
-                                    aspectRatio="1/1"
-                                    placeholderSrc="/vortexpcs-logo.png"
-                                    srcSet={`${image}?w=64 64w, ${image}?w=96 96w, ${image}?w=128 128w, ${image}?w=160 160w`}
-                                    sizes="(max-width: 640px) 25vw, 120px"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Details */}
-                              <div className="sm:col-span-7 space-y-2">
-                                <div>
-                                  <Badge
-                                    variant="outline"
-                                    className="mb-2 text-xs border-sky-500/30 text-sky-400"
-                                  >
-                                    {categoryLabel}
-                                  </Badge>
-                                  <h3 className="text-lg font-bold text-white">
-                                    {component.name}
-                                  </h3>
-                                  {component.brand && (
-                                    <p className="text-sm text-gray-400">
-                                      {component.brand}
-                                    </p>
-                                  )}
-                                </div>
-
-                                {/* Key Specs */}
-                                {component.description && (
-                                  <div className="text-sm text-gray-300">
-                                    {renderRichText(component.description)}
-                                  </div>
-                                )}
-
-                                {/* Category-specific specs */}
-                                <div className="flex flex-wrap gap-2">
-                                  {category === "cpu" && component.cores && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      {component.cores} Cores
-                                    </Badge>
-                                  )}
-                                  {category === "gpu" && component.vram && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      {component.vram}GB VRAM
-                                    </Badge>
-                                  )}
-                                  {category === "ram" && component.capacity && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      {component.capacity}GB
-                                    </Badge>
-                                  )}
-                                  {category === "psu" && component.wattage && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      {component.wattage}W
-                                    </Badge>
-                                  )}
-                                  {category === "storage" &&
-                                  component.storageCapacity ? (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      {String(component.storageCapacity)}
-                                    </Badge>
-                                  ) : null}
-                                  {component.inStock !== undefined && (
-                                    <Badge
-                                      className={
-                                        component.inStock
-                                          ? "bg-green-500/20 border-green-500/40 text-green-400"
-                                          : "bg-red-500/20 border-red-500/40 text-red-400"
-                                      }
-                                    >
-                                      {component.inStock
-                                        ? "In Stock"
-                                        : "Out of Stock"}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Price & Actions */}
-                              <div className="sm:col-span-3 flex flex-col items-end gap-3">
-                                <div className="text-right">
-                                  <div className="text-2xl font-bold text-white">
-                                    £{(component.price ?? 0).toFixed(0)}
-                                  </div>
-                                  {component.rating && (
-                                    <div className="flex items-center gap-1 text-sm text-yellow-400 justify-end mt-1">
-                                      <span>★</span>
-                                      <span>{component.rating}/5</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="flex flex-col gap-2 w-full">
-                                  <Button
-                                    onClick={() => {
-                                      setCategoryPages((prev) => ({
-                                        ...prev,
-                                        [activeCategory]: currentPage,
-                                      }));
-                                      setActiveCategory(
-                                        category as keyof SelectedComponentIds
-                                      );
-                                      // Scroll to build section
-                                      requestAnimationFrame(() => {
-                                        buildSectionRef.current?.scrollIntoView(
-                                          {
-                                            behavior: "smooth",
-                                            block: "start",
-                                          }
-                                        );
-                                      });
-                                    }}
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10 w-full"
-                                  >
-                                    <RefreshCw className="w-4 h-4 mr-2" />
-                                    Swap Component
-                                  </Button>
-                                  <Button
-                                    onClick={() => {
-                                      const newComponents = {
-                                        ...selectedComponents,
-                                      };
-                                      delete newComponents[
-                                        category as keyof SelectedComponentIds
-                                      ];
-                                      setSelectedComponents(newComponents);
-                                    }}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 w-full"
-                                  >
-                                    <X className="w-4 h-4 mr-2" />
-                                    Remove
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </Card>
+                        trackClick(
+                          "build_complete",
+                          {
+                            totalPrice: buildTotalPrice,
+                            componentsCount:
+                              Object.keys(selectedComponents).length,
+                            peripheralsCount:
+                              Object.keys(selectedPeripherals).length,
+                          },
+                          userId || undefined
                         );
+                      } catch (err) {
+                        logger.error("Failed to track build completion", err);
                       }
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <Button
-                      onClick={handleCheckoutWithCompatibility}
-                      className="flex-1 min-w-[200px] bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white h-12"
-                      disabled={getSelectedComponentsCount === 0}
-                    >
-                      <ShoppingCart className="w-5 h-5 mr-2" />
-                      Add to Cart
-                    </Button>
-
-                    <Button
-                      onClick={handleClearBuild}
-                      variant="outline"
-                      className="flex-1 min-w-[150px] border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 h-12"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Clear Build
-                    </Button>
-
-                    <Button
-                      onClick={async () => {
-                        logger.debug("Share Build button clicked");
-                        try {
-                          const base = window.location.href.split("?")[0];
-                          const shareUrl = buildFullShareUrl(
-                            base,
-                            selectedComponents,
-                            selectedPeripherals
-                          );
-
-                          if (shareUrl === base) {
-                            toast.warning("Select parts to share your build.");
-                            return;
-                          }
-
-                          if (
-                            navigator.clipboard &&
-                            navigator.clipboard.writeText
-                          ) {
-                            await navigator.clipboard.writeText(shareUrl);
-                            toast.success("Build link copied to clipboard! 🎉");
-
-                            try {
-                              const userId =
-                                sessionStorage.getItem("vortex_user_id");
-                              const buildTotalPrice = getTotalPrice;
-                              trackClick(
-                                "build_share",
-                                {
-                                  shareUrl,
-                                  totalPrice: buildTotalPrice,
-                                  componentsCount:
-                                    Object.keys(selectedComponents).length,
-                                },
-                                userId || undefined
-                              );
-                              trackClick(
-                                "build_complete",
-                                {
-                                  totalPrice: buildTotalPrice,
-                                  componentsCount:
-                                    Object.keys(selectedComponents).length,
-                                  peripheralsCount:
-                                    Object.keys(selectedPeripherals).length,
-                                },
-                                userId || undefined
-                              );
-                            } catch (err) {
-                              logger.error(
-                                "Failed to track build completion",
-                                err
-                              );
-                            }
-                          }
-                        } catch (e) {
-                          logger.error("Failed to copy build link:", e);
-                          toast.error("Failed to copy build link.");
-                        }
-                      }}
-                      variant="secondary"
-                      className="flex-1 min-w-[150px] bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 h-12"
-                    >
-                      <Share2 className="w-4 h-4 mr-2" />
-                      Share Build
-                    </Button>
-
-                    <Button
-                      onClick={handleSaveForComparison}
-                      variant="secondary"
-                      className="flex-1 min-w-[200px] bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 h-12"
-                    >
-                      <Bookmark className="w-4 h-4 mr-2" />
-                      Save for Comparison
-                    </Button>
-
-                    {savedBuildsForComparison.length > 0 && (
-                      <Button
-                        onClick={() => setShowComparisonModal(true)}
-                        variant="secondary"
-                        className="flex-1 min-w-[200px] bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 h-12"
-                      >
-                        <TrendingUp className="w-4 h-4 mr-2" />
-                        Compare Builds ({savedBuildsForComparison.length})
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Missing Components Warning */}
-                  {Object.keys(selectedComponents).length < 8 && (
-                    <div className="mt-6 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-yellow-300">
-                            Incomplete Build
-                          </p>
-                          <p className="text-sm text-yellow-400/80 mt-1">
-                            You still need to select{" "}
-                            {8 - Object.keys(selectedComponents).length} more
-                            component
-                            {8 - Object.keys(selectedComponents).length > 1
-                              ? "s"
-                              : ""}{" "}
-                            to complete your build.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              )}
+                    }
+                  } catch (e) {
+                    logger.error("Failed to copy build link:", e);
+                    toast.error("Failed to copy build link.");
+                  }
+                }}
+                onSaveForComparison={handleSaveForComparison}
+                onComparisonClick={() => setShowComparisonModal(true)}
+                savedBuildsForComparison={savedBuildsForComparison}
+                buildSectionRef={buildSectionRef}
+              />
 
               {/* Component Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -9684,256 +9473,29 @@ export function PCBuilder({
                   )}
                 </div>
 
-                <div className="flex items-center gap-3">
-                  {/* Filters Drawer */}
-                  <Sheet>
-                    <SheetTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="border-white/20 bg-white/10 text-gray-200 hover:bg-white/20"
-                        title="Filter components"
-                      >
-                        Filters
-                        {appliedFiltersCount > 0 && (
-                          <span className="ml-2 inline-flex items-center justify-center rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2 py-0.5 text-xs">
-                            {appliedFiltersCount}
-                          </span>
-                        )}
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent
-                      side="right"
-                      className="bg-black/90 border-white/10 text-white"
-                    >
-                      <SheetHeader>
-                        <SheetTitle>Filters</SheetTitle>
-                      </SheetHeader>
-                      <div className="p-4 space-y-6 overflow-auto">
-                        {/* Search */}
-                        <div>
-                          <div className="text-sm text-gray-300 mb-2">
-                            Search
-                          </div>
-                          <Input
-                            placeholder={`Search ${activeCategory}...`}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="bg-white/10 border-white/20 text-white placeholder:text-gray-400"
-                          />
-                        </div>
-
-                        {/* Brand */}
-                        {brandOptions.length > 0 && (
-                          <div>
-                            <div className="text-sm text-gray-300 mb-2">
-                              Brand
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              {brandOptions.map((brand) => {
-                                const checked = selectedBrands.includes(brand);
-                                return (
-                                  <label
-                                    key={brand}
-                                    className="flex items-center gap-2 text-sm text-gray-300"
-                                  >
-                                    <Checkbox
-                                      checked={checked}
-                                      onCheckedChange={(v) =>
-                                        setSelectedBrands((prev) =>
-                                          v
-                                            ? [...prev, brand]
-                                            : prev.filter((b) => b !== brand)
-                                        )
-                                      }
-                                    />
-                                    <span>{brand}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Price */}
-                        {priceMax > 0 && (
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="text-sm text-gray-300">Price</div>
-                              <div className="text-xs text-gray-400">
-                                £{priceRange[0]} - £{priceRange[1]}
-                              </div>
-                            </div>
-                            <Slider
-                              min={priceMin}
-                              max={priceMax}
-                              value={priceRange as unknown as number[]}
-                              onValueChange={(vals) =>
-                                setPriceRange([
-                                  Number(vals[0]),
-                                  Number(vals[1]),
-                                ])
-                              }
-                            />
-                          </div>
-                        )}
-
-                        {/* Category-specific options */}
-                        {Object.keys(optionFilterValues).length > 0 && (
-                          <div className="space-y-4">
-                            {(
-                              CATEGORY_OPTION_FILTERS[activeCategory] || []
-                            ).map((def) => {
-                              const values = optionFilterValues[def.key] || [];
-                              if (values.length === 0) return null;
-                              const selected = optionFilters[def.key] || [];
-                              return (
-                                <div key={def.key}>
-                                  <div className="text-sm text-gray-300 mb-2">
-                                    {def.label}
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {values.map((val) => {
-                                      const isChecked = selected.includes(val);
-                                      return (
-                                        <label
-                                          key={val}
-                                          className="flex items-center gap-2 text-sm text-gray-300"
-                                        >
-                                          <Checkbox
-                                            checked={isChecked}
-                                            onCheckedChange={(v) =>
-                                              setOptionFilters((prev) => {
-                                                const next = { ...prev };
-                                                const arr = new Set(
-                                                  next[def.key] || []
-                                                );
-                                                if (v) arr.add(val);
-                                                else arr.delete(val);
-                                                next[def.key] = Array.from(arr);
-                                                return next;
-                                              })
-                                            }
-                                          />
-                                          <span>{val}</span>
-                                        </label>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Category-specific ranges */}
-                        {Object.keys(rangeFilterBounds).length > 0 && (
-                          <div className="space-y-4">
-                            {(CATEGORY_RANGE_FILTERS[activeCategory] || []).map(
-                              (def) => {
-                                const bounds = rangeFilterBounds[def.key];
-                                if (!bounds) return null;
-                                const current = rangeFilters[def.key] || [
-                                  bounds.min,
-                                  bounds.max,
-                                ];
-                                return (
-                                  <div key={def.key}>
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="text-sm text-gray-300">
-                                        {def.label}
-                                      </div>
-                                      <div className="text-xs text-gray-400">
-                                        {current[0]} - {current[1]}
-                                      </div>
-                                    </div>
-                                    <Slider
-                                      min={bounds.min}
-                                      max={bounds.max}
-                                      value={current as unknown as number[]}
-                                      onValueChange={(vals) =>
-                                        setRangeFilters((prev) => ({
-                                          ...prev,
-                                          [def.key]: [
-                                            Number(vals[0]),
-                                            Number(vals[1]),
-                                          ] as [number, number],
-                                        }))
-                                      }
-                                    />
-                                  </div>
-                                );
-                              }
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <SheetFooter>
-                        <div className="flex items-center justify-between gap-2">
-                          <Button
-                            variant="ghost"
-                            className="border-white/20 bg-white/5 text-gray-300"
-                            onClick={() => {
-                              setSelectedBrands([]);
-                              setSearchQuery("");
-                              setOptionFilters({});
-                              setRangeFilters({});
-                              setPriceRange([priceMin, priceMax]);
-                            }}
-                          >
-                            Clear filters
-                          </Button>
-                          <SheetClose asChild>
-                            <Button className="bg-gradient-to-r from-sky-600 to-blue-600">
-                              Close
-                            </Button>
-                          </SheetClose>
-                        </div>
-                      </SheetFooter>
-                    </SheetContent>
-                  </Sheet>
-                  {/* View Mode Toggle */}
-                  <div className="flex items-center gap-1 p-1 rounded-lg bg-white/10">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setViewMode("grid")}
-                      className={`p-2 ${
-                        viewMode === "grid"
-                          ? "bg-sky-500/20 text-sky-300"
-                          : "text-gray-400"
-                      }`}
-                    >
-                      <Grid className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setViewMode("list")}
-                      className={`p-2 ${
-                        viewMode === "list"
-                          ? "bg-sky-500/20 text-sky-300"
-                          : "text-gray-400"
-                      }`}
-                    >
-                      <List className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  {/* Sort Dropdown */}
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="w-40 bg-white/10 border-white/20 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-black/90 border-white/10 text-white">
-                      <SelectItem value="price">Price: Low to High</SelectItem>
-                      <SelectItem value="price-desc">
-                        Price: High to Low
-                      </SelectItem>
-                      <SelectItem value="rating">Highest Rated</SelectItem>
-                      <SelectItem value="name">Name A-Z</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <FilterPanel
+                  activeCategory={activeCategory}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  selectedBrands={selectedBrands}
+                  setSelectedBrands={setSelectedBrands}
+                  priceRange={priceRange}
+                  setPriceRange={setPriceRange}
+                  optionFilters={optionFilters}
+                  setOptionFilters={setOptionFilters}
+                  rangeFilters={rangeFilters}
+                  setRangeFilters={setRangeFilters}
+                  brandOptions={brandOptions}
+                  priceMin={priceMin}
+                  priceMax={priceMax}
+                  optionFilterValues={optionFilterValues}
+                  rangeFilterBounds={rangeFilterBounds}
+                  appliedFiltersCount={appliedFiltersCount}
+                  viewMode={viewMode}
+                  setViewMode={setViewMode}
+                  sortBy={sortBy}
+                  setSortBy={setSortBy}
+                />
               </div>
 
               {/* Components Grid/List */}
@@ -9950,6 +9512,8 @@ export function PCBuilder({
                       }
                       onSelect={handleComponentSelect}
                       viewMode={viewMode}
+                      allComponents={allComponentsForCategory}
+                      userEmail={user?.email}
                     />
                   ))}
                 </div>
@@ -9966,6 +9530,8 @@ export function PCBuilder({
                       }
                       onSelect={handleComponentSelect}
                       viewMode={viewMode}
+                      allComponents={allComponentsForCategory}
+                      userEmail={user?.email}
                     />
                   ))}
                 </div>
@@ -10125,14 +9691,6 @@ export function PCBuilder({
                   <span className="sm:hidden">Mon</span>
                 </TabsTrigger>
                 <TabsTrigger
-                  value="gamepad"
-                  className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
-                >
-                  <Settings className="w-4 h-4 flex-shrink-0" />
-                  <span className="hidden sm:inline">Gamepads</span>
-                  <span className="sm:hidden">Pad</span>
-                </TabsTrigger>
-                <TabsTrigger
                   value="mousepad"
                   className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
                 >
@@ -10141,12 +9699,12 @@ export function PCBuilder({
                   <span className="sm:hidden">Mat</span>
                 </TabsTrigger>
                 <TabsTrigger
-                  value="software"
+                  value="gamepad"
                   className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
                 >
-                  <Shield className="w-4 h-4 flex-shrink-0" />
-                  <span className="hidden sm:inline">OS</span>
-                  <span className="sm:hidden">OS</span>
+                  <Gamepad className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Gamepads</span>
+                  <span className="sm:hidden">Pad</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="headset"
@@ -10163,6 +9721,14 @@ export function PCBuilder({
                   <Cable className="w-4 h-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Cables</span>
                   <span className="sm:hidden">Cable</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="software"
+                  className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300 text-xs sm:text-sm px-4 py-3 flex items-center justify-center gap-2 rounded-lg transition-all h-auto flex-none whitespace-nowrap"
+                >
+                  <Shield className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Operating System</span>
+                  <span className="sm:hidden">OS</span>
                 </TabsTrigger>
               </TabsList>
 

@@ -2,14 +2,17 @@ import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "../../ui/dialog";
 import { VisuallyHidden } from "../../ui/visually-hidden";
 import { Badge } from "../../ui/badge";
+import { PriceTag } from "../../ui/PriceTag";
 import { Button } from "../../ui/button";
 import { ProductSchema } from "../../seo/ProductSchema";
 import { BrandLogo } from "../../ui/brand-logo";
 import { FeaturedTag } from "../FeaturedTag";
+import { PointsBadge } from "../../PointsBadge";
 import { PCBuilderComponent } from "../types";
 import { PLACEHOLDER_IMAGE } from "../../data/pcBuilderComponents";
 import { logger } from "../../../services/logger";
 import { getSessionId } from "../../../services/sessionTracker";
+import type { CartItem } from "../../../types";
 import {
   Settings,
   ChevronLeft,
@@ -19,6 +22,7 @@ import {
   Download,
 } from "lucide-react";
 import { Document } from "@contentful/rich-text-types";
+import { PriceAlertComponent } from "../PriceAlertComponent";
 
 interface ComponentDetailModalProps {
   component: PCBuilderComponent;
@@ -28,6 +32,8 @@ interface ComponentDetailModalProps {
   onSelect: (category: string, componentId: string) => void;
   isSelected: boolean;
   renderRichText: (content?: string | Document) => React.ReactNode;
+  onAddToCart?: (item: CartItem) => void;
+  userEmail?: string;
 }
 
 type ImageRef = string | { url?: string; src?: string };
@@ -43,6 +49,8 @@ export const ComponentDetailModal = ({
   onSelect,
   isSelected,
   renderRichText,
+  onAddToCart,
+  userEmail,
 }: ComponentDetailModalProps) => {
   const [selectedOptions, setSelectedOptions] = useState<
     Record<string, string>
@@ -118,7 +126,15 @@ export const ComponentDetailModal = ({
   })();
 
   const displayEan = (() => {
-    if (!component.pricesByOption) return component.ean;
+    if (!component.pricesByOption) {
+      logger.debug("🔍 ComponentDetailModal displayEan:", {
+        componentId: component.id,
+        componentName: component.name,
+        componentEan: component.ean,
+        hasPrice: !!component.price,
+      });
+      return component.ean;
+    }
 
     const pricesByOpt = component.pricesByOption as Record<
       string,
@@ -153,8 +169,29 @@ export const ComponentDetailModal = ({
       }
     }
 
+    logger.debug("🔍 ComponentDetailModal displayEan (pricesByOption path):", {
+      componentId: component.id,
+      componentName: component.name,
+      componentEan: component.ean,
+      pricesByOptionKeys: Object.keys(component.pricesByOption || {}),
+    });
     return component.ean;
   })();
+
+  const optionPrice =
+    (typeof displayPrice === "number" ? displayPrice : component.price) ?? 0;
+  const salePrice =
+    typeof component.reducedPrice === "number"
+      ? component.reducedPrice
+      : undefined;
+
+  // Treat as sale only when there's an explicit reducedPrice below the current price
+  const isOnSale = salePrice !== undefined && salePrice < optionPrice;
+  const priceToDisplay = isOnSale ? salePrice : optionPrice;
+
+  // For tag: original price (higher) and reduced price (lower)
+  const priceForTag = optionPrice;
+  const reducedForTag = isOnSale ? salePrice : undefined;
 
   const detailImages: string[] = (() => {
     for (const opt of uniqueOptions) {
@@ -197,6 +234,13 @@ export const ComponentDetailModal = ({
 
   if (!component) return null;
 
+  const formatSpecValue = (val: unknown): string | number => {
+    if (val === null || val === undefined) return "";
+    if (Array.isArray(val)) return val.join(", ");
+    if (typeof val === "object") return JSON.stringify(val);
+    return val as string | number;
+  };
+
   const getSpecifications = () => {
     const specs: { label: string; value: string | number }[] = [];
 
@@ -215,6 +259,72 @@ export const ComponentDetailModal = ({
       specs.push({ label: "Rating", value: `${component.rating}/5` });
 
     switch (category) {
+      case "laptop":
+        if (component.cpuCompatability)
+          specs.push({
+            label: "CPU",
+            value: formatSpecValue(component.cpuCompatability),
+          });
+        if (component.graphicsChipset)
+          specs.push({
+            label: "GPU",
+            value: formatSpecValue(component.graphicsChipset),
+          });
+        if (component.memorySize)
+          specs.push({
+            label: "Memory",
+            value: formatSpecValue(component.memorySize),
+          });
+        if (component.storageCapacity)
+          specs.push({
+            label: "Storage",
+            value: formatSpecValue(component.storageCapacity),
+          });
+        if (component.display)
+          specs.push({
+            label: "Display",
+            value: formatSpecValue(component.display),
+          });
+        if (component.refreshRate)
+          specs.push({
+            label: "Refresh Rate",
+            value: `${component.refreshRate} Hz`,
+          });
+        if (component.resolution)
+          specs.push({
+            label: "Resolution",
+            value: formatSpecValue(component.resolution),
+          });
+        if (component.weight)
+          specs.push({ label: "Weight", value: `${component.weight} kg` });
+        if (component.battery)
+          specs.push({
+            label: "Battery",
+            value: formatSpecValue(component.battery),
+          });
+        if (component.ports)
+          specs.push({
+            label: "Ports",
+            value: formatSpecValue(component.ports),
+          });
+        if (component.coolingSolution)
+          specs.push({
+            label: "Cooling",
+            value: formatSpecValue(component.coolingSolution),
+          });
+        if (component.wifi)
+          specs.push({ label: "WiFi", value: formatSpecValue(component.wifi) });
+        if (component.bluetooth)
+          specs.push({
+            label: "Bluetooth",
+            value: formatSpecValue(component.bluetooth),
+          });
+        if (component.operatingSystem)
+          specs.push({
+            label: "OS",
+            value: formatSpecValue(component.operatingSystem),
+          });
+        break;
       case "case":
         if (component.brand)
           specs.push({ label: "Brand", value: component.brand });
@@ -697,11 +807,13 @@ export const ComponentDetailModal = ({
                 style={{ minHeight: "300px", maxHeight: "min(400px, 50vh)" }}
               />
 
-              {component.featured && (
-                <div className="absolute top-3 right-3 z-30">
-                  <FeaturedTag />
-                </div>
-              )}
+              {/* Featured tag & Points Badge */}
+              <div className="absolute top-3 right-3 z-30 flex items-start gap-2">
+                {component.featured && <FeaturedTag />}
+                {priceToDisplay && priceToDisplay > 0 && (
+                  <PointsBadge price={priceToDisplay} variant="badge" />
+                )}
+              </div>
 
               {detailImages.length > 1 && (
                 <>
@@ -778,7 +890,7 @@ export const ComponentDetailModal = ({
                   brand={component.brand}
                   size="lg"
                   className="mb-4"
-                  withBackground
+                  withBackground={category !== "laptop"}
                 />
                 <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white mb-2 break-words">
                   {component.name}
@@ -788,23 +900,23 @@ export const ComponentDetailModal = ({
                 </div>
 
                 {uniqueOptions.length > 0 && (
-                  <div className="bg-gradient-to-r from-slate-900/60 to-slate-800/60 rounded-xl p-4 mt-6 border border-sky-500/20">
-                    <div className="flex items-center gap-2 mb-3">
+                  <div className="bg-gradient-to-r from-slate-900/60 to-slate-800/60 rounded-xl p-6 mt-6 border border-sky-500/20">
+                    <div className="flex items-center gap-2 mb-4">
                       <Settings className="w-4 h-4 text-sky-400" />
                       <h4 className="text-sm font-semibold text-sky-300 uppercase tracking-wider">
                         Configuration Options
                       </h4>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {uniqueOptions.map((opt) => (
                         <div key={opt.key} className="group">
-                          <label className="block text-xs font-medium text-gray-300 mb-2 flex items-center gap-1">
+                          <label className="block text-xs font-medium text-gray-300 mb-3 flex items-center gap-1">
                             <div className="w-2 h-2 rounded-full bg-sky-500/60"></div>
                             {opt.key.charAt(0).toUpperCase() + opt.key.slice(1)}
                           </label>
                           <div className="relative">
                             <select
-                              className="w-full bg-gradient-to-r from-slate-800/80 to-slate-700/80 border border-white/20 rounded-lg px-4 py-2.5 text-white text-sm font-medium appearance-none cursor-pointer transition-all duration-300 hover:border-sky-400/50 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 focus:outline-none backdrop-blur-sm shadow-lg"
+                              className="w-full bg-gradient-to-r from-slate-800/80 to-slate-700/80 border border-white/20 rounded-lg px-4 py-3 text-white text-sm font-medium appearance-none cursor-pointer transition-all duration-300 hover:border-sky-400/50 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 focus:outline-none backdrop-blur-sm shadow-lg"
                               value={selectedOptions[opt.key] || opt.values[0]}
                               onChange={(e) => {
                                 const prevPrice = displayPrice;
@@ -996,19 +1108,12 @@ export const ComponentDetailModal = ({
                 <div className="text-xs text-sky-400 uppercase tracking-wider mb-2">
                   Price
                 </div>
-                <div className="flex items-start justify-end gap-1">
-                  <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white break-all">
-                    £{Math.floor((displayPrice ?? component.price) || 0)}
-                  </span>
-                  <span className="text-xl sm:text-2xl font-bold text-sky-300 mt-1">
-                    .
-                    {
-                      ((displayPrice ?? component.price) || 0)
-                        .toFixed(2)
-                        .split(".")[1]
-                    }
-                  </span>
-                </div>
+                <PriceTag
+                  price={priceForTag}
+                  reducedPrice={reducedForTag}
+                  size="lg"
+                  align="right"
+                />
                 {!component.brandLogo && component.brand && (
                   <Badge className="mt-3 bg-sky-500/30 text-sky-300 border-sky-400/50">
                     {component.brand}
@@ -1016,17 +1121,52 @@ export const ComponentDetailModal = ({
                 )}
                 <Button
                   onClick={() => {
-                    onSelect(category, component.id);
-                    onClose();
+                    if (category === "laptop" && onAddToCart) {
+                      const firstImage = Array.isArray(component.images)
+                        ? component.images[0]
+                        : undefined;
+                      const resolvedImage =
+                        typeof firstImage === "string"
+                          ? firstImage
+                          : (firstImage as { url?: string; src?: string })
+                              ?.url ||
+                            (firstImage as { url?: string; src?: string })?.src;
+
+                      onAddToCart({
+                        id: component.id,
+                        name: component.name ?? "Laptop",
+                        price: priceToDisplay,
+                        quantity: 1,
+                        category: "laptop",
+                        image: resolvedImage,
+                        ean: displayEan || component.ean, // Use option-specific EAN if available, otherwise base EAN
+                        description:
+                          typeof component.description === "string"
+                            ? component.description
+                            : undefined,
+                        originalPrice: priceForTag, // Pass original price for savings calculation
+                        reducedPrice: reducedForTag, // Pass reduced price if on sale
+                      });
+                      onClose();
+                    } else {
+                      onSelect(category, component.id);
+                      onClose();
+                    }
                   }}
                   className={`w-full mt-4 h-11 ${
-                    isSelected
+                    category === "laptop"
+                      ? "bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-500 hover:to-green-400"
+                      : isSelected
                       ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500"
                       : "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500"
                   }`}
                 >
                   <ShoppingCart className="w-4 h-4 mr-2" />
-                  {isSelected ? "Remove from Build" : "Add to Build"}
+                  {category === "laptop"
+                    ? "Add to Cart"
+                    : isSelected
+                    ? "Remove from Build"
+                    : "Add to Build"}
                 </Button>
               </div>
             </div>
@@ -1111,10 +1251,9 @@ export const ComponentDetailModal = ({
                           });
                         }
                       } catch (err) {
-                        console.warn(
-                          "[PCBuilder] Fallback analytics tracking failed",
-                          err
-                        );
+                        logger.warn("Fallback analytics tracking failed", {
+                          error: err,
+                        });
                       }
                     }}
                   >
@@ -1183,6 +1322,17 @@ export const ComponentDetailModal = ({
                 </ul>
               </div>
             )}
+
+            {/* Price Alert Section */}
+            <PriceAlertComponent component={component} userEmail={userEmail} />
+
+            {/* Similar Components Section - will be populated from context later */}
+            {/* TODO: Pass allComponents from parent context */}
+            {/* <SimilarComponentsSection 
+              component={component}
+              allComponents={allComponentsList}
+              onSelectComponent={(selected) => onSelect(category, selected.id)}
+            /> */}
 
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4">
               <Button
