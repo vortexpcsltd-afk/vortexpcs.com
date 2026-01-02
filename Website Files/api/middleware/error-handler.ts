@@ -11,6 +11,7 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { applySecurityHeaders } from "../../services/securityHeaders.js";
+import { ALLOWED_ORIGINS } from "./apiSecurity.js";
 
 /**
  * Standard API error response shape
@@ -52,7 +53,6 @@ export interface ErrorHandlerConfig {
  */
 const DEFAULT_CORS_HEADERS = {
   "Access-Control-Allow-Credentials": "true",
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
   "Access-Control-Allow-Headers":
     "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization",
@@ -62,13 +62,26 @@ const DEFAULT_CORS_HEADERS = {
  * Apply CORS headers to response
  */
 function applyCorsHeaders(
+  req: VercelRequest,
   res: VercelResponse,
-  origins: string | string[] = "*"
+  origins: string | string[] = ALLOWED_ORIGINS as unknown as string
 ): void {
-  const originHeader =
-    typeof origins === "string" ? origins : origins.join(",");
-  res.setHeader("Access-Control-Allow-Origin", originHeader);
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+  const requestedOrigin = (req.headers?.origin as string | undefined) || "";
+  const allow = new Set<string>(
+    Array.isArray(origins)
+      ? (origins as string[])
+      : origins === "*"
+      ? [...ALLOWED_ORIGINS]
+      : [origins as string]
+  );
+
+  if (requestedOrigin && allow.has(requestedOrigin)) {
+    res.setHeader("Access-Control-Allow-Origin", requestedOrigin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "https://vortexpcs.com");
+  }
+  res.setHeader("Vary", "Origin");
   res.setHeader(
     "Access-Control-Allow-Methods",
     DEFAULT_CORS_HEADERS["Access-Control-Allow-Methods"]
@@ -220,7 +233,7 @@ export function withErrorHandler(
   const {
     includeStack = process.env.NODE_ENV === "development",
     logger,
-    corsOrigins = "*",
+    corsOrigins = ALLOWED_ORIGINS as unknown as string[],
     logErrors = true,
   } = config;
 
@@ -233,11 +246,11 @@ export function withErrorHandler(
       applySecurityHeaders(res);
 
       // Apply CORS headers
-      applyCorsHeaders(res, corsOrigins);
+      applyCorsHeaders(req, res, corsOrigins as string[]);
 
       // Handle OPTIONS preflight
       if (req.method === "OPTIONS") {
-        return res.status(200).end();
+        return res.status(204).end();
       }
 
       // Execute the handler

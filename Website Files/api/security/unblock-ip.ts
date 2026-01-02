@@ -67,7 +67,7 @@ async function verifyIsAdmin(
     (userRecord.customClaims || {}).role || ""
   ).toLowerCase();
   const rawAllow = (process.env.ADMIN_ALLOWLIST || "")
-    .split(/[\,\s]+/)
+    .split(/[\s,]+/)
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   const allow = new Set<string>(
@@ -88,8 +88,7 @@ function ipDocId(ip: string): string {
 
 export default withErrorHandler(
   async (req: VercelRequest, res: VercelResponse) => {
-    validateMethod(req, ["POST", "OPTIONS"]);
-    if (req.method === "OPTIONS") return res.status(200).end();
+    validateMethod(req, ["POST"]);
 
     try {
       await verifyIsAdmin(req);

@@ -130,14 +130,34 @@ export default withSecureMethod(
         await transporter.verify();
         logger.debug("SMTP connection verified");
       } catch (verifyError: unknown) {
-        const { message, code } = verifyError || {};
-        logger.error("SMTP verify failed", verifyError, { code });
-        await captureException(verifyError, {
-          context: "SMTP verification - Repair",
-        });
+        const message =
+          verifyError instanceof Error
+            ? verifyError.message
+            : "Unknown verify error";
+        const code =
+          verifyError &&
+          typeof verifyError === "object" &&
+          "code" in verifyError
+            ? (verifyError as any).code
+            : undefined;
+        logger.error(
+          "SMTP verify failed",
+          verifyError instanceof Error
+            ? verifyError
+            : new Error(String(verifyError)),
+          { code }
+        );
+        await captureException(
+          verifyError instanceof Error
+            ? verifyError
+            : new Error(String(verifyError)),
+          {
+            context: "SMTP verification - Repair",
+          }
+        );
         return res.status(500).json({
           error: "SMTP connection test failed",
-          details: message || "Unknown verify error",
+          details: message,
         });
       }
 
@@ -696,14 +716,20 @@ export default withSecureMethod(
         bookingRef,
       });
     } catch (error: unknown) {
-      logger.error("Repair notification error", error);
-      await captureException(error, {
-        context: "Repair notification",
-        customerEmail: req.body?.customerInfo?.email,
-      });
+      logger.error(
+        "Repair notification error",
+        error instanceof Error ? error : new Error(String(error))
+      );
+      await captureException(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          context: "Repair notification",
+          customerEmail: req.body?.customerInfo?.email,
+        }
+      );
       return res.status(500).json({
         error: "Failed to send repair notifications",
-        details: error.message,
+        details: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }

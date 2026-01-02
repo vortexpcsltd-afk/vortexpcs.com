@@ -1,4 +1,3 @@
-import type { OrderDocumentData, ReviewDocumentData } from "../../types/api.js";
 /**
  * API: Submit Product Review
  * POST /api/reviews/submit
@@ -8,17 +7,11 @@ import type { OrderDocumentData, ReviewDocumentData } from "../../types/api.js";
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAuth } from "../middleware/auth";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  Timestamp,
-} from "firebase/firestore";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore as getAdminFirestore } from "firebase-admin/firestore";
+import {
+  getFirestore as getAdminFirestore,
+  FieldValue,
+} from "firebase-admin/firestore";
 
 // Initialize Firebase Admin
 if (!getApps().length) {
@@ -118,8 +111,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // If no orderId provided, search user's orders for this product
     if (!verified) {
       const ordersCol = adminDb.collection("orders");
-      const ordersQuery = query(ordersCol, where("userId", "==", userId));
-      const ordersSnapshot = await ordersQuery.get();
+      const ordersSnapshot = await ordersCol
+        .where("userId", "==", userId)
+        .get();
 
       for (const doc of ordersSnapshot.docs) {
         const orderData = doc.data();
@@ -138,12 +132,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Check if user already reviewed this product
     const reviewsCol = adminDb.collection("reviews");
-    const existingReviewQuery = query(
-      reviewsCol,
-      where("userId", "==", userId),
-      where("productId", "==", productId)
-    );
-    const existingReviewSnapshot = await existingReviewQuery.get();
+    const existingReviewSnapshot = await reviewsCol
+      .where("userId", "==", userId)
+      .where("productId", "==", productId)
+      .get();
 
     if (!existingReviewSnapshot.empty) {
       return res
@@ -165,7 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       helpful: 0,
       notHelpful: 0,
       status: "approved", // Auto-approve reviews (can change to "pending" for moderation)
-      createdAt: Timestamp.now(),
+      createdAt: FieldValue.serverTimestamp(),
       orderId: verifiedOrderId || null,
     };
 
@@ -194,10 +186,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
  */
 async function updateProductReviewSummary(productId: string) {
   try {
-      const reviewsCol2 = adminDb.collection("reviews");
-      const reviewsQuery = query(reviewsCol2, where("productId", "==", productId));
-    ) as any;
-    const reviewsSnapshot = await reviewsQuery.get();
+    const reviewsSnapshot = await adminDb
+      .collection("reviews")
+      .where("productId", "==", productId)
+      .get();
 
     const reviews = reviewsSnapshot.docs.map((doc: any) => doc.data());
     const totalReviews = reviews.length;
@@ -235,7 +227,7 @@ async function updateProductReviewSummary(productId: string) {
       totalReviews,
       ratingDistribution,
       verifiedPurchases,
-      updatedAt: Timestamp.now(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     // Use productId as document ID for easy lookup

@@ -12,68 +12,6 @@ import { sendEmailWithRetry } from "../../services/emailSender.js";
  * Safety: restrict test email to same domain as BUSINESS_EMAIL if provided.
  */
 
-interface Suggestion {
-  code: string;
-  message: string;
-}
-
-function buildSuggestions(
-  err: unknown,
-  cfg: { port: number; secure: boolean }
-): Suggestion[] {
-  const suggestions: Suggestion[] = [];
-  const msg = err instanceof Error ? err.message : String(err);
-
-  if (/535|authentication failed|Invalid login/i.test(msg)) {
-    suggestions.push({
-      code: "AUTH_FAILURE",
-      message:
-        "Verify SMTP_USER and SMTP_PASS. If provider uses 2FA, generate an app password instead of normal login password.",
-    });
-    suggestions.push({
-      code: "USER_FORMAT",
-      message:
-        "Ensure SMTP_USER matches full mailbox (e.g. accounts@domain.com) not just the local part.",
-    });
-  }
-  if (/handshake|self signed|certificate/i.test(msg)) {
-    suggestions.push({
-      code: "TLS_CERT",
-      message:
-        "Certificate issue: for port 587 + STARTTLS set secure=false; for port 465 set secure=true. Consider switching ports or adjusting secure flag.",
-    });
-  }
-  if (/timeout|ETIMEDOUT|ENOTFOUND|ECONNREFUSED/i.test(msg)) {
-    suggestions.push({
-      code: "NETWORK",
-      message:
-        "Connection failure: confirm host & port reachable. Some providers require port 587 (STARTTLS).",
-    });
-  }
-  if (!/535/.test(msg) && cfg.port === 465 && !cfg.secure) {
-    suggestions.push({
-      code: "PORT_SECURE_MISMATCH",
-      message: "Port 465 usually requires secure=true.",
-    });
-  }
-  if (!/535/.test(msg) && cfg.port === 587 && cfg.secure) {
-    suggestions.push({
-      code: "PORT_SECURE_MISMATCH",
-      message:
-        "Port 587 should typically use secure=false with STARTTLS upgrade.",
-    });
-  }
-
-  if (suggestions.length === 0) {
-    suggestions.push({
-      code: "GENERAL",
-      message:
-        "Review SMTP credentials, port, and secure flags; enable debug logging if still failing.",
-    });
-  }
-  return suggestions;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({
@@ -102,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const domain = businessEmail.split("@").pop() || "";
   let testRecipient = businessEmail;
-  if (toOverride) {
+  if (toOverride && typeof toOverride === "string") {
     // safety: only allow override if same domain
     if (toOverride.endsWith(`@${domain}`)) {
       testRecipient = toOverride;

@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { withErrorHandler } from "../../middleware/error-handler.js";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { jsPDF } from "jspdf";
@@ -434,7 +435,6 @@ function generatePDF(data: ReportData, startDate: Date, endDate: Date): Buffer {
   ];
 
   const chartWidth = pageWidth - 40;
-  const chartHeight = 40;
   const maxValue = Math.max(...chartData.map((d) => d.value));
   const barHeight = 10;
   const barSpacing = 8;
@@ -783,16 +783,7 @@ function generateExcel(
   return workbook.xlsx.writeBuffer() as unknown as Promise<Buffer>;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -896,3 +887,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
+export default withErrorHandler(handler);

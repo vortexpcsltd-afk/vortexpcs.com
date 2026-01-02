@@ -92,6 +92,9 @@ export default withSecureMethod(
         customerEmail,
         currency = "GBP",
         metadata,
+        loyaltyPointsApplied,
+        loyaltyDiscount,
+        loyaltyBalance,
       } = req.body || {};
 
       if (!Array.isArray(items) || items.length === 0) {
@@ -107,6 +110,18 @@ export default withSecureMethod(
       const accessToken = await getAccessToken();
       const base = getPayPalBase();
 
+      // Encode minimal loyalty + user metadata into custom_id
+      const customParts: string[] = [];
+      if (metadata?.userId) customParts.push(`uid:${metadata.userId}`);
+      if (typeof loyaltyPointsApplied === "number")
+        customParts.push(`lp:${Math.max(0, Math.floor(loyaltyPointsApplied))}`);
+      if (typeof loyaltyDiscount === "number")
+        customParts.push(`ld:${Number(loyaltyDiscount).toFixed(2)}`);
+      if (typeof loyaltyBalance === "number")
+        customParts.push(`lb:${Math.max(0, Math.floor(loyaltyBalance))}`);
+      const customId =
+        customParts.length > 0 ? customParts.join("|") : undefined;
+
       const orderPayload = {
         intent: "CAPTURE",
         purchase_units: [
@@ -115,7 +130,7 @@ export default withSecureMethod(
               currency_code: String(currency || "GBP").toUpperCase(),
               value: total.toFixed(2),
             },
-            custom_id: metadata?.userId || undefined,
+            custom_id: customId,
             description: "Vortex PCs order",
           },
         ],

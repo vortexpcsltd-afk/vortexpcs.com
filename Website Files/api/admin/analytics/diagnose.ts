@@ -5,6 +5,10 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
+import {
+  withErrorHandler,
+  validateMethod,
+} from "../../middleware/error-handler.js";
 import admin from "firebase-admin";
 
 type EnvVarsCheck = {
@@ -69,22 +73,12 @@ function getDb() {
   return admin.firestore();
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+export default withErrorHandler(async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  // Enforce method; CORS + OPTIONS handled by withErrorHandler
+  validateMethod(req, ["GET"]);
 
   const checks: Checks = {
     firebaseInit: { success: false },
@@ -323,5 +317,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             "Create missing Firestore composite indexes (see hints in compositeIndexes section)",
         ].filter(Boolean),
   });
-}
-
+});

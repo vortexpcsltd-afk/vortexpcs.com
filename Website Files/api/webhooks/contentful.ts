@@ -1,14 +1,25 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { clearCache, clearCacheByPattern } from "../../services/cms";
 
 /**
  * Contentful Webhook Handler
  * Receives notifications when content is published/updated/deleted
+ *
+ * Note: This endpoint acknowledges webhooks but does not perform cache clearing
+ * as the cache is client-side (browser) and cannot be cleared from server.
+ * Content changes will be reflected on next page load when clients fetch fresh data.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Only accept POST requests
-  if (req.method !== "POST") {
+  // Only accept POST and GET requests
+  if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Handle GET for health check
+  if (req.method === "GET") {
+    return res.status(200).json({
+      status: "ok",
+      message: "Contentful webhook endpoint is operational",
+    });
   }
 
   try {
@@ -31,9 +42,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       entryId: payload?.sys?.id,
     });
 
-    // Determine which cache keys to clear based on content type
+    // Determine content type that was updated
     const contentType = payload?.sys?.contentType?.sys?.id;
 
+    // Log the content type for monitoring
     switch (contentType) {
       case "pcCase":
       case "pcMotherboard":
@@ -44,33 +56,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "pcPsu":
       case "pcCooling":
       case "pcCaseFans":
-        console.log("🔄 Clearing PC components cache");
-        clearCacheByPattern("pcComponents_");
+        console.log("✅ PC component updated:", contentType);
         break;
 
       case "optionalExtra":
-        console.log("🔄 Clearing optional extras cache");
-        clearCacheByPattern("pcOptionalExtras_");
+        console.log("✅ Optional extra updated");
         break;
 
       case "product":
-        console.log("🔄 Clearing products cache");
-        clearCacheByPattern("products_");
+        console.log("✅ Product updated");
         break;
 
       case "pcBuild":
-        console.log("🔄 Clearing PC builds cache");
-        clearCacheByPattern("pcBuilds_");
+        console.log("✅ PC build updated");
         break;
 
       case "pricingTier":
-        console.log("🔄 Clearing pricing tiers cache");
-        clearCacheByPattern("pricingTiers_");
+        console.log("✅ Pricing tier updated");
         break;
 
       default:
-        console.log("🔄 Clearing all cache (unknown content type)");
-        clearCache();
+        console.log("✅ Content updated:", contentType || "unknown");
     }
 
     // Respond success

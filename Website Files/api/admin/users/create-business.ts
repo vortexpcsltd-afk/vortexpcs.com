@@ -1,11 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
 import { getSmtpConfig } from "../../services/smtp.js";
-import type {
-  FirestoreTransaction,
-  EmailTemplateOptions,
-  ApiError,
-} from "../../../types/api";
+import type { EmailTemplateOptions, ApiError } from "../../../types/api";
 
 type FirebaseAdmin = typeof import("firebase-admin");
 // Firebase Admin singleton

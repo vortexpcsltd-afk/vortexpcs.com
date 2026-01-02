@@ -6,30 +6,21 @@
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { withErrorHandler } from "../../middleware/error-handler.js";
 import {
   verifyAdmin,
   ensureFirebaseAdminInitialized,
 } from "../../services/auth-admin.js";
+import { createLogger } from "../../services/logger.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
+    const logger = createLogger(req);
+    res.setHeader("X-Trace-ID", logger.getTraceId());
     // Verify admin authentication
     const adminUser = await verifyAdmin(req);
     if (!adminUser) {
@@ -40,7 +31,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Initialize Firebase Admin (ensures proper credentials)
-    const adminSdk = ensureFirebaseAdminInitialized();
+    let adminSdk;
+    try {
+      adminSdk = ensureFirebaseAdminInitialized();
+    } catch (initErr) {
+      logger.warn("[Admin Users List] Firebase not configured", {
+        error: initErr instanceof Error ? initErr.message : String(initErr),
+      });
+      // Gracefully return empty list so UI stays functional
+      return res.status(200).json({ success: true, data: [], count: 0 });
+    }
     const db = adminSdk.firestore();
     const auth = adminSdk.auth();
 
@@ -59,7 +59,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       });
     } catch (firestoreErr) {
-      console.error("[Admin Users List] Firestore error:", firestoreErr);
+      logger.error(
+        "[Admin Users List] Firestore error",
+        firestoreErr as unknown as Error
+      );
       const msg =
         firestoreErr instanceof Error
           ? firestoreErr.message
@@ -68,13 +71,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .toLowerCase()
         .includes("missing or insufficient permissions");
       if (isPermError) {
-        console.log(
+        logger.info(
           "[Admin Users List] Firestore permission denied, trying Firebase Auth fallback..."
         );
         try {
           // Fallback: list users via Firebase Auth (does not require Firestore access)
           const authUsers = await auth.listUsers(1000);
-          console.log(
+          logger.info(
             `[Admin Users List] Auth fallback succeeded: ${authUsers.users.length} users`
           );
           users = authUsers.users.map((u) => ({
@@ -90,12 +93,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               u.providerData?.map((p) => ({ providerId: p.providerId })) || [],
           }));
         } catch (authErr) {
-          console.error(
-            "[Admin Users List] Auth fallback also failed:",
-            authErr
+          logger.error(
+            "[Admin Users List] Auth fallback also failed",
+            authErr as unknown as Error
           );
           // Gracefully return empty list so UI does not break
-          console.warn(
+          logger.warn(
             "[Admin Users List] Returning empty list due to permission failures",
             {
               firestoreError: msg,
@@ -116,7 +119,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       count: users.length,
     });
   } catch (error) {
-    console.error("[Admin Users List] Error:", error);
+    const logger = createLogger(req);
+    logger.error("[Admin Users List] Error", error as unknown as Error);
     const message =
       error instanceof Error ? error.message : "Internal server error";
     // Map Firestore permission error to 403 for clarity
@@ -124,7 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       typeof message === "string" &&
       message.toLowerCase().includes("missing or insufficient permissions");
     if (isPermError) {
-      console.warn(
+      logger.warn(
         "[Admin Users List] Permission error encountered, returning empty list"
       );
       return res.status(200).json({ success: true, data: [], count: 0 });
@@ -138,3 +142,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
+export default withErrorHandler(handler);

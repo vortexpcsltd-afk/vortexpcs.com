@@ -6,7 +6,10 @@ import {
   fetchPCOptionalExtras,
 } from "../../../services/cms";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(
+  _req: VercelRequest,
+  res: VercelResponse
+) {
   try {
     const db = getFirestore();
 
@@ -25,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           (item) =>
             item.name?.toLowerCase().includes(normalized) ||
             item.brand?.toLowerCase().includes(normalized) ||
-            item.model?.toLowerCase().includes(normalized)
+            ("model" in item && item.model?.toLowerCase().includes(normalized))
         );
         return match?.stockLevel ?? (match?.inStock ? 10 : 0);
       } catch {

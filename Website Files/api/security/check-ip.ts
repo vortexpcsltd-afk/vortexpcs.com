@@ -61,16 +61,7 @@ function ipDocId(ip: string): string {
 
 export default withErrorHandler(
   async (req: VercelRequest, res: VercelResponse) => {
-    validateMethod(req, ["GET", "OPTIONS"]);
-    if (req.method === "OPTIONS") {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-      res.setHeader(
-        "Access-Control-Allow-Headers",
-        "Content-Type, Authorization"
-      );
-      return res.status(200).end();
-    }
+    validateMethod(req, ["GET"]);
 
     // Development mode - return mock data
     if (isDevelopment() || !isFirebaseConfigured()) {

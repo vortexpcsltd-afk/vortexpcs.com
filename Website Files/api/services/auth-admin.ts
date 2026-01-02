@@ -84,9 +84,12 @@ export function ensureFirebaseAdminInitialized() {
           admin.initializeApp({
             projectId: projectId || "demo-project",
           });
-          // Connect to emulator
+          // Connect to emulator using Admin SDK settings
           const db = admin.firestore();
-          db.useEmulator("localhost", 8080);
+          db.settings({
+            host: "localhost:8080",
+            ssl: false,
+          });
           console.log("[Firebase] Connected to Firestore emulator");
           return admin;
         }
@@ -242,7 +245,7 @@ export async function verifyUser(
 ): Promise<AdminUser | null> {
   try {
     // Initialize Firebase Admin
-    const adminSdk = initializeFirebaseAdmin();
+    const adminSdk = ensureFirebaseAdminInitialized();
     const auth = adminSdk.auth();
 
     const authHeader = req.headers.authorization;

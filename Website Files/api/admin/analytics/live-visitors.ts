@@ -4,30 +4,26 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
-
+import {
+  withErrorHandler,
+  validateMethod,
+} from "../../middleware/error-handler.js";
 import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
+import { createLogger } from "../../services/logger.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
+export default withErrorHandler(async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  // Enforce method; CORS + OPTIONS handled by withErrorHandler
+  validateMethod(req, ["GET"]);
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  const logger = createLogger(req);
+  res.setHeader("X-Trace-ID", logger.getTraceId());
 
   if (!isFirebaseConfigured()) {
-    console.log("[live-visitors] Firebase not configured");
+    logger.info("[live-visitors] Firebase not configured");
     return res.status(503).json({
       error: "Analytics not configured",
       message: "Firebase is not configured. Please set environment variables.",
@@ -120,7 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json(payload);
   } catch (error) {
-    console.error("Error fetching live visitors:", error);
+    logger.error("Error fetching live visitors", error);
     const errorStr = String(error);
     const errorMsg = error instanceof Error ? error.message : errorStr;
 
@@ -138,5 +134,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       details: errorMsg,
     });
   }
-}
-
+});

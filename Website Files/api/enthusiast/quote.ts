@@ -24,31 +24,12 @@ interface QuoteRequest {
   timestamp: string;
 }
 
-// CORS headers
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
 import { withSecureMethod } from "../middleware/apiSecurity.js";
 
 export default withSecureMethod(
   "POST",
   async (req: VercelRequest, res: VercelResponse) => {
-    // Set CORS headers
-    Object.entries(corsHeaders).forEach(([k, v]) =>
-      res.setHeader(k, v as string)
-    );
-
-    // Handle CORS preflight
-    if (req.method === "OPTIONS") {
-      return res.status(200).end();
-    }
-
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
+    // CORS and method handling provided by withSecureMethod
 
     try {
       const { components, customerInfo, timestamp }: QuoteRequest = req.body;
@@ -116,7 +97,10 @@ export default withSecureMethod(
         console.error("SMTP verify failed:", verifyError);
         return res.status(500).json({
           error: "SMTP connection test failed",
-          details: verifyError.message || "Unknown verify error",
+          details:
+            verifyError instanceof Error
+              ? verifyError.message
+              : "Unknown verify error",
         });
       }
 
@@ -582,7 +566,7 @@ export default withSecureMethod(
       console.error("Enthusiast quote submission error:", error);
       return res.status(500).json({
         error: "Failed to submit quote request",
-        details: error.message || "Unknown error",
+        details: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }

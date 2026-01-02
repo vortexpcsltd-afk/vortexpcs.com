@@ -123,7 +123,8 @@ class Logger {
     // Vercel and other platforms parse these for structured logging
     switch (level) {
       case "debug":
-        console.debug(JSON.stringify(entry));
+        // Use info for debug to satisfy lint allowlist
+        console.info(JSON.stringify(entry));
         break;
       case "info":
         console.info(JSON.stringify(entry));

@@ -1,16 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { ensureFirebaseAdminInitialized } from "./services/auth-admin.js";
-import { getClientIP, isIPWhitelisted } from "./middleware/ip-whitelist.js";
+import { ensureFirebaseAdminInitialized } from "../services/auth-admin.js";
+import { getClientIP, isIPWhitelisted } from "../middleware/ip-whitelist.js";
+import { withErrorHandler } from "../middleware/error-handler.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-  if (req.method === "OPTIONS") return res.status(200).end();
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET")
     return res.status(405).json({ error: "Method not allowed" });
 
@@ -45,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       (claims as any).role || firestoreRole || ""
     ).toLowerCase();
     const rawAllow = (process.env.ADMIN_ALLOWLIST || "")
-      .split(/[\,\s]+/)
+      .split(/[,\s]+/)
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
     const isEmailAllowlisted = email && rawAllow.includes(email.toLowerCase());
@@ -79,3 +72,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ success: false, error: message });
   }
 }
+
+export default withErrorHandler(handler);

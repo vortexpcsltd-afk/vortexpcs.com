@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { ApiError } from "../../../types/api";
 import admin from "firebase-admin";
+import { withErrorHandler } from "../../middleware/error-handler.js";
 
 function ensureAdminInitialized() {
   if (!admin.apps.length) {
@@ -17,12 +18,7 @@ function ensureAdminInitialized() {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-
-  if (req.method === "OPTIONS") return res.status(200).end();
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET")
     return res.status(405).json({ error: "Method not allowed" });
 
@@ -68,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ).toLowerCase();
 
     const rawAllow = (process.env.ADMIN_ALLOWLIST || "")
-      .split(/[\,\s]+/)
+      .split(/[,\s]+/)
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
     const allow = new Set<string>(
@@ -96,3 +92,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .json({ error: "whoami failed", details: error?.message || String(err) });
   }
 }
+
+export default withErrorHandler(handler);

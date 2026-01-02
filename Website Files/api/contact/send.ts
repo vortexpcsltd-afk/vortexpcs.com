@@ -4,7 +4,7 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
-import { sendEmailWithRetry } from "../../services/emailSender";
+import type { SendMailOptions } from "nodemailer";
 import {
   withErrorHandler,
   ApiError,
@@ -12,102 +12,160 @@ import {
   validateRequiredFields,
 } from "../middleware/error-handler.js";
 
-async function handler(req: VercelRequest, res: VercelResponse) {
-  // Validate method
-  validateMethod(req, ["POST"]);
+// Inline retry logic since we can't reliably import from /services in Vercel functions
+async function sendEmailWithRetry(
+  transporter: nodemailer.Transporter,
+  options: SendMailOptions,
+  maxAttempts = 3
+): Promise<{
+  success: boolean;
+  info?: { messageId?: string; response?: string };
+  error?: string;
+  attempts?: number;
+}> {
+  let lastError: Error | null = null;
 
-  const { name, email, phone, subject, enquiryType, message } =
-    req.body as Record<string, unknown>;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const info = await transporter.sendMail(options);
+      return {
+        success: true,
+        info: { messageId: info.messageId, response: info.response },
+        attempts: attempt,
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
 
-  // Validate required fields
-  validateRequiredFields(req.body as Record<string, unknown>, [
-    "name",
-    "email",
-    "subject",
-    "enquiryType",
-    "message",
-  ]);
+      // Don't retry on authentication errors
+      if (
+        lastError.message.includes("535") ||
+        lastError.message.includes("authentication") ||
+        lastError.message.includes("Invalid login")
+      ) {
+        return {
+          success: false,
+          error: lastError.message,
+          attempts: attempt,
+        };
+      }
 
-  // Support both build-time (VITE_) and server-side (no prefix) env vars
-  const smtpHost = process.env.VITE_SMTP_HOST || process.env.SMTP_HOST;
-  const smtpPortRaw =
-    process.env.VITE_SMTP_PORT || process.env.SMTP_PORT || "465";
-  const smtpPort = parseInt(smtpPortRaw, 10);
-  // Auto derive secure if not explicitly set: true when port 465 else false
-  const smtpSecureRaw = process.env.VITE_SMTP_SECURE || process.env.SMTP_SECURE;
-  const smtpSecure =
-    typeof smtpSecureRaw === "string"
-      ? smtpSecureRaw === "true"
-      : smtpPort === 465;
-  const smtpUser = process.env.VITE_SMTP_USER || process.env.SMTP_USER;
-  const smtpPass = process.env.VITE_SMTP_PASS || process.env.SMTP_PASS;
-  const businessEmail =
-    process.env.VITE_BUSINESS_EMAIL ||
-    process.env.BUSINESS_EMAIL ||
-    "info@vortexpcs.com";
-
-  // Build base URL for assets (logo)
-  const baseUrl = (
-    process.env.VITE_APP_URL || "https://www.vortexpcs.com"
-  ).replace(/\/+$/g, "");
-  const logoUrl = `${baseUrl}/vortexpcs-logo.png`;
-
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    throw new ApiError(
-      `Email service not configured. Missing: ${!smtpHost ? "host " : ""}${
-        !smtpUser ? "user " : ""
-      }${!smtpPass ? "pass" : ""}`.trim(),
-      500
-    );
+      // If not the last attempt, wait before retrying
+      if (attempt < maxAttempts) {
+        const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
   }
 
-  // Create transporter
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpSecure,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-    logger: true,
-    debug: true,
-  });
-
-  // Verify connection (non-fatal if fails)
-  try {
-    await transporter.verify();
-  } catch (e) {
-    console.error(
-      "SMTP verify failed (continuing):",
-      e instanceof Error ? e.message : e
-    );
-  }
-
-  // Escape HTML to prevent injection
-  const escapeHtml = (str: string) =>
-    String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-
-  const e = {
-    name: escapeHtml(String(name)),
-    email: escapeHtml(String(email)),
-    phone: escapeHtml(String(phone || "N/A")),
-    subject: escapeHtml(String(subject)),
-    enquiryType: escapeHtml(String(enquiryType)),
-    message: escapeHtml(String(message)).replace(/\n/g, "<br>"),
+  return {
+    success: false,
+    error: lastError?.message || "Unknown error",
+    attempts: maxAttempts,
   };
+}
 
-  const sentAt = new Date().toLocaleString("en-GB", {
-    timeZone: "Europe/London",
-  });
+async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    // Validate method
+    validateMethod(req, ["POST"]);
 
-  // Build HTML email (responsive-friendly with inline styles)
-  const html = `
+    const { name, email, phone, subject, enquiryType, message } =
+      req.body as Record<string, unknown>;
+
+    // Validate required fields
+    validateRequiredFields(req.body as Record<string, unknown>, [
+      "name",
+      "email",
+      "subject",
+      "enquiryType",
+      "message",
+    ]);
+
+    // Backend uses server-side env vars (no VITE_ prefix)
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPortRaw = process.env.SMTP_PORT || "465";
+    const smtpPort = parseInt(smtpPortRaw, 10);
+    // Auto derive secure if not explicitly set: true when port 465 else false
+    const smtpSecureRaw = process.env.SMTP_SECURE;
+    const smtpSecure =
+      typeof smtpSecureRaw === "string"
+        ? smtpSecureRaw === "true"
+        : smtpPort === 465;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const businessEmail = process.env.BUSINESS_EMAIL || "info@vortexpcs.com";
+
+    console.log("[Contact API] SMTP Configuration:", {
+      host: smtpHost ? "✓" : "✗",
+      port: smtpPort,
+      secure: smtpSecure,
+      user: smtpUser ? "✓" : "✗",
+      pass: smtpPass ? "✓" : "✗",
+      businessEmail,
+    });
+
+    // Build base URL for assets (logo)
+    const baseUrl = (
+      process.env.VITE_APP_URL || "https://www.vortexpcs.com"
+    ).replace(/\/+$/g, "");
+    const logoUrl = `${baseUrl}/vortexpcs-logo.png`;
+
+    if (!smtpHost || !smtpUser || !smtpPass) {
+      const missing = [
+        !smtpHost ? "SMTP_HOST" : "",
+        !smtpUser ? "SMTP_USER" : "",
+        !smtpPass ? "SMTP_PASS" : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      console.error("[Contact API] Missing SMTP credentials:", missing);
+      throw new ApiError(
+        `Email service not configured. Missing: ${missing}`,
+        500
+      );
+    }
+
+    // Create transporter
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+      logger: false, // Disable verbose logging
+      debug: false,
+    });
+
+    // Skip verification - it can cause false positives
+    // The actual send will reveal any connection issues
+
+    // Escape HTML to prevent injection
+    const escapeHtml = (str: string) =>
+      String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const e = {
+      name: escapeHtml(String(name)),
+      email: escapeHtml(String(email)),
+      phone: escapeHtml(String(phone || "N/A")),
+      subject: escapeHtml(String(subject)),
+      enquiryType: escapeHtml(String(enquiryType)),
+      message: escapeHtml(String(message)).replace(/\n/g, "<br>"),
+    };
+
+    const sentAt = new Date().toLocaleString("en-GB", {
+      timeZone: "Europe/London",
+    });
+
+    // Build HTML email (responsive-friendly with inline styles)
+    const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -210,45 +268,81 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 </body>
 </html>`;
 
-  const text = `New Contact Form Submission\n\nEnquiry Type: ${String(
-    enquiryType
-  )}\nName: ${String(name)}\nEmail: ${String(email)}\nPhone: ${String(
-    phone || "N/A"
-  )}\nSubject: ${String(subject)}\nReceived: ${sentAt}\n\nMessage:\n${String(
-    message
-  )}`;
+    const text = `New Contact Form Submission\n\nEnquiry Type: ${String(
+      enquiryType
+    )}\nName: ${String(name)}\nEmail: ${String(email)}\nPhone: ${String(
+      phone || "N/A"
+    )}\nSubject: ${String(subject)}\nReceived: ${sentAt}\n\nMessage:\n${String(
+      message
+    )}`;
 
-  // Send email
-  try {
-    const r = await sendEmailWithRetry(transporter, {
-      from: `"${String(name)}" <${smtpUser}>`,
-      to: businessEmail,
-      replyTo: String(email),
-      subject: `[${String(enquiryType)}] ${String(subject)}`,
-      text,
-      html,
+    // Send email
+    try {
+      console.log("[Contact API] Attempting to send email...");
+      const r = await sendEmailWithRetry(transporter, {
+        from: `"${String(name)}" <${smtpUser}>`,
+        to: businessEmail,
+        replyTo: String(email),
+        subject: `[${String(enquiryType)}] ${String(subject)}`,
+        text,
+        html,
+      });
+
+      if (!r.success) {
+        console.error("[Contact API] Email send failed:", {
+          error: r.error,
+          attempts: r.attempts,
+        });
+        throw r.error || new Error("Email failed");
+      }
+
+      console.log("[Contact API] Email sent successfully:", {
+        messageId: r.info?.messageId,
+        attempts: r.attempts,
+      });
+    } catch (err) {
+      const authHint =
+        smtpPort === 587 && smtpSecure === false
+          ? "Using STARTTLS on 587; ensure server supports it."
+          : smtpPort === 465 && smtpSecure === true
+          ? "Using implicit TLS on 465; verify certificate & creds."
+          : `Port ${smtpPort} secure=${smtpSecure}`;
+
+      const errorMessage = err instanceof Error ? err.message : String(err);
+
+      console.error("[Contact API] Send error:", {
+        error: errorMessage,
+        hint: authHint,
+        smtpHost,
+        smtpPort,
+        smtpSecure,
+      });
+
+      throw new ApiError(
+        `Failed to send contact email: ${errorMessage} | ${authHint}`,
+        500
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Email sent successfully",
     });
-    if (!r.success) throw r.error || new Error("Email failed");
-  } catch (err) {
-    const authHint =
-      smtpPort === 587 && smtpSecure === false
-        ? "Using STARTTLS on 587; ensure server supports it."
-        : smtpPort === 465 && smtpSecure === true
-        ? "Using implicit TLS on 465; verify certificate & creds."
-        : `Port ${smtpPort} secure=${smtpSecure}`;
-    console.error("Contact form send failed:", err);
+  } catch (error) {
+    // Outer catch for any unexpected errors
+    console.error("[Contact API] Unexpected error:", error);
+
+    if (error instanceof ApiError) {
+      throw error; // Re-throw ApiErrors to be handled by withErrorHandler
+    }
+
     throw new ApiError(
-      `Failed to send contact email: ${
-        err instanceof Error ? err.message : String(err)
-      } | ${authHint}`,
+      `Contact form error: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
       500
     );
   }
-
-  return res.status(200).json({
-    success: true,
-    message: "Email sent successfully",
-  });
 }
 
 export default withErrorHandler(handler);

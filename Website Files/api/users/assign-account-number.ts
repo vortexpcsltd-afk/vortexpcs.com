@@ -12,6 +12,11 @@ async function initAdmin() {
   if (!initialized) {
     try {
       const saB64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+
+      // Check if Firebase Admin is already initialized
+      const hasInitializedApps =
+        admin && Array.isArray(admin.apps) && admin.apps.length > 0;
+
       if (saB64) {
         let creds: any;
         try {
@@ -21,7 +26,7 @@ async function initAdmin() {
           const msg = e instanceof Error ? e.message : String(e);
           throw new Error(`Invalid FIREBASE_SERVICE_ACCOUNT_BASE64: ${msg}`);
         }
-        if (!admin.apps.length) {
+        if (!hasInitializedApps) {
           const projectId =
             creds?.project_id || process.env.FIREBASE_PROJECT_ID;
           if (!projectId) {
@@ -40,17 +45,24 @@ async function initAdmin() {
           }
         }
       } else {
-        if (!admin.apps.length) {
-          admin.initializeApp({
-            credential: admin.credential.applicationDefault(),
-            projectId: process.env.FIREBASE_PROJECT_ID,
-          });
+        // FIREBASE_SERVICE_ACCOUNT_BASE64 not set; try Application Default Credentials
+        if (!hasInitializedApps) {
+          try {
+            admin.initializeApp({
+              credential: admin.credential.applicationDefault(),
+              projectId: process.env.FIREBASE_PROJECT_ID,
+            });
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            throw new Error(`Firebase Admin init with ADC failed: ${msg}`);
+          }
         }
       }
       initialized = true;
     } catch (e: unknown) {
       initialized = false;
-      console.error("Firebase Admin init failed", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Firebase Admin init failed", { error: msg });
     }
   }
   return admin;
@@ -63,6 +75,14 @@ export default withSecureMethod(
   async (req: VercelRequest, res: VercelResponse) => {
     const adminInstance = await initAdmin();
     if (!initialized || !adminInstance) {
+      console.error("[assign-account-number] Admin init failed", {
+        initialized,
+        adminInstance: !!adminInstance,
+        env: {
+          hasServiceAccountB64: !!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
+          hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
+        },
+      });
       res.setHeader("X-Diagnostic", "admin-init-failed");
       return res.status(503).json({
         error: "Service unavailable",

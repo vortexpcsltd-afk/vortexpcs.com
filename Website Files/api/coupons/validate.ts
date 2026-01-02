@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import admin from "firebase-admin";
-import { logger } from "../../services/logger";
+import { logger } from "../services/logger.js";
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -23,13 +23,6 @@ if (!admin.apps.length) {
     console.error("Failed to initialize Firebase Admin:", error);
   }
 }
-
-// CORS headers
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS preflight

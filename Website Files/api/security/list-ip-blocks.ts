@@ -1,6 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import admin from "firebase-admin";
 import { isDevelopment, isFirebaseConfigured } from "../services/env-utils.js";
+import {
+  withErrorHandler,
+  validateMethod,
+} from "../middleware/error-handler.js";
 
 // Query validation inline to avoid import issues
 type QuerySchema = {
@@ -191,7 +195,7 @@ async function verifyIsAdmin(
     (userRecord.customClaims || {}).role || ""
   ).toLowerCase();
   const rawAllow = (process.env.ADMIN_ALLOWLIST || "")
-    .split(/[\,\s]+/)
+    .split(/[,\s]+/)
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   const allow = new Set<string>(
@@ -203,23 +207,22 @@ async function verifyIsAdmin(
   return { uid: decoded.uid, email };
 }
 
-function ipDocId(ip: string): string {
-  return ip.replace(/[^a-zA-Z0-9_.-]/g, "_");
+// Local representation of IP block entries to avoid external type dependencies
+interface IpEntry {
+  id?: string;
+  ip?: string;
+  lastEmailTried?: string;
+  blocked?: boolean;
+  blockedAt?: unknown;
+  attempts?: number;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Set CORS headers first
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+export default withErrorHandler(async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  // Enforce method; CORS + OPTIONS handled by withErrorHandler
+  validateMethod(req, ["GET"]);
 
   // Development mode - return empty list
   if (isDevelopment() || !isFirebaseConfigured()) {
@@ -317,7 +320,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Optional search by ip/id or lastEmailTried substring
     if (search) {
       entries = entries.filter((e) => {
-        const entry = e as Partial<IPBlockData> & { id?: string };
+        const entry = e as Partial<IpEntry> & { id?: string };
         const ip = String(entry.ip || entry.id || "").toLowerCase();
         const email = String(entry.lastEmailTried || "").toLowerCase();
         return ip.includes(search) || email.includes(search);
@@ -327,7 +330,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Filter blocked only unless includeUnblocked true
     const filtered = includeUnblocked
       ? entries
-      : entries.filter((e) => e.blocked);
+      : entries.filter((e) => (e as Partial<IpEntry>).blocked);
 
     // Sort by blockedAt desc then attempts desc
     filtered.sort((a, b) => {
@@ -335,8 +338,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         val && typeof (val as any).toDate === "function"
           ? (val as any).toDate().getTime()
           : 0;
-      const entryA = a as Partial<IPBlockData>;
-      const entryB = b as Partial<IPBlockData>;
+      const entryA = a as Partial<IpEntry>;
+      const entryB = b as Partial<IpEntry>;
       const aTime = toTs(entryA.blockedAt);
       const bTime = toTs(entryB.blockedAt);
       if (bTime !== aTime) return bTime - aTime;
@@ -371,4 +374,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       stack: process.env.NODE_ENV === "development" ? errorStack : undefined,
     });
   }
-}
+});

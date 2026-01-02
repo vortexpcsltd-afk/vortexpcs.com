@@ -121,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { categories, confirm } =
     req.body && typeof req.body === "object"
       ? (req.body as { categories?: string[]; confirm?: boolean })
-      : {};
+      : { categories: undefined, confirm: undefined };
 
   if (!confirm) return res.status(400).json({ error: "confirmation-required" });
 
@@ -137,7 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .flatMap(([, cols]) => cols);
     targetCollections = Array.from(new Set(allSets));
   } else {
-    categories.forEach((cat) => {
+    categories.forEach((cat: string) => {
       const cols = CATEGORY_COLLECTIONS[cat];
       if (cols) targetCollections.push(...cols);
     });

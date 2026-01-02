@@ -9,21 +9,37 @@ import {
 import { captureException, addBreadcrumb } from "../services/sentry";
 
 // Serverless proxy to getaddress.io so we don't expose keys to the client
-// Reads GETADDRESS_IO_API_KEY (preferred) or VITE_GETADDRESS_IO_API_KEY from server env
+// 🔒 SECURITY: Reads GETADDRESS_IO_API_KEY from server env ONLY (no VITE_ prefix)
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const logger = createLogger(req);
 
-  // Basic CORS for browser use
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // Robust CORS handling: reflect allowed Origin and vary caches
+  const requestOrigin = (req.headers?.origin as string | undefined) || "";
+  const allowedOrigins = new Set<string>([
+    "https://vortexpcs.com",
+    "https://www.vortexpcs.com",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+  ]);
+
+  if (requestOrigin && allowedOrigins.has(requestOrigin)) {
+    res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  } else {
+    // Fallback to primary origin without credentials when origin unknown
+    res.setHeader("Access-Control-Allow-Origin", "https://vortexpcs.com");
+  }
+  res.setHeader("Vary", "Origin");
   res.setHeader(
     "Access-Control-Allow-Methods",
     "GET,OPTIONS,PATCH,DELETE,POST,PUT"
   );
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
+    "Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
   );
   res.setHeader("X-Trace-ID", logger.getTraceId());
 
@@ -31,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "OPTIONS") {
     logger.debug("Handling OPTIONS preflight");
-    res.status(200).end();
+    res.status(204).end();
     return;
   }
 
@@ -77,9 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const key =
-      process.env.GETADDRESS_IO_API_KEY ||
-      process.env.VITE_GETADDRESS_IO_API_KEY;
+    const key = process.env.GETADDRESS_IO_API_KEY; // Server-only env var
 
     if (!key) {
       logger.warn("No getaddress.io API key configured");
@@ -150,13 +164,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({ addresses, provider: "getaddress.io (server)" });
   } catch (err: unknown) {
     logger.error("Address proxy error", err);
-    await captureException(err, {
-      context: "Address lookup",
-      postcode: req.query.postcode,
-    });
+    await captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      {
+        context: "Address lookup",
+        postcode: req.query.postcode,
+      }
+    );
     res.status(500).json({
       message: "Internal error during address lookup",
-      error: err?.message || String(err),
+      error: err instanceof Error ? err.message : String(err),
       addresses: [],
     });
   }

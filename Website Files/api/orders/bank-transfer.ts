@@ -3,6 +3,7 @@ import admin from "firebase-admin";
 import nodemailer from "nodemailer";
 import { buildBrandedEmailHtml } from "../../services/emailTemplate.js";
 import { generateOrderNumber } from "../utils/orderNumber.js";
+import { withSecureMethod } from "../middleware/apiSecurity.js";
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -26,23 +27,7 @@ if (!admin.apps.length) {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,OPTIONS,PATCH,DELETE,POST,PUT"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -70,6 +55,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customerName,
       shippingMethod,
       shippingCost,
+      loyaltyPointsApplied,
+      loyaltyDiscount,
+      loyaltyBalance,
     } = req.body;
 
     // Validation
@@ -155,6 +143,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       shippingAddress,
       shippingMethod: shippingMethod || "free",
       shippingCost: typeof shippingCost === "number" ? shippingCost : 0,
+      loyalty: {
+        pointsApplied:
+          typeof loyaltyPointsApplied === "number"
+            ? Math.max(0, Math.floor(loyaltyPointsApplied))
+            : 0,
+        discount:
+          typeof loyaltyDiscount === "number" ? Number(loyaltyDiscount) : 0,
+        balanceAtCheckout:
+          typeof loyaltyBalance === "number"
+            ? Math.max(0, Math.floor(loyaltyBalance))
+            : undefined,
+      },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       notes: "Awaiting bank transfer payment confirmation",
@@ -172,17 +172,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Send pending payment emails (customer + admin)
     try {
-      const smtpHost = process.env.VITE_SMTP_HOST || process.env.SMTP_HOST;
-      const smtpUser = process.env.VITE_SMTP_USER || process.env.SMTP_USER;
-      const smtpPass = process.env.VITE_SMTP_PASS || process.env.SMTP_PASS;
-      const smtpPortStr =
-        process.env.VITE_SMTP_PORT || process.env.SMTP_PORT || "465";
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+      const smtpPortStr = process.env.SMTP_PORT || "465";
       const smtpPort = parseInt(smtpPortStr, 10);
       const secure = smtpPort === 465;
-      const businessEmail =
-        process.env.VITE_BUSINESS_EMAIL ||
-        process.env.BUSINESS_EMAIL ||
-        "info@vortexpcs.com";
+      const businessEmail = process.env.BUSINESS_EMAIL || "info@vortexpcs.com";
 
       if (!smtpHost || !smtpUser || !smtpPass) {
         console.error("❌ SMTP not configured - skipping email send");
@@ -368,3 +364,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
+export default withSecureMethod("POST", handler);

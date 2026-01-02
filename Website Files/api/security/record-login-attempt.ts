@@ -7,6 +7,20 @@ import {
 } from "../middleware/error-handler.js";
 import { isDevelopment, isFirebaseConfigured } from "../services/env-utils.js";
 
+// Local interface to satisfy type references used in this file
+interface IPBlockData {
+  ip?: string;
+  whitelisted?: boolean;
+  attempts?: number;
+  blocked?: boolean;
+  lastAttemptAt?: unknown;
+  firstAttemptAt?: unknown;
+  lastEmailTried?: string | null;
+  blockedAt?: unknown;
+  reason?: string | null;
+  updatedAt?: unknown;
+}
+
 function ensureAdminInitialized() {
   if (admin.apps.length) return;
   const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -63,16 +77,7 @@ function ipDocId(ip: string): string {
 
 export default withErrorHandler(
   async (req: VercelRequest, res: VercelResponse) => {
-    validateMethod(req, ["POST", "OPTIONS"]);
-    if (req.method === "OPTIONS") {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-      res.setHeader(
-        "Access-Control-Allow-Headers",
-        "Content-Type, Authorization"
-      );
-      return res.status(200).end();
-    }
+    validateMethod(req, ["POST"]);
 
     // Development mode - return mock success
     if (isDevelopment() || !isFirebaseConfigured()) {

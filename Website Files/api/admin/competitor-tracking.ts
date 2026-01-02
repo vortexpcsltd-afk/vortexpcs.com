@@ -100,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Parse price from text (handles £1,299.99, $1299, €1.299,99, etc.)
-    const priceMatch = priceText.match(/[\d,\.]+/);
+    const priceMatch = priceText.match(/[\d,.]+/);
     if (!priceMatch) {
       return res.status(400).json({
         error:

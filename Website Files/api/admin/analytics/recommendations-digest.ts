@@ -412,11 +412,10 @@ async function sendRecommendationsDigestEmail(
 
 function escapeHtml(str: string) {
   return str.replace(
-    /[&<>\"']/g,
+    /[&<>"']/g,
     (s) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[
         s
       ] as string)
   );
 }
-

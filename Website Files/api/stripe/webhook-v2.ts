@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { StripeError } from "../../types/api";
 import admin from "firebase-admin";
 import nodemailer from "nodemailer";
+import { awardPurchasePoints } from "../../services/vortexVault";
 
 /**
  * VORTEX PCS - STRIPE WEBHOOK HANDLER V2
@@ -14,7 +15,7 @@ import nodemailer from "nodemailer";
  * 3. Send confirmation emails (customer + business)
  * 4. Save order to Firestore with correct userId
  * 5. Decrement inventory
- */
+import { awardPurchasePoints, redeemPoints, POINTS_PER_POUND_VALUE } from "../../services/vortexVault";
 
 // =====================================================
 // TYPES & INTERFACES
@@ -48,6 +49,41 @@ interface EmailOrderData {
 // FIREBASE INITIALIZATION
 // =====================================================
 
+        // Redeem any applied Vortex Vault points from metadata
+        try {
+          const appliedStr = (session.metadata?.loyaltyPointsApplied as string) || "0";
+          const discountStr = (session.metadata?.loyaltyDiscount as string) || "0";
+          let pointsToRedeem = parseInt(appliedStr, 10);
+          if ((!pointsToRedeem || pointsToRedeem < 0) && discountStr) {
+            const discountVal = Number(discountStr) || 0;
+            pointsToRedeem = Math.max(0, Math.floor(discountVal * POINTS_PER_POUND_VALUE));
+          }
+          if (pointsToRedeem && pointsToRedeem > 0) {
+            console.log("🔻 Redeeming Vortex Vault points from order...", {
+              userId,
+              orderId: session.id,
+              pointsToRedeem,
+            });
+            const redeemResult = await redeemPoints(userId, pointsToRedeem);
+            if (!redeemResult.success) {
+              console.warn("⚠️ Vortex Vault redemption failed", {
+                userId,
+                orderId: session.id,
+                message: redeemResult.message,
+              });
+            } else {
+              console.log("✅ Vortex Vault points redeemed", {
+                pointsRedeemed: pointsToRedeem,
+                newBalance: redeemResult.newBalance,
+              });
+            }
+          } else {
+            console.log("ℹ️ No Vortex Vault points to redeem from metadata");
+          }
+        } catch (redeemErr) {
+          console.error("❌ Vortex Vault redemption error", redeemErr);
+          // do not fail webhook
+        }
 function initializeFirebase() {
   if (admin.apps.length) {
     return admin.firestore();
@@ -71,6 +107,40 @@ function initializeFirebase() {
 // =====================================================
 
 async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
+        // Redeem any applied Vortex Vault points from metadata on PaymentIntent
+        try {
+          const appliedStr = (intentObj.metadata?.loyaltyPointsApplied as string) || "0";
+          const discountStr = (intentObj.metadata?.loyaltyDiscount as string) || "0";
+          let pointsToRedeem = parseInt(appliedStr, 10);
+          if ((!pointsToRedeem || pointsToRedeem < 0) && discountStr) {
+            const discountVal = Number(discountStr) || 0;
+            pointsToRedeem = Math.max(0, Math.floor(discountVal * POINTS_PER_POUND_VALUE));
+          }
+          if (pointsToRedeem && pointsToRedeem > 0) {
+            console.log("🔻 Redeeming Vortex Vault points from intent...", {
+              userId,
+              orderId: intentObj.id,
+              pointsToRedeem,
+            });
+            const redeemResult = await redeemPoints(userId, pointsToRedeem);
+            if (!redeemResult.success) {
+              console.warn("⚠️ Vortex Vault redemption failed", {
+                userId,
+                orderId: intentObj.id,
+                message: redeemResult.message,
+              });
+            } else {
+              console.log("✅ Vortex Vault points redeemed", {
+                pointsRedeemed: pointsToRedeem,
+                newBalance: redeemResult.newBalance,
+              });
+            }
+          } else {
+            console.log("ℹ️ No Vortex Vault points to redeem from intent metadata");
+          }
+        } catch (redeemErr) {
+          console.error("❌ Vortex Vault redemption error", redeemErr);
+        }
   console.log("📧 Preparing to send emails...");
   console.log("  Customer Email:", orderData.customerEmail);
   console.log("  Order Number:", orderData.orderNumber);
@@ -78,10 +148,10 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
   console.log("  Total Amount:", orderData.totalAmount);
 
   // Validate SMTP configuration
-  const smtpHost = process.env.VITE_SMTP_HOST;
-  const smtpUser = process.env.VITE_SMTP_USER;
-  const smtpPass = process.env.VITE_SMTP_PASS;
-  const smtpPort = process.env.VITE_SMTP_PORT || "465";
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpPort = process.env.SMTP_PORT || "465";
   const businessEmail = process.env.VITE_BUSINESS_EMAIL || "info@vortexpcs.com";
 
   if (!smtpHost || !smtpUser || !smtpPass) {
@@ -575,6 +645,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       console.log("✅ Order saved to Firestore");
 
+      // Award Vortex Vault points (only for signed-in users)
+      if (userId && userId !== "guest") {
+        try {
+          console.log("⚡ Awarding Vortex Vault purchase points...", {
+            userId,
+            orderId: session.id,
+            totalAmount,
+          });
+          const awardResult = await awardPurchasePoints(
+            userId,
+            session.id,
+            totalAmount
+          );
+          if (!awardResult.success) {
+            console.warn("⚠️ Vortex Vault award failed", {
+              userId,
+              orderId: session.id,
+              message: awardResult.message,
+            });
+          } else {
+            console.log("✅ Vortex Vault points awarded", {
+              pointsAwarded: awardResult.pointsAwarded,
+              newBalance: awardResult.newBalance,
+            });
+            
+            // Process referral bonus if user was referred
+            try {
+              const { processReferralBonus } = await import("../../services/vortexVaultReferrals");
+              await processReferralBonus(userId, session.id);
+              console.log("🎁 Referral bonus check completed", { userId, orderId: session.id });
+            } catch (refErr) {
+              console.warn("Referral bonus processing failed (non-critical)", refErr);
+            }
+            });
+          }
+        } catch (loyaltyErr) {
+          console.error("❌ Vortex Vault award error", loyaltyErr);
+          // do not fail webhook
+        }
+      } else {
+        console.log("ℹ️ Skipping Vortex Vault points for guest checkout");
+      }
+
       console.log("=====================================");
       console.log("✅ WEBHOOK PROCESSED SUCCESSFULLY");
       console.log("=====================================");
@@ -662,6 +775,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           createdAt: admin.firestore.Timestamp.now(),
         });
       console.log("✅ PaymentIntent order saved to Firestore");
+
+      // Award Vortex Vault points (only for signed-in users)
+      if (userId && userId !== "guest") {
+        try {
+          console.log("⚡ Awarding Vortex Vault purchase points...", {
+            userId,
+            orderId: intentObj.id,
+            totalAmount,
+          });
+          const awardResult = await awardPurchasePoints(
+            userId,
+            intentObj.id,
+            totalAmount
+          );
+          if (!awardResult.success) {
+            console.warn("⚠️ Vortex Vault award failed", {
+              userId,
+              orderId: intentObj.id,
+              message: awardResult.message,
+            });
+          } else {
+            console.log("✅ Vortex Vault points awarded", {
+              pointsAwarded: awardResult.pointsAwarded,
+              newBalance: awardResult.newBalance,
+            });
+          }
+        } catch (loyaltyErr) {
+          console.error("❌ Vortex Vault award error", loyaltyErr);
+          // do not fail webhook
+        }
+      } else {
+        console.log("ℹ️ Skipping Vortex Vault points for guest checkout");
+      }
       return res.status(200).json({ received: true });
     } catch (err) {
       console.error("❌ payment_intent.succeeded processing error", err);

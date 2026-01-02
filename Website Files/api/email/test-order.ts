@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { buildBrandedEmailHtml } from "../../services/emailTemplate.js";
 import nodemailer from "nodemailer";
-import type { NodemailerSendInfo, EmailSendResult } from "../../types/api.js";
+import type { NodemailerSendInfo } from "../../types/api.js";
 import { parseQuery, querySchemas } from "../utils/queryValidation";
 import { sendEmailWithRetry } from "../../services/emailSender.js";
 
@@ -21,7 +21,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const query = parseQuery(req, res, querySchemas.emailTestOrder);
   if (!query) return; // Validation error already sent
 
-  const to = query.to || process.env.TEST_EMAIL_TO || "";
+  const to =
+    (typeof query.to === "string" ? query.to : undefined) ||
+    process.env.TEST_EMAIL_TO ||
+    "";
 
   const smtpHost = process.env.VITE_SMTP_HOST || process.env.SMTP_HOST;
   const smtpUser = process.env.VITE_SMTP_USER || process.env.SMTP_USER;

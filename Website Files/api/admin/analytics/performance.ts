@@ -5,11 +5,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
 import { getCache, setCache } from "../../services/cache.js";
-
+import {
+  withErrorHandler,
+  validateMethod,
+} from "../../middleware/error-handler.js";
 import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default withErrorHandler(async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
   if (!isFirebaseConfigured()) {
     console.log("[performance] Firebase not configured");
     return res.status(503).json({
@@ -19,17 +25,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-    );
-
-    if (req.method === "OPTIONS") return res.status(200).end();
-    if (req.method !== "GET")
-      return res.status(405).json({ error: "Method not allowed" });
+    // Enforce method; CORS + OPTIONS handled by withErrorHandler
+    validateMethod(req, ["GET"]);
     const user = await verifyAdmin(req);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
@@ -142,5 +139,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       details: errorMsg,
     });
   }
-}
-
+});

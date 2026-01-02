@@ -47,7 +47,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return {
         id: doc.id,
         ...data,
-        timestamp: data.timestamp?.toDate?.()?.toISOString() || null,
+        timestamp:
+          data.timestamp &&
+          typeof data.timestamp === "object" &&
+          "toDate" in data.timestamp
+            ? data.timestamp.toDate().toISOString()
+            : data.timestamp instanceof Date
+            ? data.timestamp.toISOString()
+            : null,
       };
     });
 

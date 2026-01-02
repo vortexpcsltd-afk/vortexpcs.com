@@ -10,6 +10,10 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import admin from "firebase-admin";
+import {
+  withErrorHandler,
+  validateMethod,
+} from "../middleware/error-handler.js";
 
 function ensureAdminInitialized() {
   if (!admin.apps.length) {
@@ -43,20 +47,12 @@ function ensureAdminInitialized() {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+export default withErrorHandler(async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  // Enforce method; CORS + OPTIONS handled by withErrorHandler
+  validateMethod(req, ["POST"]);
 
   try {
     // Emergency secret check (set this in Vercel env vars)
@@ -131,4 +127,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       details: error.message,
     });
   }
-}
+});

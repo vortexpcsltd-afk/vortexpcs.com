@@ -11,7 +11,6 @@ import {
   withErrorHandler,
   validateMethod,
   validateRequiredFields,
-  ApiError,
 } from "../middleware/error-handler.js";
 
 async function handler(req: VercelRequest, res: VercelResponse) {

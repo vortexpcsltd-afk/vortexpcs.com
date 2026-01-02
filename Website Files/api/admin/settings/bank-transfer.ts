@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { withErrorHandler } from "../../middleware/error-handler.js";
 import admin from "firebase-admin";
 
 function ensureAdminInitialized() {
@@ -45,7 +46,7 @@ async function isAdminRequest(
 
   // allowlist or custom claims/Firestore role
   const rawAllow = (process.env.ADMIN_ALLOWLIST || "")
-    .split(/[\,\s]+/)
+    .split(/[\s,]+/)
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   const allow = new Set<string>(
@@ -79,11 +80,6 @@ async function isAdminRequest(
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,PUT,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
-
   try {
     ensureAdminInitialized();
   } catch (e) {
@@ -162,4 +158,4 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-export default handler;
+export default withErrorHandler(handler);

@@ -4,25 +4,16 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
-import { getCache, setCache } from "../../services/cache.js";
+import { setCache } from "../../services/cache.js";
+import { withSecureHandler } from "../../middleware/apiSecurity.js";
 
 import { isFirebaseConfigured } from "../../services/env-utils.js";
 import admin from "firebase-admin";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
+export default withSecureHandler(async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -188,5 +179,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       details: errorMsg,
     });
   }
-}
-
+});

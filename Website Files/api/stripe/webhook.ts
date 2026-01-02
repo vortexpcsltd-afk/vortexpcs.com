@@ -5,6 +5,12 @@ import type { StripeError } from "../../types/api";
 import admin from "firebase-admin";
 import { buildBrandedEmailHtml } from "../../services/emailTemplate.js";
 import { generateOrderNumber } from "../utils/orderNumber.js";
+import {
+  awardPurchasePoints,
+  triggerVaultOrderReceiptEmail,
+  redeemPoints,
+  POINTS_PER_POUND_VALUE,
+} from "../../services/vortexVault";
 
 // =============================================
 // VERSION MARKER (for deployment verification)
@@ -35,6 +41,7 @@ interface OrderItem {
   price: number;
   category?: string;
   image?: string;
+  ean?: string;
 }
 
 interface EmailOrderData {
@@ -42,7 +49,7 @@ interface EmailOrderData {
   customerName: string;
   customerEmail: string;
   totalAmount: number;
-  items: Array<{ name: string; price: number; quantity: number }>;
+  items: Array<{ name: string; price: number; quantity: number; ean?: string }>;
   shippingAddress?: {
     line1: string;
     line2?: string;
@@ -91,17 +98,13 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
   console.log("📧 Total Amount: £", orderData.totalAmount);
 
   // Try multiple environment variable naming conventions
-  const businessEmail =
-    process.env.VITE_BUSINESS_EMAIL ||
-    process.env.BUSINESS_EMAIL ||
-    "info@vortexpcs.com";
+  const businessEmail = process.env.BUSINESS_EMAIL || "info@vortexpcs.com";
 
-  const smtpHost = process.env.VITE_SMTP_HOST || process.env.SMTP_HOST;
-  const smtpUser = process.env.VITE_SMTP_USER || process.env.SMTP_USER;
-  const smtpPass = process.env.VITE_SMTP_PASS || process.env.SMTP_PASS;
-  const smtpPortStr =
-    process.env.VITE_SMTP_PORT || process.env.SMTP_PORT || "465";
-  const smtpSecureStr = process.env.VITE_SMTP_SECURE || process.env.SMTP_SECURE;
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpPortStr = process.env.SMTP_PORT || "465";
+  const smtpSecureStr = process.env.SMTP_SECURE;
   const smtpPort = parseInt(smtpPortStr, 10);
   const secure =
     typeof smtpSecureStr === "string"
@@ -110,24 +113,12 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
 
   console.log("📧 Environment Variables Check:");
   console.log(
-    "   SMTP Host (VITE_SMTP_HOST):",
-    process.env.VITE_SMTP_HOST ? "✓ Set" : "✗ Not Set"
-  );
-  console.log(
     "   SMTP Host (SMTP_HOST):",
     process.env.SMTP_HOST ? "✓ Set" : "✗ Not Set"
   );
   console.log(
-    "   SMTP User (VITE_SMTP_USER):",
-    process.env.VITE_SMTP_USER ? "✓ Set" : "✗ Not Set"
-  );
-  console.log(
     "   SMTP User (SMTP_USER):",
     process.env.SMTP_USER ? "✓ Set" : "✗ Not Set"
-  );
-  console.log(
-    "   SMTP Pass (VITE_SMTP_PASS):",
-    process.env.VITE_SMTP_PASS ? "✓ Set" : "✗ Not Set"
   );
   console.log(
     "   SMTP Pass (SMTP_PASS):",
@@ -251,7 +242,11 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
         `<tr>
           <td style="padding: 14px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e5e7eb; font-size: 14px;">${
             i.name
-          }</td>
+          }${
+          i.ean
+            ? `<div style="margin-top:6px;color:#9ca3af;font-size:12px;">EAN: ${i.ean}</div>`
+            : ""
+        }</td>
           <td style="padding: 14px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); text-align: center; color: #e5e7eb; font-size: 14px;">${
             i.quantity
           }</td>
@@ -450,7 +445,12 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
     }\n\nHi ${
       orderData.customerName
     }, we've received your order.\n\nItems:\n${orderData.items
-      .map((i) => `  ${i.name} x${i.quantity} - £${i.price.toFixed(2)}`)
+      .map(
+        (i) =>
+          `  ${i.name} x${i.quantity} - £${i.price.toFixed(2)}${
+            i.ean ? ` (EAN: ${i.ean})` : ""
+          }`
+      )
       .join("\n")}\n\nTotal Paid: £${orderData.totalAmount.toFixed(2)}`;
 
     sendPromises.push(
@@ -538,7 +538,12 @@ async function sendOrderEmails(orderData: EmailOrderData): Promise<void> {
   const businessText = `New Order: #${orderData.orderNumber}\n\nCustomer: ${
     orderData.customerName
   } (${orderData.customerEmail})\n\nItems:\n${orderData.items
-    .map((i) => `  ${i.name} x${i.quantity} - £${i.price.toFixed(2)}`)
+    .map(
+      (i) =>
+        `  ${i.name} x${i.quantity} - £${i.price.toFixed(2)}${
+          i.ean ? ` (EAN: ${i.ean})` : ""
+        }`
+    )
     .join("\n")}\n\nTotal: £${orderData.totalAmount.toFixed(2)}`;
 
   sendPromises.push(
@@ -704,6 +709,7 @@ function extractOrderItems(session: Stripe.Checkout.Session): OrderItem[] {
         n: string;
         p: number;
         cat: string;
+        e?: string;
       }>;
 
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -713,6 +719,7 @@ function extractOrderItems(session: Stripe.Checkout.Session): OrderItem[] {
           quantity: 1,
           price: c.p,
           category: c.cat || "",
+          ean: c.e,
         }));
         console.log(
           `  ✅ Extracted ${items.length} items from components metadata`
@@ -737,6 +744,7 @@ function extractOrderItems(session: Stripe.Checkout.Session): OrderItem[] {
         p: number;
         q: number;
         img?: string;
+        e?: string;
       }>;
 
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -746,6 +754,7 @@ function extractOrderItems(session: Stripe.Checkout.Session): OrderItem[] {
           quantity: item.q || 1,
           price: item.p,
           image: item.img,
+          ean: item.e,
         }));
         console.log(`  ✅ Extracted ${items.length} items from cart metadata`);
         return items;
@@ -940,12 +949,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               n: string;
               p: number;
               cat?: string;
+              e?: string;
             }>;
             items = components.map((c) => ({
               productId: c.id,
               productName: c.n,
               quantity: 1,
               price: c.p,
+              ean: c.e,
             }));
             console.log(
               "✅ Extracted items from components metadata:",
@@ -962,12 +973,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               n: string;
               p: number;
               q: number;
+              e?: string;
             }>;
             items = cart.map((item) => ({
               productId: item.id,
               productName: item.n,
               quantity: item.q,
               price: item.p,
+              ean: item.e,
             }));
             console.log("✅ Extracted items from cart metadata:", items.length);
           }
@@ -1015,6 +1028,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               name: i.productName,
               price: i.price,
               quantity: i.quantity,
+              ean: (i as { ean?: string }).ean,
             })),
             shippingAddress: metadata.shippingAddress
               ? (() => {
@@ -1161,6 +1175,110 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           );
         }
 
+        // Award Vortex Vault points (2 pts/£, auto-created account if missing)
+        if (userId && userId !== "guest") {
+          try {
+            console.log("⚡ Awarding Vortex Vault purchase points...", {
+              userId,
+              orderId,
+              totalAmount,
+            });
+            const result = await awardPurchasePoints(
+              userId,
+              orderId,
+              totalAmount
+            );
+            if (!result.success) {
+              console.warn("⚠️ Vortex Vault award failed", {
+                message: result.message,
+                userId,
+                orderId,
+              });
+            } else {
+              console.log("✅ Vortex Vault points awarded", {
+                pointsAwarded: result.pointsAwarded,
+                newBalance: result.newBalance,
+              });
+              
+              // Process referral bonus if user was referred
+              try {
+                const { processReferralBonus } = await import("../../services/vortexVaultReferrals");
+                await processReferralBonus(userId, orderId);
+                console.log("🎁 Referral bonus check completed", { userId, orderId });
+              } catch (refErr) {
+                console.warn("Referral bonus processing failed (non-critical)", refErr);
+              }
+              });
+
+              // Send order receipt email with points earned
+              try {
+                console.log(
+                  "📧 Triggering order receipt email with vault points...",
+                  {
+                    userId,
+                    customerEmail,
+                    pointsEarned: result.pointsAwarded,
+                  }
+                );
+                await triggerVaultOrderReceiptEmail(
+                  {
+                    userId,
+                    email: customerEmail,
+                    firstName: customerName?.split(" ")[0],
+                    lastName: customerName?.split(" ").slice(1).join(" "),
+                  },
+                  orderId,
+                  totalAmount,
+                  result.pointsAwarded
+                );
+                console.log("✅ Order receipt email triggered successfully");
+              } catch (emailErr) {
+                console.error(
+                  "❌ Failed to trigger order receipt email",
+                  emailErr
+                );
+                // Don't fail webhook if email fails
+              }
+            }
+          } catch (loyaltyErr) {
+            console.error("❌ Vortex Vault award error", loyaltyErr);
+            // Do not fail webhook
+          }
+          // Redeem Vortex Vault points if applied in metadata
+          try {
+            const appliedStr =
+              (metadata?.loyaltyPointsApplied as string) || "0";
+            const discountStr = (metadata?.loyaltyDiscount as string) || "0";
+            let pointsToRedeem = parseInt(appliedStr, 10);
+            if ((!pointsToRedeem || pointsToRedeem < 0) && discountStr) {
+              const discountVal = Number(discountStr) || 0;
+              pointsToRedeem = Math.max(
+                0,
+                Math.floor(discountVal * POINTS_PER_POUND_VALUE)
+              );
+            }
+            if (userId && userId !== "guest" && pointsToRedeem > 0) {
+              const rr = await redeemPoints(userId, pointsToRedeem);
+              if (!rr.success) {
+                console.warn("⚠️ Vortex Vault redemption failed", {
+                  userId,
+                  orderId,
+                  message: rr.message,
+                });
+              } else {
+                console.log("✅ Vortex Vault points redeemed", {
+                  pointsRedeemed: pointsToRedeem,
+                  newBalance: rr.newBalance,
+                });
+              }
+            }
+          } catch (redeemErr) {
+            console.error("❌ Vortex Vault redemption error", redeemErr);
+          }
+        } else {
+          console.log("ℹ️ Skipping Vortex Vault points for guest checkout");
+        }
+
         console.log("=====================================");
         console.log("✅ PAYMENT INTENT WEBHOOK PROCESSED");
         console.log("=====================================");
@@ -1296,6 +1414,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               name: item.productName,
               price: item.price,
               quantity: item.quantity,
+              ean: (item as { ean?: string }).ean,
             })),
             shippingAddress: session.customer_details?.address
               ? {
@@ -1382,6 +1501,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.error("❌ Inventory decrement failed:", invError);
           // Don't fail webhook - log for manual review
           // This allows order to complete even if inventory update fails
+        }
+
+        // Attempt to redeem any applied Vortex Vault points from metadata
+        try {
+          const appliedStr =
+            (session.metadata?.loyaltyPointsApplied as string) || "0";
+          const discountStr =
+            (session.metadata?.loyaltyDiscount as string) || "0";
+          let pointsToRedeem = parseInt(appliedStr, 10);
+          if ((!pointsToRedeem || pointsToRedeem < 0) && discountStr) {
+            const discountVal = Number(discountStr) || 0;
+            pointsToRedeem = Math.max(
+              0,
+              Math.floor(discountVal * POINTS_PER_POUND_VALUE)
+            );
+          }
+          if (userId && userId !== "guest" && pointsToRedeem > 0) {
+            const rr = await redeemPoints(userId, pointsToRedeem);
+            if (!rr.success) {
+              console.warn("⚠️ Vortex Vault redemption failed (session)", {
+                userId,
+                orderId,
+                message: rr.message,
+              });
+            } else {
+              console.log("✅ Vortex Vault points redeemed (session)", {
+                pointsRedeemed: pointsToRedeem,
+                newBalance: rr.newBalance,
+              });
+            }
+          }
+        } catch (redeemErr) {
+          console.error(
+            "❌ Vortex Vault redemption error (session)",
+            redeemErr
+          );
         }
 
         console.log("=====================================");

@@ -1,5 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import admin from "firebase-admin";
+import {
+  withErrorHandler,
+  validateMethod,
+  ApiError,
+} from "../middleware/error-handler.js";
 
 function ensureAdminInitialized() {
   if (!admin.apps.length) {
@@ -62,7 +67,7 @@ async function verifyIsAdmin(
     (userRecord.customClaims || {}).role || ""
   ).toLowerCase();
   const rawAllow = (process.env.ADMIN_ALLOWLIST || "")
-    .split(/[\,\s]+/)
+    .split(/[\s,]+/)
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   const allow = new Set<string>(
@@ -82,18 +87,8 @@ function ipDocId(ip: string): string {
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  // Enforce method; CORS + OPTIONS handled by withErrorHandler
+  validateMethod(req, ["POST"]);
 
   try {
     try {
@@ -121,7 +116,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       reason?: string;
     };
     if (!ip) {
-      return res.status(400).json({ error: "Missing 'ip' in body" });
+      throw new ApiError("Missing 'ip' in body", 400);
     }
 
     ensureAdminInitialized();
@@ -148,10 +143,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, ip, status: "whitelisted" });
   } catch (error: any) {
     console.error("[whitelist-ip] Error:", error);
-    return res.status(error.message?.includes("Admin") ? 403 : 500).json({
-      error: error.message || "Internal server error",
-    });
+    const msg = error?.message || "Internal server error";
+    const status = msg.includes("Admin") ? 403 : 500;
+    return res.status(status).json({ error: msg });
   }
 }
-
-export default handler;
+export default withErrorHandler(handler);

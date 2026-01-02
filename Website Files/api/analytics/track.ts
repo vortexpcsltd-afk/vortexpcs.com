@@ -175,15 +175,22 @@ export default withSecureMethod(
             (data as Record<string, unknown>).page
           );
           if ((data as Record<string, unknown>).sessionId) {
+            const sessionId = String(
+              (data as Record<string, unknown>).sessionId
+            );
             await db
               .collection("analytics_sessions")
-              .doc(String((data as Record<string, unknown>).sessionId))
-              .update({
-                pageViews: admin.firestore.FieldValue.increment(1),
-                lastActivity: admin.firestore.Timestamp.now(),
-                isActive: true,
-              });
-            console.log("[Analytics API] ✅ Session updated for pageview");
+              .doc(sessionId)
+              .set(
+                {
+                  sessionId,
+                  pageViews: admin.firestore.FieldValue.increment(1),
+                  lastActivity: admin.firestore.Timestamp.now(),
+                  isActive: true,
+                },
+                { merge: true }
+              );
+            console.log("[Analytics API] ✅ Session upserted for pageview");
           }
           return res.status(200).json({ success: true });
         }

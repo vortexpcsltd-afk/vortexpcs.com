@@ -7,13 +7,8 @@ import {
   buildPlainTextFromHtml,
 } from "../../../services/emailTemplate.js";
 import { sendEmailWithRetry } from "../../../services/emailSender.js";
-import {
-  getFirebaseAdmin,
-  getAuth,
-  getFirestore,
-} from "../../services/auth-admin.js";
-
-const admin = getFirebaseAdmin();
+import { ensureFirebaseAdminInitialized } from "../../services/auth-admin.js";
+import admin from "firebase-admin";
 
 type Body = {
   subject?: string;
@@ -33,8 +28,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const auth = getAuth();
-    const db = getFirestore();
+    ensureFirebaseAdminInitialized();
+    const auth = admin.auth();
+    const db = admin.firestore();
 
     const authHeader = req.headers.authorization || "";
     const token = authHeader.startsWith("Bearer ")

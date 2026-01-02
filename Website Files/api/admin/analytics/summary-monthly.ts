@@ -6,25 +6,18 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAdmin } from "../../services/auth-admin.js";
 import { getCache, setCache } from "../../services/cache.js";
+import {
+  withErrorHandler,
+  validateMethod,
+} from "../../middleware/error-handler.js";
 import admin from "firebase-admin";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+export default withErrorHandler(async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  // Enforce method; CORS + OPTIONS handled by withErrorHandler
+  validateMethod(req, ["GET"]);
 
   try {
     // Verify admin authentication
@@ -214,7 +207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       details: error instanceof Error ? error.message : String(error),
     });
   }
-}
+});
 
 // Helper to calculate percentage trend
 function calculateTrend(current: number, previous: number): string {
@@ -222,4 +215,3 @@ function calculateTrend(current: number, previous: number): string {
   const change = ((current - previous) / previous) * 100;
   return `${change > 0 ? "+" : ""}${change.toFixed(1)}%`;
 }
-

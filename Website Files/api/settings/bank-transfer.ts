@@ -37,9 +37,7 @@ import { withSecureMethod } from "../middleware/apiSecurity.js";
 
 export default withSecureMethod(
   "GET",
-  async (req: VercelRequest, res: VercelResponse) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-
+  async (_req: VercelRequest, res: VercelResponse) => {
     try {
       try {
         ensureAdminInitialized();

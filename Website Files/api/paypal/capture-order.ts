@@ -2,6 +2,13 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import admin from "firebase-admin";
 import nodemailer from "nodemailer";
 import { sendEmailWithRetry } from "../../services/emailSender.js";
+import { processMysteryDropAfterOrderCompletion } from "../../services/mysteryDropsOrderIntegration";
+import {
+  awardPurchasePoints,
+  triggerVaultOrderReceiptEmail,
+  redeemPoints,
+  POINTS_PER_POUND_VALUE,
+} from "../../services/vortexVault";
 
 const getPayPalBase = () => {
   const env = (process.env.PAYPAL_ENVIRONMENT || "sandbox").toLowerCase();
@@ -111,7 +118,7 @@ export default withSecureMethod(
         }
       }
 
-      const { orderId } = req.body || {};
+      const { orderId, userId: bodyUserId } = req.body || {};
       if (!orderId) {
         console.warn("PayPal capture missing orderId");
         return res.status(400).json({
@@ -120,6 +127,7 @@ export default withSecureMethod(
           message: "Invalid request",
         });
       }
+      const userId = bodyUserId || "guest";
 
       const accessToken = await getAccessToken();
       const base = getPayPalBase();
@@ -220,6 +228,123 @@ export default withSecureMethod(
               ...orderPayload,
               createdAt: admin.firestore.Timestamp.now(),
             });
+          }
+
+          // Award Vortex Vault points when a signed-in user completes PayPal checkout
+          if (userId && userId !== "guest") {
+            try {
+              const totalAmount = Number(
+                capture?.amount?.value || purchase?.amount?.value || 0
+              );
+              console.log(
+                "⚡ Awarding Vortex Vault purchase points (PayPal)...",
+                {
+                  userId,
+                  orderId: String(data?.id),
+                  totalAmount,
+                }
+              );
+              const awardResult = await awardPurchasePoints(
+                userId,
+                String(data?.id),
+                totalAmount
+              );
+              if (!awardResult.success) {
+                console.warn("⚠️ Vortex Vault award failed (PayPal)", {
+                  userId,
+                  orderId: String(data?.id),
+                  message: awardResult.message,
+                });
+              } else {
+                console.log("✅ Vortex Vault points awarded (PayPal)", {
+                  pointsAwarded: awardResult.pointsAwarded,
+                });
+                
+                // Process referral bonus if user was referred
+                try {
+                  const { processReferralBonus } = await import("../../services/vortexVaultReferrals");
+                  await processReferralBonus(userId, String(data?.id));
+                  console.log("🎁 Referral bonus check completed (PayPal)", { userId, orderId: String(data?.id) });
+                } catch (refErr) {
+                  console.warn("Referral bonus processing failed (non-critical)", refErr);
+                }
+                  newBalance: awardResult.newBalance,
+                });
+              }
+
+              // Attempt to redeem applied points based on custom_id metadata
+              try {
+                const customId =
+                  typeof purchase?.custom_id === "string"
+                    ? purchase.custom_id
+                    : "";
+                let uidFromCustom: string | undefined;
+                let pointsApplied = 0;
+                let discountApplied = 0;
+
+                if (customId) {
+                  for (const part of customId.split("|")) {
+                    const [k, vRaw] = part.split(":");
+                    const v = vRaw || "";
+                    if (k === "uid") uidFromCustom = v;
+                    if (k === "lp") pointsApplied = parseInt(v, 10) || 0;
+                    if (k === "ld") discountApplied = parseFloat(v) || 0;
+                  }
+                }
+
+                const userForRedeem = uidFromCustom || userId;
+                let pointsToRedeem = 0;
+                if (pointsApplied > 0) pointsToRedeem = pointsApplied;
+                else if (discountApplied > 0)
+                  pointsToRedeem = Math.max(
+                    0,
+                    Math.round(discountApplied * POINTS_PER_POUND_VALUE)
+                  );
+
+                if (
+                  userForRedeem &&
+                  userForRedeem !== "guest" &&
+                  pointsToRedeem > 0
+                ) {
+                  const redeemRes = await redeemPoints(
+                    userForRedeem,
+                    pointsToRedeem
+                  );
+                  if (!redeemRes.success) {
+                    console.warn("⚠️ Vault redemption failed (PayPal)", {
+                      userId: userForRedeem,
+                      orderId: String(data?.id),
+                      pointsToRedeem,
+                      message: redeemRes.message,
+                    });
+                  } else {
+                    console.log("✅ Redeemed applied points (PayPal)", {
+                      userId: userForRedeem,
+                      pointsRedeemed: pointsToRedeem,
+                      newBalance: redeemRes.newBalance,
+                    });
+                  }
+                } else {
+                  console.log("ℹ️ No points to redeem (PayPal)", {
+                    userId: userForRedeem,
+                    pointsApplied,
+                    discountApplied,
+                  });
+                }
+              } catch (redeemErr) {
+                console.error(
+                  "❌ Error during vault redemption (PayPal)",
+                  redeemErr
+                );
+              }
+            } catch (loyaltyErr) {
+              console.error("❌ Vortex Vault award error (PayPal)", loyaltyErr);
+              // do not fail capture
+            }
+          } else {
+            console.log(
+              "ℹ️ Skipping Vortex Vault points for guest PayPal checkout"
+            );
           }
         }
       } catch (dbErr) {

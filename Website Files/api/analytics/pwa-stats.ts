@@ -4,29 +4,40 @@
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { withErrorHandler } from "../middleware/error-handler.js";
 import { verifyAdmin } from "../services/auth-admin.js";
+import { isFirebaseConfigured } from "../services/env-utils.js";
 import { getCache, setCache } from "../services/cache.js";
 import admin from "firebase-admin";
+import { createLogger } from "../services/logger.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
+    const logger = createLogger(req);
+    res.setHeader("X-Trace-ID", logger.getTraceId());
+    if (!isFirebaseConfigured()) {
+      logger.info("[pwa-stats] Firebase not configured - returning zeros");
+      return res.status(200).json({
+        success: true,
+        data: {
+          installs: 0,
+          dismissals: 0,
+          promptShown: 0,
+          installRate: 0,
+          breakdown: {
+            installed: 0,
+            dismissed: 0,
+            promptShown: 0,
+          },
+        },
+        setupRequired: true,
+        cached: false,
+      });
+    }
     // Verify admin authentication
     const user = await verifyAdmin(req);
     if (!user) {
@@ -47,33 +58,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Get Firestore instance
     const db = admin.firestore();
 
-    // Query analytics_events collection for PWA-related events
-    const analyticsSnapshot = await db
-      .collection("analytics_events")
-      .where("event", "==", "pwa_install")
-      .get();
+    // Query analytics_events collection for PWA-related events (both legacy "event" and current "eventType" fields)
+    const [eventFieldSnapshot, eventTypeSnapshot] = await Promise.all([
+      db
+        .collection("analytics_events")
+        .where("event", "==", "pwa_install")
+        .get(),
+      db
+        .collection("analytics_events")
+        .where("eventType", "==", "pwa_install")
+        .get(),
+    ]);
 
     // Aggregate by action type
     const stats = {
       installed: 0,
       dismissed: 0,
+      promptShownEvents: 0,
     };
 
-    analyticsSnapshot.docs.forEach((doc) => {
-      const data = doc.data();
-      const action = (data.action || "").toLowerCase();
+    const processedIds = new Set<string>();
+    [eventFieldSnapshot, eventTypeSnapshot].forEach((snapshot) => {
+      snapshot.docs.forEach((doc) => {
+        if (processedIds.has(doc.id)) return;
+        processedIds.add(doc.id);
 
-      if (action === "accepted" || action === "installed") {
-        stats.installed++;
-      } else if (action === "dismissed" || action === "prompt_dismissed") {
-        stats.dismissed++;
-      }
+        const data = doc.data() || {};
+        const action = String(
+          (data as { action?: unknown }).action ??
+            (data as { eventAction?: unknown }).eventAction ??
+            ""
+        ).toLowerCase();
+
+        if (action === "prompt_shown") {
+          stats.promptShownEvents++;
+          return;
+        }
+
+        if (action === "accepted" || action === "installed") {
+          stats.installed++;
+          return;
+        }
+
+        if (
+          action === "dismissed" ||
+          action === "prompt_dismissed" ||
+          action === "declined"
+        ) {
+          stats.dismissed++;
+        }
+      });
     });
 
     // Calculate metrics for Admin Panel
     const installs = stats.installed;
     const dismissals = stats.dismissed;
-    const promptShown = installs + dismissals; // Total prompts shown
+    const promptShown =
+      stats.promptShownEvents > 0
+        ? stats.promptShownEvents
+        : installs + dismissals;
     const installRate =
       promptShown > 0 ? Math.round((installs / promptShown) * 100) : 0;
 
@@ -82,7 +125,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       dismissals,
       promptShown,
       installRate,
-      breakdown: stats, // Include detailed breakdown
+      breakdown: {
+        installed: stats.installed,
+        dismissed: stats.dismissed,
+        promptShown: stats.promptShownEvents,
+      },
     };
 
     // Cache for 5 minutes (300 seconds)
@@ -94,7 +141,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (error: unknown) {
     const err = error as Error;
-    console.error("PWA stats error:", err);
+    const logger = createLogger(req);
+    logger.error("PWA stats error", err);
     return res.status(500).json({
       success: false,
       error: "Failed to fetch PWA statistics",
@@ -102,3 +150,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
+export default withErrorHandler(handler);

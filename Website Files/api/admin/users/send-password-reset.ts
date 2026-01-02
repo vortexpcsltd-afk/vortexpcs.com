@@ -104,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Look up email from users collection first, then Auth
       const userDoc = await db.collection("users").doc(userId).get();
       if (userDoc.exists && userDoc.data()?.email) {
-        email = userDoc.data().email;
+        email = userDoc.data()!.email;
       } else {
         const authUser = await adminInstance.auth().getUser(userId);
         email = authUser.email || "";
