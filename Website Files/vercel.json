@@ -1,9 +1,15 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
+  "devCommand": "pnpm run dev",
+  "installCommand": "pnpm install --frozen-lockfile",
   "framework": "vite",
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
   "rewrites": [
     {
       "source": "/((?!api/|assets/|icons/|manifest\\.json|robots\\.txt|favicon\\.ico|sitemap\\.xml|version\\.json|sw\\.js|vortexpcs-logo\\.png|_vercel/).*)",
@@ -107,7 +113,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; img-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://www.paypal.com https://www.paypalobjects.com https://www.recaptcha.net https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https: data:; connect-src 'self' https: wss: blob:; frame-src 'self' https://js.stripe.com https://m.stripe.com https://m.stripe.network https://checkout.stripe.com https://hooks.stripe.com https://www.paypal.com https://www.sandbox.paypal.com https://www.recaptcha.net https://recaptcha.net; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests"
+          "value": "default-src 'self'; img-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://www.paypal.com https://www.paypalobjects.com https://www.recaptcha.net https://www.gstatic.com https://www.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https: data:; connect-src 'self' https: wss: blob:; frame-src 'self' https://js.stripe.com https://m.stripe.com https://m.stripe.network https://checkout.stripe.com https://hooks.stripe.com https://www.paypal.com https://www.sandbox.paypal.com https://www.recaptcha.net https://recaptcha.net https://www.google.com https://vortexpcs.firebaseapp.com; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests"
         }
       ]
     },
