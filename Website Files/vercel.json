@@ -12,7 +12,11 @@
   },
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|icons/|manifest\\.json|robots\\.txt|favicon\\.ico|sitemap\\.xml|version\\.json|sw\\.js|vortexpcs-logo\\.png|_vercel/).*)",
+      "source": "/manifest.json",
+      "destination": "/api/manifest"
+    },
+    {
+      "source": "/((?!api/|assets/|icons/|robots\\.txt|favicon\\.ico|sitemap\\.xml|version\\.json|sw\\.js|vortexpcs-logo\\.png|_vercel/).*)",
       "destination": "/index.html"
     }
   ],
@@ -42,6 +46,15 @@
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
         }
+      ]
+    },
+    {
+      "source": "/api/manifest",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=600" },
+        { "key": "Content-Type", "value": "application/manifest+json" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
       ]
     },
     {

@@ -11,6 +11,17 @@ import { logger } from "./services/logger";
 import { getConsent } from "./utils/consent";
 import { initPerformanceMonitoring } from "./services/performanceMonitoring";
 
+// Suppress React 19 compatibility warnings from third-party libraries
+const originalError = console.error;
+console.error = (...args: unknown[]) => {
+  // Suppress "Cannot read properties of undefined (reading 'ReactCurrentBatchConfig')" warnings
+  const errorStr = String(args[0]);
+  if (errorStr && errorStr.includes("ReactCurrentBatchConfig")) {
+    return; // silently ignore this React internal warning
+  }
+  originalError.call(console, ...args);
+};
+
 // Initialize Sentry for error tracking
 if (import.meta.env.VITE_SENTRY_DSN) {
   try {
