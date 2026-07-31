@@ -477,6 +477,18 @@ export function Footer() {
                   {contactInfo?.companyRegistrationNumber &&
                     `Company Registration No. ${contactInfo.companyRegistrationNumber}`}
                 </p>
+                {/* Deliberately outside contactInfo.copyrightText: that value is
+                    CMS-editable, so a credit placed inside it would vanish the
+                    moment someone overrides the copyright line. */}
+                <p className="mt-1 text-gray-600">
+                  Built by{" "}
+                  <a
+                    href="https://nofeartech.com"
+                    className="underline underline-offset-2 hover:text-gray-400 transition-colors"
+                  >
+                    No Fear Tech
+                  </a>
+                </p>
               </div>
 
               <div className="flex items-center gap-3">
